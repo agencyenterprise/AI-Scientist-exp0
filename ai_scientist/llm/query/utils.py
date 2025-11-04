@@ -47,7 +47,6 @@ def opt_messages_to_list(
 def compile_prompt_to_md(
     prompt: PromptType, _header_depth: int = 1
 ) -> str | list[Any] | dict[str, Any]:
-    """Convert a prompt into markdown format"""
     try:
         logger.debug(f"compile_prompt_to_md input: type={type(prompt)}")
         if isinstance(prompt, (list, dict)):
@@ -57,12 +56,9 @@ def compile_prompt_to_md(
             return prompt.strip() + "\n"
 
         if isinstance(prompt, list):
-            # Handle empty list case
             if not prompt:
                 return ""
-            # Special handling for multi-modal messages
             if all(isinstance(item, dict) and "type" in item for item in prompt):
-                # For multi-modal messages, just pass through without modification
                 return prompt
 
             try:
@@ -76,11 +72,9 @@ def compile_prompt_to_md(
                 raise
 
         if isinstance(prompt, dict):
-            # Check if this is a single multi-modal message
             if "type" in prompt:
                 return prompt
 
-            # Regular dict processing
             try:
                 out = []
                 header_prefix = "#" * _header_depth
@@ -111,11 +105,10 @@ def compile_prompt_to_md(
 @dataclass
 class FunctionSpec(DataClassJsonMixin):
     name: str
-    json_schema: dict  # JSON schema
+    json_schema: dict
     description: str
 
     def __post_init__(self) -> None:
-        # validate the schema
         jsonschema.Draft7Validator.check_schema(self.json_schema)
 
     @property

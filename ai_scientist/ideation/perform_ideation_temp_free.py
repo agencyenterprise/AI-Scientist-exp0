@@ -10,10 +10,10 @@ import anthropic
 import openai
 
 sys.path.append(osp.join(osp.dirname(__file__), ".."))
+from ai_scientist.ideation.base_tool import BaseTool  # noqa: E402
+from ai_scientist.ideation.semantic_scholar import SemanticScholarSearchTool  # noqa: E402
 from ai_scientist.llm import create_client, get_response_from_llm  # noqa: E402
 from ai_scientist.perform_llm_review import load_paper  # noqa: E402
-from ai_scientist.tools.base_tool import BaseTool  # noqa: E402
-from ai_scientist.tools.semantic_scholar import SemanticScholarSearchTool  # noqa: E402
 
 # Create tool instances
 semantic_scholar_tool = SemanticScholarSearchTool()

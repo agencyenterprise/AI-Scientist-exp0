@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import copy
 import json
 import logging
@@ -13,7 +11,9 @@ from typing import Any, Callable, List, Literal, Optional, cast
 from dataclasses_json import DataClassJsonMixin
 from rich import print
 
-from .backend import FunctionSpec, query
+from ai_scientist.llm.query import FunctionSpec, query
+
+from .events import BaseEvent, RunLogEvent
 from .interpreter import ExecutionResult
 from .utils.metric import MetricValue, WorstMetricValue
 from .utils.response import trim_long_string
@@ -123,7 +123,7 @@ class Node(DataClassJsonMixin):
         if self.parent is not None and not isinstance(self.parent, str):
             self.parent.children.add(self)
 
-    def __deepcopy__(self, memo: dict) -> Node:
+    def __deepcopy__(self, memo: dict) -> "Node":
         # Create a new instance with copied attributes
         cls = self.__class__
         result = cls.__new__(cls)
@@ -357,21 +357,19 @@ class InteractiveSession(DataClassJsonMixin):
 class Journal:
     """A collection of nodes representing the solution tree."""
 
+    event_callback: Callable[[BaseEvent], None] = field(repr=False)
     nodes: list[Node] = field(default_factory=list)
-    event_callback: Callable[[str, dict[str, Any]], None] | None = field(
-        default=None, kw_only=True, repr=False
-    )
 
     def __getstate__(self) -> dict:
         state = self.__dict__.copy()
-        # event callbacks often capture network clients (SSLContext) which are not picklable
-        state["event_callback"] = None
+        # Remove callback to avoid pickling closures/clients
+        state.pop("event_callback", None)
         return state
 
     def __setstate__(self, state: dict) -> None:
         self.__dict__.update(state)
-        # callbacks are reattached by the manager after restore if needed
-        self.event_callback = None
+        # Provide a no-op callback after restore; managers can overwrite
+        self.event_callback = lambda _event: None
 
     def __getitem__(self, idx: int) -> Node:
         return self.nodes[idx]
@@ -502,28 +500,20 @@ class Journal:
                 logger.warning(f"Reasoning: {selection.get('reasoning', '')}")
 
                 # Emit user-facing event with the selection reasoning
-                if self.event_callback:
-                    try:
-                        self.event_callback(
-                            "ai.run.log",
-                            {
-                                "message": f"🎯 Selected best implementation: {selected_node.id[:8]}...",
-                                "level": "info",
-                            },
-                        )
-                        # Send detailed reasoning
-                        reasoning_text = str(selection.get("reasoning", ""))
-                        reasoning_preview = (
-                            reasoning_text[:500] + "..."
-                            if len(reasoning_text) > 500
-                            else reasoning_text
-                        )
-                        self.event_callback(
-                            "ai.run.log",
-                            {"message": f"💡 Reasoning: {reasoning_preview}", "level": "info"},
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to emit selection event: {e}")
+                self.event_callback(
+                    RunLogEvent(
+                        message=f"🎯 Selected best implementation: {selected_node.id[:8]}...",
+                        level="info",
+                    )
+                )
+                # Send detailed reasoning
+                reasoning_text = str(selection.get("reasoning", ""))
+                reasoning_preview = (
+                    reasoning_text[:500] + "..." if len(reasoning_text) > 500 else reasoning_text
+                )
+                self.event_callback(
+                    RunLogEvent(message=f"💡 Reasoning: {reasoning_preview}", level="info")
+                )
 
                 return selected_node
             else:
@@ -593,75 +583,6 @@ class Journal:
 
         return summary_resp if isinstance(summary_resp, str) else json.dumps(summary_resp)
 
-    def generate_summary_old(self, include_code: bool = False) -> str:
-        summary = []
-        for n in self.good_nodes:
-            summary_part = f"Design: {n.plan}\n"
-            if include_code:
-                summary_part += f"Code: {n.code}\n"
-            summary_part += f"Results: {n.analysis}\n"
-            summary_part += (
-                f"Validation Metric: {n.metric.value}\n"
-                if n.metric is not None
-                else "Validation Metric: N/A\n"
-            )
-            summary.append(summary_part)
-        return "\n-------------------------------\n".join(summary)
-
     def to_dict(self) -> dict[str, list[dict[str, object]]]:
         """Convert journal to a JSON-serializable dictionary"""
         return {"nodes": [node.to_dict() for node in self.nodes]}
-
-    def save_experiment_notes(self, workspace_dir: str, stage_name: str) -> None:
-        """Save experimental notes and summaries to files"""
-        notes_dir = os.path.join(workspace_dir, "experiment_notes")
-        os.makedirs(notes_dir, exist_ok=True)
-
-        # Get all node summaries once
-        node_summaries = []
-        for node in self.nodes:
-            if hasattr(node, "_agent"):
-                summary = node._agent._generate_node_summary(node)
-                node_summaries.append(
-                    {
-                        "node_id": node.id,
-                        "metric": str(node.metric) if node.metric else "Failed",
-                        "summary": summary,
-                    }
-                )
-                # Save individual node summary
-                with open(
-                    os.path.join(notes_dir, f"{stage_name}_node_{node.id}_summary.json"),
-                    "w",
-                ) as f:
-                    json.dump(summary, f, indent=2)
-
-        # Generate and save stage summary using the already collected summaries
-        summary_prompt: dict[str, Any] = {
-            "Introduction": "Synthesize the experimental findings from this stage",
-            "Node Summaries": node_summaries,
-            "Best Node": None,
-        }
-
-        best_node = self.get_best_node()
-        if best_node is not None:
-            summary_prompt["Best Node"] = {
-                "id": best_node.id,
-                "metric": str(best_node.metric) if best_node.metric is not None else "N/A",
-            }
-
-        stage_summary_resp = query(
-            system_message=summary_prompt,
-            user_message="Generate a comprehensive summary of the experimental findings in this stage",
-            model="gpt-4",
-            temperature=0.3,
-        )
-
-        stage_summary = (
-            stage_summary_resp
-            if isinstance(stage_summary_resp, str)
-            else json.dumps(stage_summary_resp)
-        )
-
-        with open(os.path.join(notes_dir, f"{stage_name}_summary.txt"), "w") as f:
-            f.write(stage_summary)

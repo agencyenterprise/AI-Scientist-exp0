@@ -38,7 +38,7 @@ import backoff
 import requests
 from backoff.types import Details
 
-from ai_scientist.tools.base_tool import BaseTool, ToolParameter
+from ai_scientist.ideation.base_tool import BaseTool, ToolParameter
 
 
 def on_backoff(details: Details) -> None:

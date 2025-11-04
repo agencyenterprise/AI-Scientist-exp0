@@ -13,9 +13,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import anthropic
 import openai
 
+from ai_scientist.ideation.semantic_scholar import search_for_papers
 from ai_scientist.llm import (
     AVAILABLE_LLMS,
     create_client,
+    create_vlm_client,
     extract_json_between_markers,
     get_response_from_llm,
 )
@@ -25,8 +27,6 @@ from ai_scientist.perform_vlm_review import (
     perform_imgs_cap_ref_review,
     perform_imgs_cap_ref_review_selection,
 )
-from ai_scientist.tools.semantic_scholar import search_for_papers
-from ai_scientist.vlm import create_client as create_vlm_client
 
 
 def remove_accents_and_clean(s: str) -> str:

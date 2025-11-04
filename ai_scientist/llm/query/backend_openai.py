@@ -37,7 +37,6 @@ def query(
     _setup_openai_client()
     filtered_kwargs: dict[str, object] = select_values(notnone, model_kwargs)
 
-    # gpt-5 models only support temperature=1
     model_val = filtered_kwargs.get("model")
     if isinstance(model_val, str) and "gpt-5" in model_val and "temperature" in filtered_kwargs:
         filtered_kwargs["temperature"] = 1.0
@@ -46,7 +45,6 @@ def query(
 
     if func_spec is not None:
         filtered_kwargs["tools"] = [func_spec.as_openai_tool_dict]
-        # force the model to use the function
         filtered_kwargs["tool_choice"] = func_spec.openai_tool_choice_dict
 
     t0 = time.time()

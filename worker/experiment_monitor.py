@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Any, Callable, Dict, Set
 
+import numpy as np
+
 
 class ExperimentMonitor:
     """Monitors experiment directory and emits events for all changes."""
@@ -109,7 +111,6 @@ class ExperimentMonitor:
 
             try:
                 if metric_file.suffix == ".npy":
-                    import numpy as np
 
                     data = np.load(metric_file, allow_pickle=True).item()
                     self._emit_metrics_from_dict(data, rel_path)

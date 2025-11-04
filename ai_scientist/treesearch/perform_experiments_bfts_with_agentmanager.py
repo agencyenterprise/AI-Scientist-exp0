@@ -1,12 +1,24 @@
+"""
+Run the BFTS experiments using AgentManager with a simple terminal UI.
+
+High-level steps:
+- Load run configuration and problem description
+- Prepare a clean agent workspace for the experiment
+- Construct an AgentManager to orchestrate stages/substages
+- Render a lightweight live UI (task description, tree view, progress)
+- Iterate experiment steps and persist progress snapshots
+- Emit progress/log events for external listeners
+- Optionally generate final summary reports at the end
+"""
+
 import atexit
 import json
 import logging
 import pickle
 import shutil
 import time
-from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Callable
 
 from rich.columns import Columns
 from rich.console import Group
@@ -18,27 +30,17 @@ from rich.status import Status
 from rich.text import Text
 from rich.tree import Tree
 
-from . import backend
-from .agent_manager import AgentManager, Stage
+from ai_scientist.llm import query
+
+from .agent_manager import AgentManager
+from .events import BaseEvent, ExperimentNodeCompletedEvent, RunLogEvent, RunStageProgressEvent
 from .interpreter import ExecutionResult
 from .journal import Journal, Node
 from .log_summarization import overall_summarize
+from .stages.base import StageMeta
 from .utils.config import load_cfg, load_task_desc, prep_agent_workspace, save_run
 
 logger = logging.getLogger("ai-scientist")
-
-
-def _safe_emit_event(
-    event_callback: Optional[Callable[[str, Dict[str, Any]], None]],
-    event_type: str,
-    data: Dict[str, Any],
-) -> None:
-    """Module-level function for event emission that can be pickled for multiprocessing."""
-    if event_callback:
-        try:
-            event_callback(event_type, data)
-        except Exception as e:
-            logger.warning(f"Event callback failed: {e}")
 
 
 def journal_to_rich_tree(journal: Journal) -> Tree:
@@ -66,38 +68,43 @@ def journal_to_rich_tree(journal: Journal) -> Tree:
 
 
 def perform_experiments_bfts(
-    config_path: Path, event_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
+    config_path: Path, event_callback: Callable[[BaseEvent], None]
 ) -> None:
+    # Load configuration for this run
     cfg = load_cfg(config_path)
     logger.info(f'Starting run "{cfg.exp_name}"')
 
     # Use partial to create a picklable emit_event function
-    emit_event = partial(_safe_emit_event, event_callback)
 
+    # Load the task description (idea) for the experiment
     task_desc = load_task_desc(cfg)
     print(task_desc)
-    compiled = backend.compile_prompt_to_md(task_desc)
+    compiled = query.compile_prompt_to_md(task_desc)
     task_desc_md = compiled if isinstance(compiled, str) else str(compiled)
 
     global_step = 0
 
+    # Prepare a clean agent workspace for the run
     with Status("Preparing agent workspace (copying and extracting files) ..."):
         prep_agent_workspace(cfg)
 
     def cleanup() -> None:
         if global_step == 0:
+            # Remove workspace if the run produced no steps
             shutil.rmtree(cfg.workspace_dir)
 
     atexit.register(cleanup)
 
+    # Initialize the AgentManager (orchestrates stages and substages)
     task_desc_input = task_desc if isinstance(task_desc, str) else json.dumps(task_desc)
     manager = AgentManager(
         task_desc=task_desc_input,
         cfg=cfg,
         workspace_dir=Path(cfg.workspace_dir),
-        event_callback=emit_event,
+        event_callback=event_callback,
     )
 
+    # Build a minimal progress UI
     prog = Progress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(bar_width=20),
@@ -109,8 +116,9 @@ def perform_experiments_bfts(
 
     def create_exec_callback(status_obj: Status) -> Callable[[str, bool], ExecutionResult]:
         def exec_callback(_code: str, _is_exec: bool) -> ExecutionResult:
+            # Update status while the agent executes code
             status_obj.update("[magenta]Executing code...")
-            # This callback is not used by ParallelAgent; return a placeholder result
+            # Not used by ParallelAgent; return a placeholder result
             status_obj.update("[green]Generating code...")
             return ExecutionResult(term_out=[], exec_time=0.0, exc_type=None)
 
@@ -120,7 +128,8 @@ def perform_experiments_bfts(
     iteration_start_times: list[float] = []
     iteration_durations: list[float] = []
 
-    def step_callback(stage: Stage, journal: Journal) -> None:
+    def step_callback(stage: StageMeta, journal: Journal) -> None:
+        # Persist progress snapshot and emit progress events after each step
         print("Step complete")
         try:
             # Track iteration timing
@@ -191,52 +200,45 @@ def perform_experiments_bfts(
 
             # Map internal BFTS stage names to Stage_1 (all BFTS stages are part of experiments phase)
             # Internal names like "1_initial_implementation_1_preliminary" → "Stage_1"
-            progress_data = {
-                "stage": "Stage_1",  # All BFTS substages are part of Stage_1 in the UI
-                "iteration": current_iteration,  # Total nodes attempted
-                "max_iterations": stage.max_iterations,
-                "progress": progress,  # Based on total attempts, not just good ones
-                "total_nodes": len(journal.nodes),
-                "buggy_nodes": len(journal.buggy_nodes),
-                "good_nodes": len(journal.good_nodes),
-                "best_metric": str(best_node.metric) if best_node else None,
-            }
-
-            # Add timing information if available
-            if eta_s is not None:
-                progress_data["eta_s"] = eta_s
-            if latest_exec_time_s is not None:
-                progress_data["latest_iteration_time_s"] = latest_exec_time_s
-
-            emit_event("ai.run.stage_progress", progress_data)
+            event_callback(
+                RunStageProgressEvent(
+                    stage="Stage_1",
+                    iteration=current_iteration,
+                    max_iterations=stage.max_iterations,
+                    progress=progress,
+                    total_nodes=len(journal.nodes),
+                    buggy_nodes=len(journal.buggy_nodes),
+                    good_nodes=len(journal.good_nodes),
+                    best_metric=str(best_node.metric) if best_node else None,
+                    eta_s=eta_s,
+                    latest_iteration_time_s=latest_exec_time_s,
+                )
+            )
 
             # Also emit a log event describing what's happening
             if len(journal.good_nodes) == 0 and len(journal.buggy_nodes) > 0:
-                emit_event(
-                    "ai.run.log",
-                    {
-                        "message": f"Debugging failed implementations ({len(journal.buggy_nodes)} buggy nodes, retrying...)",
-                        "level": "info",
-                    },
+                event_callback(
+                    RunLogEvent(
+                        message=f"Debugging failed implementations ({len(journal.buggy_nodes)} buggy nodes, retrying...)",
+                        level="info",
+                    )
                 )
             elif len(journal.good_nodes) > 0:
-                emit_event(
-                    "ai.run.log",
-                    {
-                        "message": f"Found {len(journal.good_nodes)} working implementation(s), continuing...",
-                        "level": "info",
-                    },
+                event_callback(
+                    RunLogEvent(
+                        message=f"Found {len(journal.good_nodes)} working implementation(s), continuing...",
+                        level="info",
+                    )
                 )
 
             # Emit node completion if we have a latest node
             if latest_node is not None and latest_node_summary:
-                emit_event(
-                    "ai.experiment.node_completed",
-                    {
-                        "stage": "Stage_1",  # All BFTS substages are part of Stage_1 in the UI
-                        "node_id": latest_node.id if hasattr(latest_node, "id") else None,
-                        "summary": latest_node_summary,
-                    },
+                event_callback(
+                    ExperimentNodeCompletedEvent(
+                        stage="Stage_1",
+                        node_id=latest_node.id if hasattr(latest_node, "id") else None,
+                        summary=latest_node_summary,
+                    )
                 )
 
         except Exception as e:
@@ -247,6 +249,7 @@ def perform_experiments_bfts(
         print(f"Run saved at {cfg.log_dir / f'stage_{stage.name}'}")
 
     def generate_live(manager: AgentManager) -> Panel:
+        # Build the live UI panel (task description, stage info, tree view, progress)
         current_stage = manager.current_stage
         key = current_stage.name if current_stage else ""
         current_journal = manager.journals.get(key, None)
@@ -257,7 +260,7 @@ def perform_experiments_bfts(
             tree = Tree("[bold blue]No results yet")
 
         file_paths = [
-            f"Result visualization:\n[yellow]▶ {str((cfg.log_dir / 'tree_plot.html'))}",
+            f"Result visualization:\n[yellow]▶ {str((cfg.log_dir / 'tree_plot.html'))}",  # Link to the tree plot
             f"Agent workspace directory:\n[yellow]▶ {str(cfg.workspace_dir)}",
             f"Experiment log directory:\n[yellow]▶ {str(cfg.log_dir)}",
         ]
@@ -346,4 +349,4 @@ def perform_experiments_bfts(
 if __name__ == "__main__":
     cfg_path = Path("treesearch/utils/config.yaml")
     cfg = load_cfg(cfg_path)
-    perform_experiments_bfts(cfg_path)
+    perform_experiments_bfts(cfg_path, event_callback=lambda event: logger.info(event.to_dict()))

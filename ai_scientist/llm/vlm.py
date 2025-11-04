@@ -1,4 +1,5 @@
 import base64
+import io
 import json
 import re
 from typing import Any, cast
@@ -8,7 +9,7 @@ import backoff
 import openai
 from PIL import Image
 
-from ai_scientist.utils.token_tracker import track_token_usage
+from .token_tracker import track_token_usage
 
 MAX_NUM_TOKENS = 4096
 
@@ -30,7 +31,6 @@ def encode_image_to_base64(image_path: str) -> str:
             img = img.convert("RGB")
 
         # Save to bytes
-        import io
 
         buffer = io.BytesIO()
         img.save(buffer, format="JPEG")
@@ -178,7 +178,7 @@ def get_response_from_vlm(
     return content_str, new_msg_history
 
 
-def create_client(model: str) -> tuple[openai.OpenAI, str]:
+def create_vlm_client(model: str) -> tuple[openai.OpenAI, str]:
     """Create client for vision-language model."""
     if model in [
         "gpt-4o-2024-05-13",
@@ -194,7 +194,7 @@ def create_client(model: str) -> tuple[openai.OpenAI, str]:
         raise ValueError(f"Model {model} not supported.")
 
 
-def extract_json_between_markers(llm_output: str) -> dict[Any, Any] | None:
+def extract_json_between_markers_vlm(llm_output: str) -> dict[Any, Any] | None:
     # Regular expression pattern to find JSON content between ```json and ```
     json_pattern = r"```json(.*?)```"
     matches = re.findall(json_pattern, llm_output, re.DOTALL)
