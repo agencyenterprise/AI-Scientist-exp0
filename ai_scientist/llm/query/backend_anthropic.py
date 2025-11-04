@@ -41,12 +41,9 @@ def query(
     if func_spec is not None:
         raise NotImplementedError("Anthropic does not support function calling for now.")
 
-    # Anthropic doesn't allow not having a user messages
-    # if we only have system msg -> use it as user msg
     if system_message is not None and user_message is None:
         system_message, user_message = user_message, system_message
 
-    # Anthropic passes the system messages as a separate argument
     if system_message is not None:
         filtered_kwargs["system"] = system_message
 

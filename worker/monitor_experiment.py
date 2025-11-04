@@ -3,6 +3,8 @@
 Monitor experiment progress and emit events for live UI updates.
 Watches experiment directory and emits events based on file changes.
 """
+import glob
+import hashlib
 import json
 import os
 import sys
@@ -11,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
+from pymongo import MongoClient
 from ulid import ULID
 
 CONTROL_PLANE_URL = os.environ.get(
@@ -21,7 +24,6 @@ POD_ID = os.environ.get("RUNPOD_POD_ID", "unknown")
 
 class EventMonitor:
     def __init__(self, exp_dir: str, run_id: str):
-        from pymongo import MongoClient
 
         self.exp_dir = Path(exp_dir)
         self.run_id = run_id
@@ -184,7 +186,6 @@ class EventMonitor:
 
     def upload_artifacts(self) -> None:
         """Upload plots and other artifacts."""
-        import hashlib
 
         for plot_file in self.exp_dir.glob("**/*.png"):
             artifact_key = str(plot_file.relative_to(self.exp_dir))
@@ -265,7 +266,6 @@ def main() -> None:
         exp_dir = sys.argv[2]
     else:
         # Auto-find latest experiment directory for this run_id
-        import glob
 
         pattern = f"experiments/*_run_{run_id}"
         matches = sorted(glob.glob(pattern), reverse=True)

@@ -1,3 +1,20 @@
+"""
+End-to-end launcher for the BFTS experiment workflow.
+
+Steps:
+- Parse CLI args and load the selected idea (and optional code)
+- Prepare an isolated experiment workspace
+- Optionally merge dataset reference code with user-provided code
+- Convert idea JSON to markdown and persist raw JSON
+- Create a per-idea configuration for AgentManager (BFTS runner)
+- Run experiments via AgentManager (draft/debug/improve/tune/plot/ablate)
+- Collect artifacts and aggregate plots
+- Persist token usage and copy best solution scripts to the root
+- Optionally generate the paper writeup
+- Optionally perform paper review (text and images/captions/reference)
+- Clean up spawned worker processes
+"""
+
 import argparse
 import json
 import os
@@ -6,6 +23,7 @@ import re
 import shutil
 import signal
 import sys
+import traceback
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +32,7 @@ from typing import Generator
 import psutil
 import torch
 
-from ai_scientist.llm import create_client
+from ai_scientist.llm import create_client, token_tracker
 from ai_scientist.perform_icbinb_writeup import gather_citations
 from ai_scientist.perform_icbinb_writeup import perform_writeup as perform_icbinb_writeup
 from ai_scientist.perform_llm_review import load_paper, perform_review
@@ -26,7 +44,6 @@ from ai_scientist.treesearch.bfts_utils import edit_bfts_config_file, idea_to_ma
 from ai_scientist.treesearch.perform_experiments_bfts_with_agentmanager import (
     perform_experiments_bfts,
 )
-from ai_scientist.utils.token_tracker import token_tracker
 
 
 def print_time() -> None:
@@ -46,9 +63,6 @@ def copy_best_solutions_to_root(idea_dir: str) -> None:
     for easy access and reproducibility.
     """
     try:
-        import traceback
-        from pathlib import Path
-
         idea_path = Path(idea_dir)
         logs_dir = idea_path / "logs" / "0-run"
 
@@ -156,7 +170,6 @@ def copy_best_solutions_to_root(idea_dir: str) -> None:
 
     except Exception as e:
         print(f"⚠️ Error copying best solutions: {e}")
-        import traceback
 
         traceback.print_exc()
 
@@ -302,14 +315,16 @@ def redirect_stdout_stderr_to_file(log_file_path: str) -> Generator[None, None, 
 
 
 if __name__ == "__main__":
+    # Parse CLI arguments
     args = parse_arguments()
     os.environ["AI_SCIENTIST_ROOT"] = os.path.dirname(os.path.abspath(__file__))
     print(f"Set AI_SCIENTIST_ROOT to {os.environ['AI_SCIENTIST_ROOT']}")
 
-    # Check available GPUs and adjust parallel processes if necessary
+    # Determine available GPUs (for parallel experiments)
     available_gpus = get_available_gpus()
     print(f"Using GPUs: {available_gpus}")
 
+    # Load pregenerated ideas and select one
     with open(args.load_ideas, "r") as f:
         ideas = json.load(f)
         print(f"Loaded {len(ideas)} pregenerated ideas from {args.load_ideas}")
@@ -321,10 +336,10 @@ if __name__ == "__main__":
     print(f"Results will be saved in {idea_dir}")
     os.makedirs(idea_dir, exist_ok=True)
 
-    # Convert idea json to markdown file
+    # Convert idea JSON to markdown (for readability)
     idea_path_md = osp.join(idea_dir, "idea.md")
 
-    # If load_code is True, get the Python file with same name as JSON
+    # Optionally load a Python module with same name as the JSON idea
     code = None
     if args.load_code:
         code_path = args.load_ideas.rsplit(".", 1)[0] + ".py"
@@ -338,6 +353,7 @@ if __name__ == "__main__":
 
     idea_to_markdown(ideas[args.idea_idx], idea_path_md, code_path)
 
+    # Optionally merge a dataset reference snippet into the idea/code
     dataset_ref_code = None
     if args.add_dataset_ref:
         dataset_ref_path = "hf_dataset_reference.py"
@@ -359,15 +375,16 @@ if __name__ == "__main__":
 
     print(added_code)
 
-    # Add code to idea json if it was loaded
+    # Attach merged code to the idea JSON (if present)
     if added_code is not None:
         ideas[args.idea_idx]["Code"] = added_code
 
-    # Store raw idea json
+    # Persist the raw idea JSON to disk
     idea_path_json = osp.join(idea_dir, "idea.json")
     with open(idea_path_json, "w") as f:
         json.dump(ideas[args.idea_idx], f, indent=4)
 
+    # Prepare per-idea configuration for AgentManager
     config_path = "bfts_config.yaml"
     idea_config_path = edit_bfts_config_file(
         config_path,
@@ -375,7 +392,9 @@ if __name__ == "__main__":
         idea_path_json,
     )
 
-    perform_experiments_bfts(Path(idea_config_path))
+    # Execute experiments via AgentManager (BFTS pipeline)
+    perform_experiments_bfts(Path(idea_config_path), lambda event: print(event.to_dict()))
+    # Collect and relocate experiment results for convenience
     experiment_results_dir = osp.join(idea_dir, "logs/0-run/experiment_results")
     if os.path.exists(experiment_results_dir):
         shutil.copytree(
@@ -384,17 +403,22 @@ if __name__ == "__main__":
             dirs_exist_ok=True,
         )
 
+    # Aggregate plots across runs
     aggregate_plots(base_folder=idea_dir, model=args.model_agg_plots)
 
+    # Remove the transient aggregated results folder (copied above)
     shutil.rmtree(osp.join(idea_dir, "experiment_results"))
 
+    # Persist token accounting information
     save_token_tracker(idea_dir)
 
     # Copy best solutions to experiment root for easy access
+    # Copy best solution scripts to the experiment root
     print("\n📋 Copying best solutions to experiment root...")
     copy_best_solutions_to_root(idea_dir)
 
     if not args.skip_writeup:
+        # Generate paper writeup (normal or ICBINB)
         writeup_success = False
         citations_text = gather_citations(
             idea_dir,
@@ -423,16 +447,19 @@ if __name__ == "__main__":
         if not writeup_success:
             print("Writeup process did not complete successfully after all retries.")
 
+    # Record tokens after writeup stage as well
     save_token_tracker(idea_dir)
 
     if not args.skip_review and not args.skip_writeup:
-        # Perform paper review if the paper exists
+        # Perform paper review (if the generated PDF exists)
         pdf_path = find_pdf_path_for_review(idea_dir)
         if pdf_path and os.path.exists(pdf_path):
             print("Paper found at: ", pdf_path)
             paper_content = load_paper(pdf_path)
             client, client_model = create_client(args.model_review)
+            # Build review context from the run outputs
             review_context = build_auto_review_context(idea_dir, None, paper_content or "")
+            # Performs paper review (text/main content)
             review_text = perform_review(
                 paper_content,
                 client_model,
@@ -442,6 +469,7 @@ if __name__ == "__main__":
                 num_reflections=2,
                 temperature=0.55,
             )
+            # Performs images/captions/reference review
             review_img_cap_ref = perform_imgs_cap_ref_review(client, client_model, pdf_path)
             with open(osp.join(idea_dir, "review_text.txt"), "w") as f:
                 f.write(json.dumps(review_text, indent=4))
@@ -451,6 +479,7 @@ if __name__ == "__main__":
         else:
             print("No PDF found for review (writeup likely failed). Skipping review.")
 
+    # Clean up any lingering worker processes to avoid resource leaks
     print("Start cleaning up processes")
     # Kill all mp and torch processes associated with this experiment
 

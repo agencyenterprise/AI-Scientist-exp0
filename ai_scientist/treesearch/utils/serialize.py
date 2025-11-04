@@ -68,7 +68,7 @@ def loads_json(s: str, cls: type[object]) -> object:
             child_node.parent = parent_node
             child_node.__post_init__()
 
-        journal = Journal()
+        journal = Journal(event_callback=lambda _event: None)
         journal.nodes.extend(id_to_node.values())
         return journal
 

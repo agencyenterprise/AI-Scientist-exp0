@@ -1,10 +1,13 @@
 import json
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import openai
 from tqdm import tqdm  # type: ignore[import-untyped]
+
+from ai_scientist.llm import create_client
 
 from .journal import Journal, Node
 
@@ -12,8 +15,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..",
 sys.path.insert(0, parent_dir)
 from ai_scientist.llm import extract_json_between_markers, get_response_from_llm  # noqa: E402
 
-client = openai.OpenAI()
-model = "gpt-4o-2024-08-06"
+client, model = create_client("gpt-4o-2024-08-06")
 
 report_summarizer_sys_msg = """You are an expert machine learning researcher.
 You are given multiple experiment logs, each representing a node in a stage of exploring scientific ideas and implementations.
@@ -308,7 +310,6 @@ def annotate_history(journal: Journal) -> None:
 
 
 def overall_summarize(journals: list[tuple[str, Journal]]) -> tuple[dict[str, Any] | None, ...]:
-    from concurrent.futures import ThreadPoolExecutor
 
     def process_stage(
         idx: int, stage_tuple: tuple[str, Journal]
@@ -403,8 +404,8 @@ if __name__ == "__main__":
             child_node.parent = parent_node
             parent_node.children.add(child_node)
 
-        # Create a Journal and add all nodes
-        journal = Journal()
+        # Create a Journal (no-op event callback) and add all nodes
+        journal = Journal(event_callback=lambda _event: None)
         journal.nodes.extend(id_to_node.values())
 
         return journal

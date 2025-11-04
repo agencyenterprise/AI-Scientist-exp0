@@ -1,77 +1,46 @@
+"""
+AgentManager: Orchestrates the staged BFTS experiment lifecycle.
+
+High-level responsibilities:
+- Validate and ingest the task description (idea) and runtime config
+- Create and track stages/substages via StageMeta and stage classes
+- For each substage: create a ParallelAgent, run iterations, and evaluate completion
+- On main stage completion: optionally run multi-seed evaluation and aggregate plots
+- Persist journals, emit progress/log events, and save checkpoints
+- Transition to subsequent substages and main stages until the experiment completes
+"""
+
 import copy
 import json
 import logging
 import pickle
-import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, cast
+from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, cast
 
 from rich import print
 
-from .backend import FunctionSpec, query
+from ai_scientist.llm.query import FunctionSpec, query
+from ai_scientist.treesearch.events import BaseEvent
+
 from .journal import Journal, Node
+from .metrics_extraction import analyze_progress, gather_stage_metrics, identify_issues
+from .multi_seed_evaluation import run_plot_aggregation
 from .parallel_agent import ExecCallbackType, ParallelAgent
+from .stages.base import Stage as StageImpl
+from .stages.base import StageContext, StageMeta
+from .stages.stage1_baseline import Stage1Baseline
+from .stages.stage2_tuning import Stage2Tuning
+from .stages.stage3_plotting import Stage3Plotting
+from .stages.stage4_ablation import Stage4Ablation
 from .utils.config import Config
 
 logger = logging.getLogger(__name__)
 
 
-stage_config_spec = FunctionSpec(
-    name="generate_stage_config",
-    description="Generate configuration for the next experimental stage",
-    json_schema={
-        "type": "object",
-        "properties": {
-            "name": {
-                "type": "string",
-                "description": "Brief, descriptive name for the stage",
-            },
-            "description": {
-                "type": "string",
-                "description": "Detailed description of the stage's purpose",
-            },
-            "goals": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "List of specific, measurable goals for this stage",
-            },
-            "max_iterations": {
-                "type": "integer",
-                "description": "Maximum number of iterations to run in this stage",
-            },
-        },
-        "required": ["name", "description", "goals", "max_iterations"],
-    },
-)
-
-stage_progress_eval_spec = FunctionSpec(
-    name="evaluate_stage_progression",
-    description="Evaluate readiness to progress to next experimental stage",
-    json_schema={
-        "type": "object",
-        "properties": {
-            "ready_for_next_stage": {
-                "type": "boolean",
-                "description": "Whether the experiment is ready to progress to next stage",
-            },
-            "reasoning": {
-                "type": "string",
-                "description": "Detailed reasoning for the progression decision",
-            },
-            "recommendations": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Specific recommendations for current or next stage",
-            },
-            "suggested_focus": {
-                "type": "string",
-                "description": "Key areas to focus on in the next iterations",
-            },
-        },
-        "required": ["ready_for_next_stage", "reasoning", "recommendations"],
-    },
-)
+class StageClass(Protocol):
+    MAIN_STAGE_SLUG: str
+    DEFAULT_GOALS: str
 
 
 stage_completion_eval_spec = FunctionSpec(
@@ -100,16 +69,6 @@ stage_completion_eval_spec = FunctionSpec(
 
 
 @dataclass
-class Stage:
-    name: str
-    description: str
-    goals: str
-    max_iterations: int
-    num_drafts: int
-    stage_number: int
-
-
-@dataclass
 class StageTransition:
     """Records transition between stages and the reasoning"""
 
@@ -125,8 +84,9 @@ class AgentManager:
         task_desc: str,
         cfg: Config,
         workspace_dir: Path,
-        event_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        event_callback: Callable[[BaseEvent], None],
     ) -> None:
+        # Ingest and validate task description (idea)
         self.task_desc = json.loads(task_desc)
         for k in [
             "Title",
@@ -137,41 +97,20 @@ class AgentManager:
         ]:
             if k not in self.task_desc.keys():
                 raise ValueError(f"Key {k} not found in task_desc")
+        # Store runtime configuration and IO context
         self.cfg = cfg
         self.workspace_dir = workspace_dir
         self.event_callback = event_callback
         self.current_stage_number = 0
-        self.stages: List[Stage] = []
-        self.current_stage: Optional[Stage] = None
+        # Stage bookkeeping and experiment state
+        self.stages: List[StageMeta] = []
+        self.current_stage: Optional[StageMeta] = None
         self.journals: Dict[str, Journal] = {}
         self.stage_history: List[StageTransition] = []
         self.completed_stages: List[str] = []
-        self.main_stage_dict: Dict[int, str] = {
-            1: "initial_implementation",
-            2: "baseline_tuning",
-            3: "creative_research",
-            4: "ablation_studies",
-        }
-        self.main_stage_goals: Dict[int, str] = {
-            1: """
-                - Focus on getting basic working implementation
-                - Use a dataset appropriate to the experiment
-                - Aim for basic functional correctness
-                - If you are given \"Code To Use\", you can directly use it as a starting point.""",
-            2: """
-                - Change hyperparameters such as learning rate, number of epochs, batch size, etc. to improve the performance
-                - DO NOT change the model architecture from the previous stage
-                - Introduce additional datasets from HuggingFace to test the model. Use dataset sizes appropriate to the experiment. Use streaming=True for very large datasets. See hf_dataset_reference.py for examples of available datasets.""",
-            3: """
-                - Explore novel improvements
-                - Come up with experiments to reveal new insights
-                - Be creative and think outside the box
-                - Test your models on multiple HuggingFace datasets to demonstrate generalization. Use dataset sizes appropriate to the experiment. Usually THREE datasets are enough.""",
-            4: """
-                - Conduct systematic component analysis that reveals the contribution of each part
-                - Use the same datasets you used from the previous stage""",
-        }
+        # Stage slugs/goals are defined in the stage classes
         # Create initial stage
+        # Initialize the experiment with the first stage
         self._create_initial_stage()
 
     def _get_max_iterations(self, stage_number: int) -> int:
@@ -201,24 +140,27 @@ Your research idea:\n\n
 
     def _create_initial_stage(self) -> None:
         """Create the initial stage configuration"""
+        # Seed Stage 1 (baseline) with defaults defined by the stage class
         self.current_stage_number += 1
-        initial_stage = Stage(
-            name="1_initial_implementation_1_preliminary",
-            description="preliminary",
-            goals=self.main_stage_goals[1],
+        initial_stage = StageMeta(
+            name=f"1_{Stage1Baseline.MAIN_STAGE_SLUG}_1_preliminary",
+            number=self.current_stage_number,
+            slug=Stage1Baseline.MAIN_STAGE_SLUG,
+            substage_number=1,
+            substage_name="preliminary",
+            goals=Stage1Baseline.DEFAULT_GOALS,
             max_iterations=self._get_max_iterations(self.current_stage_number),
             num_drafts=self.cfg.agent.search.num_drafts,
-            stage_number=self.current_stage_number,
         )
 
         self.stages.append(initial_stage)
         self.current_stage = initial_stage
         self.journals[initial_stage.name] = Journal(event_callback=self.event_callback)
 
-    def _curate_task_desc(self, stage: Stage) -> str:
+    def _curate_task_desc(self, stage: StageMeta) -> str:
         task_desc = self._get_task_desc_str()
 
-        if stage.name.startswith("3_"):
+        if stage.slug == Stage3Plotting.MAIN_STAGE_SLUG:
             if isinstance(self.task_desc["Experiments"], list):
                 if isinstance(self.task_desc["Experiments"][0], str):
                     experiment_str = "\n".join(self.task_desc["Experiments"])
@@ -233,7 +175,7 @@ Your research idea:\n\n
                     f"Experiments is not a list or string: {self.task_desc['Experiments']}"
                 )
             task_desc += "Experiment Plan: " + experiment_str + "\n"
-        elif stage.name.startswith("4_"):
+        elif stage.slug == Stage4Ablation.MAIN_STAGE_SLUG:
             if isinstance(self.task_desc["Risk Factors and Limitations"], list):
                 risk_factors_str = "\n".join(self.task_desc["Risk Factors and Limitations"])
             else:
@@ -244,6 +186,7 @@ Your research idea:\n\n
 
     def _save_checkpoint(self) -> None:
         """Save the current state of the experiment"""
+        # Persist journals, config and current stage for resuming/review
         if self.current_stage is None:
             logger.warning("Cannot save checkpoint: current_stage is None")
             return
@@ -267,41 +210,37 @@ Your research idea:\n\n
         with open(save_path, "wb") as f:
             pickle.dump(checkpoint, f)
 
-    def _create_agent_for_stage(self, stage: Stage) -> ParallelAgent:
+    def _create_agent_for_stage(self, stage: StageMeta) -> ParallelAgent:
         """Create a ParallelAgent configured for the given stage"""
+        # Derive a stage-local copy of config and curated task description
         stage_cfg = copy.deepcopy(self.cfg)
         stage_cfg.agent.search.num_drafts = stage.num_drafts
         task_desc = self._curate_task_desc(stage)
 
-        (
-            main_stage,
-            main_stage_name,
-            sub_stage_num,
-            sub_stage_name,
-        ) = self.parse_stage_names(stage.name)
-        task_desc = f"{task_desc}\n\nCurrent Main Stage: {main_stage_name}\n"
-        task_desc += f"Sub-stage: {sub_stage_num} - {sub_stage_name}\n"
+        task_desc = f"{task_desc}\n\nCurrent Main Stage: {stage.slug}\n"
+        task_desc += f"Sub-stage: {stage.substage_number} - {stage.substage_name}\n"
         task_desc += f"Sub-stage goals: {stage.goals}"
         print("Checking task_desc inside _create_agent_for_stage")
         print(task_desc)
 
-        if main_stage == 2:
-            stage1_substages = [s for s in self.stages if s.name.startswith("1_")]
+        # Determine carryover best nodes based on current main stage
+        if stage.number == 2:
+            stage1_substages = [s for s in self.stages if s.number == 1]
             if not stage1_substages:
                 raise ValueError(f"No stage 1 substages found in {self.stages}")
             best_stage1_node = self._get_best_implementation(stage1_substages[-1].name)
             best_stage2_node = None
             best_stage3_node = None
-        elif main_stage == 3:
-            stage2_substages = [s for s in self.stages if s.name.startswith("2_")]
+        elif stage.number == 3:
+            stage2_substages = [s for s in self.stages if s.number == 2]
             if not stage2_substages:
                 raise ValueError(f"No stage 2 substages found in {self.stages}")
             best_stage2_node = self._get_best_implementation(stage2_substages[-1].name)
             best_stage1_node = None
             best_stage3_node = None
-        elif main_stage == 4:
+        elif stage.number == 4:
             # Use the last (sub-)stage's best node
-            stage3_substages = [s for s in self.stages if s.name.startswith("3_")]
+            stage3_substages = [s for s in self.stages if s.number == 3]
             if stage3_substages:
                 last_substage = stage3_substages[-1]
                 best_stage3_node = self._get_best_implementation(last_substage.name)
@@ -314,6 +253,7 @@ Your research idea:\n\n
             best_stage2_node = None
             best_stage1_node = None
 
+        # Construct the worker agent for this substage
         return ParallelAgent(
             task_desc=task_desc,
             cfg=stage_cfg,
@@ -325,131 +265,48 @@ Your research idea:\n\n
             event_callback=self.event_callback,
         )
 
-    def _parse_vlm_feedback(self, node: Node) -> str:
-        """Parse the feedback from the VLM"""
-        if len(node.plot_analyses) > 0:
-            first_analysis: Any = node.plot_analyses[0]
-            if isinstance(first_analysis, dict):
-                analysis_text = str(first_analysis.get("analysis", ""))
-            else:
-                analysis_text = str(first_analysis)
-            feedback = f"Plot analyses: {analysis_text}\n"
-        else:
-            feedback = "No plot analyses found\n"
-            curr_stage_name = (
-                self.current_stage.name if self.current_stage is not None else "unknown"
-            )
-            logger.warning(
-                f"No plot analyses found for node {node.id} during stage {curr_stage_name}"
-            )
-        feedback += f"VLM Feedback Summary: {node.vlm_feedback_summary}\n"
-        return feedback
-
     def _check_substage_completion(
-        self, current_substage: Stage, journal: Journal
+        self, current_substage: StageMeta, journal: Journal
     ) -> Tuple[bool, str]:
         """Check if the current sub-stage is complete"""
-        best_node = journal.get_best_node()
-        if not best_node:
-            return False, "No best node found"
-
         # Terminate if max iterations reached
         if len(journal.nodes) >= current_substage.max_iterations:
             logger.info(f"Stage {current_substage.name} completed: reached max iterations")
             print(f"[green]Stage {current_substage.name} completed: reached max iterations[/green]")
             return True, "Reached max iterations"
+        main_stage_num = current_substage.number
 
-        vlm_feedback = self._parse_vlm_feedback(best_node)
-        eval_prompt = f"""
-        Evaluate if the current sub-stage is complete based on the following evidence:
-        1. Figure Analysis:
-        {vlm_feedback}
+        ctx = StageContext(
+            cfg=self.cfg,
+            task_desc=self._curate_task_desc(current_substage),
+            stage_name=current_substage.name,
+            journal=journal,
+            workspace_dir=self.workspace_dir,
+            event_callback=self.event_callback,
+            best_nodes_by_stage={},
+        )
+        # Delegate substage completion to the corresponding Stage implementation
+        stage_obj: StageImpl
+        if main_stage_num == 1:
+            stage_obj = Stage1Baseline(meta=current_substage, context=ctx)
+        elif main_stage_num == 2:
+            stage_obj = Stage2Tuning(meta=current_substage, context=ctx)
+        elif main_stage_num == 3:
+            stage_obj = Stage3Plotting(meta=current_substage, context=ctx)
+        elif main_stage_num == 4:
+            stage_obj = Stage4Ablation(meta=current_substage, context=ctx)
+        else:
+            raise ValueError(f"Unknown stage number: {main_stage_num}")
+        return stage_obj.evaluate_substage_completion()
 
-        Requirements for completion:
-        - {current_substage.goals}
-
-        Provide a detailed evaluation of completion status.
-        """
-
-        try:
-            evaluation = query(
-                system_message=eval_prompt,
-                user_message=None,
-                func_spec=stage_completion_eval_spec,
-                model=self.cfg.agent.feedback.model,
-                temperature=self.cfg.agent.feedback.temp,
-            )
-            evaluation_dict = cast(Dict[str, Any], evaluation)
-            if evaluation_dict["is_complete"]:
-                logger.info(
-                    f"Stage {current_substage.name} completed: {evaluation_dict['reasoning']}"
-                )
-                print(
-                    f"[green]Stage {current_substage.name} completed: {evaluation_dict['reasoning']}[/green]"
-                )
-
-                # Emit user-facing success event
-                if self.event_callback:
-                    try:
-                        self.event_callback(
-                            "ai.run.log",
-                            {
-                                "message": f"✅ Stage {current_substage.name} completed!",
-                                "level": "info",
-                            },
-                        )
-                        reasoning_preview = (
-                            evaluation_dict["reasoning"][:300] + "..."
-                            if len(evaluation_dict["reasoning"]) > 300
-                            else evaluation_dict["reasoning"]
-                        )
-                        self.event_callback(
-                            "ai.run.log", {"message": f"📋 {reasoning_preview}", "level": "info"}
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to emit completion event: {e}")
-
-                return True, "Found working implementation"
-            else:
-                missing = ", ".join(evaluation_dict["missing_criteria"])
-                logger.info(f"Stage {current_substage.name} not complete. Missing: {missing}")
-                print(
-                    f"[yellow]Stage {current_substage.name} not complete. Missing: {missing}[/yellow]"
-                )
-
-                # Emit user-facing status event
-                if self.event_callback:
-                    try:
-                        self.event_callback(
-                            "ai.run.log",
-                            {
-                                "message": f"🔄 Stage {current_substage.name} continuing - needs more work",
-                                "level": "info",
-                            },
-                        )
-                        self.event_callback(
-                            "ai.run.log",
-                            {"message": f"❓ Missing: {missing[:200]}...", "level": "warn"},
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to emit status event: {e}")
-
-                return False, "Missing criteria: " + missing
-        except Exception as e:
-            logger.error(f"Error in sub-stage {current_substage.name} completion evaluation: {e}")
-            return (
-                False,
-                f"Error in sub-stage {current_substage.name} completion evaluation",
-            )
-
-    def _check_stage_completion(self, stage: Stage) -> Tuple[bool, str]:
+    def _check_stage_completion(self, stage: StageMeta) -> Tuple[bool, str]:
         """Check if current stage is complete based on criteria"""
         journal = self.journals[stage.name]
         # Terminate if max iterations reached
         if len(journal.nodes) >= stage.max_iterations:
             logger.info(f"Stage {stage.name} completed: reached max iterations")
             print(f"[green]Stage {stage.name} completed: reached max iterations[/green]")
-            if stage.stage_number == 1:
+            if stage.number == 1:
                 # For initial stage, if it didn't even find a working implementation until max iterations,
                 # end gracefully and stop the experiment.
                 logger.error(
@@ -463,100 +320,33 @@ Your research idea:\n\n
             else:
                 return True, "Reached max iterations"
 
-        # For initial stage, complete when we have at least one working implementation
-        if stage.stage_number == 1:
-            if len(journal.good_nodes) > 0:
-                logger.info(f"Stage {stage.name} completed: found working implementation")
-                print(f"[green]Stage {stage.name} completed: found working implementation[/green]")
-                return True, "Found working implementation"
+        main_stage_num = stage.number
 
-        if stage.stage_number == 2:
-            best_node = journal.get_best_node()
-            if not best_node:
-                return False, "No best node found"
-            if best_node == journal.nodes[0]:
-                return (
-                    False,
-                    "No improvement found from the base node (which is the best node from the previous stage)",
-                )
+        def _emit(event: BaseEvent) -> None:
+            self.event_callback(event)
 
-            # Normal stage 2 completion check
-            vlm_feedback = self._parse_vlm_feedback(best_node)
-            eval_prompt = f"""
-            Evaluate if stage 2 (baseline tuning) is complete based on the following evidence:
-
-            1. Figure Analysis:
-            {vlm_feedback}
-
-            2. Datasets Tested: {best_node.datasets_successfully_tested}
-
-            Requirements for completion:
-            1. Training curves should show stable convergence
-            2. Results should be tested on at least two datasets
-            3. No major instabilities or issues in the plots
-
-            Provide a detailed evaluation of completion status.
-            """
-
-            try:
-                evaluation = query(
-                    system_message=eval_prompt,
-                    user_message=None,
-                    func_spec=stage_completion_eval_spec,
-                    model=self.cfg.agent.feedback.model,
-                    temperature=self.cfg.agent.feedback.temp,
-                )
-                evaluation_dict = cast(Dict[str, Any], evaluation)
-
-                if evaluation_dict["is_complete"]:
-                    logger.info(f"Stage {stage.name} completed: {evaluation_dict['reasoning']}")
-                    print(
-                        f"[green]Stage {stage.name} completed: {evaluation_dict['reasoning']}[/green]"
-                    )
-                    return True, "Found working implementation"
-                else:
-                    missing = ", ".join(evaluation_dict["missing_criteria"])
-                    logger.info(f"Stage {stage.name} not complete. Missing: {missing}")
-                    print(f"[yellow]Stage {stage.name} not complete. Missing: {missing}[/yellow]")
-                    return False, "Missing criteria: " + missing
-            except Exception as e:
-                logger.error(f"Error in stage 2 completion evaluation: {e}")
-                return False, "Error in stage 2 completion evaluation"
-
-        if stage.stage_number == 3:
-            best_node = journal.get_best_node()
-            if not best_node:
-                return False, "No best node found"
-            if best_node == journal.nodes[0]:
-                return (
-                    False,
-                    "No improvement found from the base node (which is the best node from the previous stage)",
-                )
-            # Check if there are enough research results
-            # Or, we could just let the agent run until max iterations is reached
-            # Check if the experiment execution time is too short
-            exec_time = best_node.exec_time if best_node.exec_time is not None else 0.0
-            exec_time_minutes = exec_time / 60
-            print(f"[cyan]exec_time_minutes: {exec_time_minutes}[/cyan]")
-            if len(self.journals[stage.name].nodes) > (self._get_max_iterations(3) / 2):
-                if exec_time_minutes < self.cfg.exec.timeout / 60 / 2:
-                    exec_time_feedback = (
-                        f"Implementation works but runs too quickly ({exec_time_minutes:.2f} minutes)."
-                        "We have up to 60 minutes available for each experiment."
-                        "Make sure to scale up the experiment "
-                        "by increasing the number of epochs, using a larger model, or working with bigger datasets."
-                        f"Given that the current execution time is {exec_time_minutes:.2f} minutes, think about how changing the number of epochs to run, or using a larger model, or working with bigger datasets to run"
-                        "will affect the execution time, and make sure to scale up the experiment accordingly."
-                    )
-                    print(f"[cyan]exec_time_feedback: {exec_time_feedback}[/cyan]")
-                    self.journals[stage.name].nodes[-1].exec_time_feedback = exec_time_feedback
-                    return False, exec_time_feedback
-        if stage.stage_number == 4:
-            # Just let the agent run until max iterations is reached
-            pass
-
-        print(f"[green]Stage {stage.name} not completed[/green]")
-        return False, "stage not completed"
+        ctx = StageContext(
+            cfg=self.cfg,
+            task_desc=self._curate_task_desc(stage),
+            stage_name=stage.name,
+            journal=journal,
+            workspace_dir=self.workspace_dir,
+            event_callback=_emit,
+            best_nodes_by_stage={},
+        )
+        # Delegate main stage completion to the Stage implementation
+        stage_obj: StageImpl
+        if main_stage_num == 1:
+            stage_obj = Stage1Baseline(meta=stage, context=ctx)
+        elif main_stage_num == 2:
+            stage_obj = Stage2Tuning(meta=stage, context=ctx)
+        elif main_stage_num == 3:
+            stage_obj = Stage3Plotting(meta=stage, context=ctx)
+        elif main_stage_num == 4:
+            stage_obj = Stage4Ablation(meta=stage, context=ctx)
+        else:
+            raise ValueError(f"Unknown stage number: {main_stage_num}")
+        return stage_obj.evaluate_stage_completion()
 
     def _get_best_implementation(self, stage_name: str) -> Optional[Node]:
         """Get the best implementation from a completed stage"""
@@ -582,12 +372,17 @@ Your research idea:\n\n
         Returns:
             str: Specific goals for the next sub-stage
         """
-        # Gather current progress metrics
-        metrics = self._gather_stage_metrics(journal)
-        issues = self._identify_issues(journal)
-        progress = self._analyze_progress(journal)
+        # Gather context for LLM: metrics, issues and recent progress
+        metrics = gather_stage_metrics(journal=journal)
+        issues = identify_issues(journal=journal)
+        progress = analyze_progress(journal=journal)
 
         # Create prompt for the LLM
+        best_metric = metrics.get("best_metric")
+        best_value_str = "N/A"
+        if isinstance(best_metric, dict):
+            val = best_metric.get("value")
+            best_value_str = str(val) if val is not None else "N/A"
         prompt = f"""
         Based on the current experimental progress, generate focused goals for the next sub-stage.
 
@@ -597,7 +392,7 @@ Your research idea:\n\n
         Current Progress:
         - Total attempts: {metrics['total_nodes']}
         - Successful implementations: {metrics['good_nodes']}
-        - Best performance: {metrics['best_metric']['value'] if metrics['best_metric'] else 'N/A'}
+        - Best performance: {best_value_str}
         - Convergence status: {progress['convergence_status']}
 
         Current Issues:
@@ -664,56 +459,78 @@ Your research idea:\n\n
             return fallback
 
     def _create_next_substage(
-        self, current_substage: Stage, journal: Journal, substage_feedback: str
-    ) -> Optional[Stage]:
+        self, current_substage: StageMeta, journal: Journal, substage_feedback: str
+    ) -> Optional[StageMeta]:
         """Create the next sub-stage. Ask LLM to come up with the next sub-stage name and goals
         based on what has been done so far.
         """
-        main_stage_num, main_stage_name, sub_stage_num, _ = self.parse_stage_names(
-            current_substage.name
-        )
-        main_stage_goal = self.main_stage_goals[main_stage_num]
+        # Build the next substage metadata using stage class defaults and LLM goal
+        main_stage_num = current_substage.number
+        sub_stage_num = current_substage.substage_number
+        # Get goals and slug from the corresponding stage class
+        if main_stage_num == 1:
+            current_stage_cls: StageClass = Stage1Baseline
+        elif main_stage_num == 2:
+            current_stage_cls = Stage2Tuning
+        elif main_stage_num == 3:
+            current_stage_cls = Stage3Plotting
+        elif main_stage_num == 4:
+            current_stage_cls = Stage4Ablation
+        else:
+            raise ValueError(f"Unknown stage number: {main_stage_num}")
+        main_stage_goal = current_stage_cls.DEFAULT_GOALS
+        main_stage_name = current_stage_cls.MAIN_STAGE_SLUG
         sub_stage_goal, sub_stage_name = self._generate_substage_goal(main_stage_goal, journal)
 
-        return Stage(
+        return StageMeta(
             name=f"{main_stage_num}_{main_stage_name}_{sub_stage_num + 1}_{sub_stage_name}",
-            description=sub_stage_name,
+            number=current_substage.number,
+            slug=main_stage_name,
+            substage_number=sub_stage_num + 1,
+            substage_name=sub_stage_name,
             goals="Main stage goals:\n"
             + main_stage_goal
             + "\n\nSub-stage goals:\n"
             + sub_stage_goal,
             max_iterations=self._get_max_iterations(main_stage_num),
             num_drafts=0,
-            stage_number=current_substage.stage_number + 1,
         )
 
-    def _create_next_main_stage(self, current_substage: Stage, journal: Journal) -> Optional[Stage]:
-        (
-            main_stage_num,
-            main_stage_name,
-            sub_stage_num,
-            sub_stage_name,
-        ) = self.parse_stage_names(current_substage.name)
+    def _create_next_main_stage(
+        self, current_substage: StageMeta, journal: Journal
+    ) -> Optional[StageMeta]:
+        main_stage_num = current_substage.number
         if main_stage_num == 4:
             return None
-        next_main_stage_name = self.main_stage_dict[main_stage_num + 1]
+        # Determine next stage class and its slug/goals
+        next_num = main_stage_num + 1
+        if next_num == 2:
+            next_stage_cls: StageClass = Stage2Tuning
+        elif next_num == 3:
+            next_stage_cls = Stage3Plotting
+        elif next_num == 4:
+            next_stage_cls = Stage4Ablation
+        else:
+            raise ValueError(f"Unknown next stage number: {next_num}")
+        next_main_stage_name = next_stage_cls.MAIN_STAGE_SLUG
         sub_stage_num = 1
         sub_stage_name = "first_attempt"
         num_drafts = 0
-        stage_number = current_substage.stage_number + 1
-        description = "first_attempt"
-        main_stage_goal = self.main_stage_goals[main_stage_num + 1]
+        stage_number = next_num
+        main_stage_goal = next_stage_cls.DEFAULT_GOALS
 
-        return Stage(
+        return StageMeta(
             name=f"{main_stage_num + 1}_{next_main_stage_name}_{sub_stage_num}_{sub_stage_name}",
-            description=description,
+            number=stage_number,
+            slug=next_main_stage_name,
+            substage_number=sub_stage_num,
+            substage_name=sub_stage_name,
             goals=main_stage_goal,
             max_iterations=self._get_max_iterations(main_stage_num + 1),
             num_drafts=num_drafts,
-            stage_number=stage_number,
         )
 
-    def _prepare_substage(self, current_substage: Stage) -> bool:
+    def _prepare_substage(self, current_substage: StageMeta) -> bool:
         """Seed a new sub-stage with the previous best node when available.
 
         Returns True if preparation succeeded or was not needed; False if we expected
@@ -736,14 +553,14 @@ Your research idea:\n\n
     def _perform_multi_seed_eval_if_needed(
         self,
         agent: ParallelAgent,
-        current_substage: Stage,
-        step_callback: Optional[Callable[[Stage, Journal], None]],
+        current_substage: StageMeta,
+        step_callback: Optional[Callable[[StageMeta, Journal], None]],
     ) -> bool:
         """Run multi-seed evaluation and plot aggregation when a main stage completes.
 
         Returns True on success, False if a required best node could not be found.
         """
-        if current_substage.stage_number in [1, 2, 3, 4]:
+        if current_substage.number in [1, 2, 3, 4]:
             best_node = self._get_best_implementation(current_substage.name)
             if not best_node:
                 logger.error(
@@ -754,7 +571,7 @@ Your research idea:\n\n
             seed_nodes = agent._run_multi_seed_evaluation(best_node)
             if step_callback:
                 step_callback(current_substage, self.journals[current_substage.name])
-            agent._run_plot_aggregation(best_node, seed_nodes)
+            run_plot_aggregation(agent=agent, node=best_node, seed_nodes=seed_nodes)
             if step_callback:
                 step_callback(current_substage, self.journals[current_substage.name])
             print(f"Stage {current_substage.name} multi-seed eval done.")
@@ -763,11 +580,11 @@ Your research idea:\n\n
 
     def _run_substage(
         self,
-        current_substage: Stage,
+        current_substage: StageMeta,
         agent: ParallelAgent,
         exec_callback: ExecCallbackType,
-        step_callback: Optional[Callable[[Stage, Journal], None]],
-    ) -> Tuple[bool, Optional[Stage]]:
+        step_callback: Optional[Callable[[StageMeta, Journal], None]],
+    ) -> Tuple[bool, Optional[StageMeta]]:
         """Execute iterations for a sub-stage until it completes or the main stage finishes.
 
         Returns a tuple: (main_stage_completed, next_substage)
@@ -831,6 +648,7 @@ Your research idea:\n\n
         """Advance to the next main stage if available; otherwise finish."""
         if not self.current_stage:
             return
+        # Promote the last substage to the first substage of the next main stage
         next_main_stage = self._create_next_main_stage(
             current_substage=self.stages[-1],
             journal=self.journals[self.stages[-1].name],
@@ -841,7 +659,7 @@ Your research idea:\n\n
                 StageTransition(
                     from_stage=self.stages[-1].name,
                     to_stage=next_main_stage.name,
-                    reason=f"Moving to {next_main_stage.description}",
+                    reason=f"Moving to {next_main_stage.name}",
                     config_adjustments={},
                 )
             )
@@ -858,16 +676,17 @@ Your research idea:\n\n
     def run(
         self,
         exec_callback: ExecCallbackType,
-        step_callback: Optional[Callable[[Stage, Journal], None]] = None,
+        step_callback: Optional[Callable[[StageMeta, Journal], None]] = None,
     ) -> None:
         """Run the experiment through generated stages"""
-        while self.current_stage:  # Main stage loop
-            main_stage = self.parse_stage_names(self.current_stage.name)[0]
-            print(f"[green]Starting main stage: {main_stage}[/green]")
+        # Main stage loop
+        while self.current_stage:
+            print(f"[green]Starting main stage: {self.current_stage.slug}[/green]")
             print(f"[cyan]Goals: {self.current_stage.goals}[/cyan]")
 
-            current_substage: Optional[Stage] = self.current_stage
-            while current_substage:  # Sub-stage loop
+            # Sub-stage loop
+            current_substage: Optional[StageMeta] = self.current_stage
+            while current_substage:
                 print(f"[green]Starting sub-stage: {current_substage.name}[/green]")
 
                 with self._create_agent_for_stage(current_substage) as agent:
@@ -891,189 +710,6 @@ Your research idea:\n\n
             self._save_checkpoint()
             # Main stage complete - create next main stage
             self._advance_to_next_main_stage()
-
-    def _create_stage_analysis_prompt(
-        self,
-        previous_stages: List[Stage],
-        previous_results: Optional[Dict[str, Any]],
-        is_initial_stage: bool,
-    ) -> str:
-        """Create detailed prompt to determine next stage configuration"""
-        prompt_parts = [
-            f"Task Description: {self._curate_task_desc(previous_stages[-1])}",
-            f"Current Stage Number: {previous_stages[-1].stage_number}",
-        ]
-
-        if previous_stages:
-            stage_history = "\n".join(
-                f"Stage {i + 1}: {stage.name} - {stage.description}"
-                for i, stage in enumerate(previous_stages)
-            )
-            prompt_parts.append(f"Previous Stages:\n{stage_history}")
-
-        if previous_results:
-            # Format node summaries
-            if "node_summaries" in previous_results["metrics"]:
-                summaries = "\n".join(
-                    f"Node {i}: {summary}"
-                    for i, summary in enumerate(previous_results["metrics"]["node_summaries"])
-                )
-                prompt_parts.append(f"Node Analysis:\n{summaries}")
-
-            # Format VLM feedback and plot analysis
-            if "plot_insights" in previous_results:
-                plot_insights = previous_results["plot_insights"]
-                prompt_parts.append("Visual Analysis Findings:")
-                for analysis in plot_insights["analyses"]:
-                    prompt_parts.append(f"- {analysis['analysis']}")
-
-            # Format other metrics and findings
-            metrics_summary = (
-                f"Progress Summary:\n"
-                f"- Total attempts: {previous_results['metrics']['total_nodes']}\n"
-                f"- Successful implementations: {previous_results['metrics']['good_nodes']}\n"
-                f"- Failed attempts: {previous_results['metrics']['buggy_nodes']}\n"
-                f"- Best performance: {previous_results['metrics']['best_metric']['value'] if previous_results['metrics']['best_metric'] else 'N/A'}\n"
-                f"- Issues identified: {', '.join(previous_results['issues'])}\n"
-                f"- Progress status: {previous_results['progress']['convergence_status']}"
-            )
-            prompt_parts.append(metrics_summary)
-
-            # Save stage transition analysis to notes directory
-            base_dir = Path(self.workspace_dir).parent.parent
-            run_name = Path(self.workspace_dir).name
-            current_stage_number = previous_stages[-1].stage_number
-            notes_dir = (
-                base_dir
-                / "logs"
-                / run_name
-                / "notes"
-                / f"stage_{current_stage_number - 1}_to_{current_stage_number}"
-            )
-            notes_dir.mkdir(parents=True, exist_ok=True)
-
-            analysis_data = {
-                "stage_transition": {
-                    "from_stage": current_stage_number - 1,
-                    "to_stage": current_stage_number,
-                    "is_initial_stage": is_initial_stage,  # Add flag for initial stage
-                    "metrics_summary": metrics_summary,
-                    "node_summaries": previous_results["metrics"].get("node_summaries", []),
-                    "plot_insights": previous_results.get("plot_insights", {}),
-                    "issues": previous_results["issues"],
-                    "progress": previous_results["progress"],
-                }
-            }
-
-            with open(notes_dir / "stage_transition_analysis.json", "w") as f:
-                json.dump(analysis_data, f, indent=2)
-
-        prompt_parts.append(
-            "Based on the above comprehensive analysis, determine the appropriate "
-            "configuration for the next experimental stage. Consider:\n"
-            "1. Visual analysis insights from plots\n"
-            "2. Individual node performance and patterns\n"
-            "3. Overall progress and convergence status\n"
-            "4. Identified issues and challenges\n\n"
-            "Include:\n"
-            "1. Stage name (brief, descriptive)\n"
-            "2. Detailed description of the stage's purpose\n"
-            "3. Specific, measurable goals\n"
-            "4. Maximum iterations needed\n"
-            "5. Success metric threshold (if applicable)"
-        )
-
-        return "\n\n".join(prompt_parts)
-
-    def parse_stage_names(self, stage_name: str) -> Tuple[int, str, int, str]:
-        """Parse stage name into main stage number, main stage name,
-        sub-stage number, and sub-stage name"""
-        # Find the two numbers in the current stage name
-        numbers = [int(n) for n in re.findall(r"\d+", stage_name)]
-
-        main_stage = numbers[0]
-        sub_stage_num = numbers[1]
-        # Extract main_stage_name (everything between the two numbers)
-        parts = re.split(r"\d+", stage_name)[1:-1]
-        main_stage_name = "_".join(p.strip("_") for p in parts if p.strip("_"))
-        # Extract sub_stage_name (everything after the second number)
-        sub_stage_name = re.split(r"\d+", stage_name)[-1].strip("_")
-
-        return main_stage, main_stage_name, sub_stage_num, sub_stage_name
-
-    def _save_stage_summary(
-        self, current_results: Dict[str, Any], evaluation: Dict[str, Any]
-    ) -> None:
-        """Save comprehensive stage completion summary"""
-        if self.current_stage is None:
-            logger.warning("Cannot save stage summary: current_stage is None")
-            return
-
-        base_dir = Path(self.workspace_dir).parent.parent
-        run_name = Path(self.workspace_dir).name
-        notes_dir = (
-            base_dir
-            / "logs"
-            / run_name
-            / "notes"
-            / f"stage_{self.current_stage.stage_number}_complete"
-        )
-        notes_dir.mkdir(parents=True, exist_ok=True)
-
-        completion_data = {
-            "stage_completion": {
-                "stage_number": self.current_stage.stage_number,
-                "stage_name": self.current_stage.name,
-                "final_metrics": current_results["metrics"],
-                "identified_issues": current_results["issues"],
-                "progress_analysis": current_results["progress"],
-                "plot_insights": current_results.get("plot_insights", {}),
-                "progression_evaluation": {
-                    "ready_for_next_stage": evaluation["ready_for_next_stage"],
-                    "reasoning": evaluation["reasoning"],
-                    "recommendations": evaluation["recommendations"],
-                    "suggested_focus": evaluation.get("suggested_focus", ""),
-                },
-            }
-        }
-
-        with open(notes_dir / "stage_completion_summary.json", "w") as f:
-            json.dump(completion_data, f, indent=2)
-
-    def _get_response(self, prompt: str) -> Dict[str, Any]:
-        """Get structured response from LLM for stage configuration.
-
-        Args:
-            prompt: The analysis prompt to send to the LLM
-
-        Returns:
-            Dictionary containing stage configuration with keys:
-            - name: str
-            - description: str
-            - goals: List[str]
-            - max_iterations: int
-            - success_metric_threshold: Optional[float]
-        """
-        try:
-            response = query(
-                system_message=prompt,
-                user_message=None,
-                func_spec=stage_config_spec,
-                model=self.cfg.agent.feedback.model,
-                temperature=self.cfg.agent.feedback.temp,
-            )
-            return cast(Dict[str, Any], response)
-
-        except Exception as e:
-            logger.error(f"Error getting LLM response: {e}")
-            # Provide a fallback configuration in case of errors
-            return {
-                "name": "fallback_stage",
-                "description": "Fallback stage due to LLM error",
-                "goals": ["Recover from error and continue execution"],
-                "max_iterations": 3,
-                "success_metric_threshold": None,
-            }
 
     def _gather_stage_metrics(self, journal: Journal) -> Dict[str, Any]:
         """Gather detailed metrics and analysis from the stage's nodes"""
@@ -1179,74 +815,3 @@ Your research idea:\n\n
                 progress["recent_changes"].append(change)
 
         return progress
-
-    def _evaluate_stage_progression(
-        self, current_stage: Stage, previous_results: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Evaluate whether experiment is ready for next stage"""
-
-        eval_prompt = f"""
-        Evaluate whether the current experimental stage should progress to the next stage.
-        Consider all available evidence holistically:
-
-        Current Stage Information:
-        - Name: {current_stage.name}
-        - Description: {current_stage.description}
-        - Goals: {current_stage.goals}
-
-        Performance Metrics:
-        {json.dumps(previous_results.get('metrics', {}), indent=2)}
-
-        Identified Issues:
-        {json.dumps(previous_results.get('issues', []), indent=2)}
-
-        Progress Analysis:
-        {json.dumps(previous_results.get('progress', {}), indent=2)}
-
-        Expected Stage Progression:
-        1. Initial Implementation: Focus on basic working implementation
-        2. Baseline Tuning: Systematic optimization of core parameters
-        3. Creative Research: Novel improvements and approaches
-        4. Ablation Studies: Systematic component analysis
-
-        Consider factors like:
-        - Progress toward stage goals
-        - Performance trends and stability
-        - Quality and reliability of results
-        - Understanding of the problem
-        - Presence of systematic issues
-        - Convergence indicators
-        - Readiness for next stage challenges
-
-        Provide a holistic evaluation of whether the experiment should:
-        1. Progress to next stage
-        2. Continue current stage with specific focus
-        3. Extend current stage with modifications
-        """
-
-        try:
-            evaluation = query(
-                system_message=eval_prompt,
-                user_message=None,
-                func_spec=stage_progress_eval_spec,
-                model=self.cfg.agent.feedback.model,
-                temperature=self.cfg.agent.feedback.temp,
-            )
-            evaluation_dict = cast(Dict[str, Any], evaluation)
-
-            # Log the evaluation for transparency
-            logger.info(f"Stage progression evaluation:\n{json.dumps(evaluation_dict, indent=2)}")
-
-            return evaluation_dict
-
-        except Exception as e:
-            logger.error(f"Error in stage progression evaluation: {e}")
-            return {
-                "ready_for_next_stage": False,
-                "reasoning": "Error in evaluation process - continuing current stage",
-                "recommendations": [
-                    "Address evaluation error",
-                    "Continue current approach",
-                ],
-                "suggested_focus": "Maintain current direction while resolving evaluation issues",
-            }

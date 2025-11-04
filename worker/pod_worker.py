@@ -3,10 +3,14 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import signal
 import socket
 import subprocess
 import sys
+import tarfile
+import tempfile
+import threading
 import time
 import traceback
 from datetime import datetime
@@ -16,10 +20,24 @@ from types import FrameType, TracebackType
 from typing import Any, Callable, Dict, List, Literal, Optional, Protocol
 
 import requests
+import torch
+import yaml
+from dotenv import load_dotenv
 from event_emitter import CloudEventEmitter
+from experiment_monitor import ExperimentMonitor
 from pymongo import MongoClient, ReturnDocument
 from pymongo.database import Database
 from ulid import ULID
+
+from ai_scientist.llm import create_client
+from ai_scientist.perform_icbinb_writeup import gather_citations, perform_writeup
+from ai_scientist.perform_llm_review import load_paper, perform_review
+from ai_scientist.perform_plotting import aggregate_plots
+from ai_scientist.review_context import build_auto_review_context
+from ai_scientist.treesearch.bfts_utils import edit_bfts_config_file
+from ai_scientist.treesearch.perform_experiments_bfts_with_agentmanager import (
+    perform_experiments_bfts,
+)
 
 CONTROL_PLANE_URL = os.environ.get(
     "CONTROL_PLANE_URL", "https://ai-scientist-v2-production.up.railway.app"
@@ -428,7 +446,6 @@ def signal_handler(signum: int, frame: FrameType | None) -> None:
 
     try:
         if CURRENT_RUN_ID:
-            from pymongo import MongoClient
 
             client: MongoClient = MongoClient(MONGODB_URL)
             db = client["ai-scientist"]
@@ -485,7 +502,6 @@ class StageContext:
         exc_value: Optional[BaseException],
         exc_traceback: TracebackType | None,
     ) -> Literal[False]:
-        from pymongo import MongoClient
 
         duration_s = time.time() - self.start_time if self.start_time else 0
 
@@ -677,7 +693,6 @@ def fetch_writeup_retry(mongo_client: MongoClient, pod_id: str) -> Optional[Dict
 
 def get_gpu_info() -> Dict[str, Any]:
     try:
-        import torch
 
         if torch.cuda.is_available():
             return {
@@ -751,7 +766,6 @@ def copy_best_solutions_to_root(idea_dir: str) -> None:
     for easy access and reproducibility.
     """
     try:
-        from pathlib import Path
 
         idea_path = Path(idea_dir)
         logs_dir = idea_path / "logs" / "0-run"
@@ -793,7 +807,6 @@ def copy_best_solutions_to_root(idea_dir: str) -> None:
                 dest_path = idea_path / dest_filename
 
                 # Copy the file
-                import shutil
 
                 shutil.copy2(source_file, dest_path)
                 print(f"✓ Copied {dest_filename} (node: {node_id[:8]}...)")
@@ -930,7 +943,7 @@ def run_ideation_pipeline(request: Dict[str, Any], mongo_client: MongoClient) ->
 
     cmd = [
         sys.executable or "python3",
-        "ai_scientist/perform_ideation_temp_free.py",
+        "ai_scientist/ideation/perform_ideation_temp_free.py",
         "--model",
         "gpt-5-mini",
         "--workshop-file",
@@ -1044,7 +1057,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
 
     # Load .env and export to os.environ to ensure child processes inherit
     if os.path.exists(".env"):
-        from dotenv import load_dotenv
 
         load_dotenv(override=True)
 
@@ -1117,14 +1129,8 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
         with open(idea_path_json, "w") as f:
             json.dump(idea_json, f, indent=4)
 
-        from ai_scientist.treesearch.bfts_utils import edit_bfts_config_file
-
         config_path = "bfts_config.yaml"
         idea_config_path = edit_bfts_config_file(config_path, idea_dir, idea_path_json)
-
-        import threading
-
-        from experiment_monitor import ExperimentMonitor
 
         exp_monitor = ExperimentMonitor(idea_dir, run_id, emit_event)
         monitor_stop = threading.Event()
@@ -1142,7 +1148,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
                             upload_artifact(run_id, str(full_path), "plot")
                 except Exception as e:
                     print(f"Monitor error: {e}")
-                    import traceback
 
                     traceback.print_exc()
                 time.sleep(5)
@@ -1184,9 +1189,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
                 {"_id": run_id}, {"$set": {"currentStage": {"name": "Stage_1", "progress": 0.0}}}
             )
 
-            # Log configuration details
-            import yaml
-
             config_path = os.path.join(os.path.dirname(__file__), "bfts_config.yaml")
             if os.path.exists(config_path):
                 with open(config_path, "r") as f:
@@ -1205,10 +1207,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
                 "Stage_1",
             )
 
-            from ai_scientist.treesearch.perform_experiments_bfts_with_agentmanager import (
-                perform_experiments_bfts,
-            )
-
             perform_experiments_bfts(
                 Path(idea_config_path), event_callback=experiment_event_callback
             )
@@ -1218,8 +1216,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
 
         # Final progress for stage
         # This will be overridden by step_callback during execution
-
-        import yaml
 
         config_path = os.path.join(os.path.dirname(__file__), "bfts_config.yaml")
         with open(config_path, "r") as f:
@@ -1268,8 +1264,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
                 run_id, f"Generating aggregator script using model: {plot_model}", "info", "Stage_2"
             )
 
-            from ai_scientist.perform_plotting import aggregate_plots
-
             aggregate_plots(base_folder=idea_dir, model=plot_model)
 
             ensure_run_not_canceled(db, run_id)
@@ -1313,7 +1307,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
             )
 
             print("\n📄 Generating paper...")
-            from ai_scientist.perform_icbinb_writeup import gather_citations, perform_writeup
 
             event_emitter.paper_started(run_id)
             event_emitter.log(
@@ -1364,7 +1357,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
 
                 if pdf_files:
                     # Upload ALL PDFs (reflections and final paper)
-                    import shutil
 
                     backup_dir = Path("local_pdf_backups")
                     backup_dir.mkdir(exist_ok=True)
@@ -1473,10 +1465,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
             )
             event_emitter.validation_auto_started(run_id, review_model)
             event_emitter.log(run_id, f"Using review model: {review_model}", "info", "Stage_4")
-
-            from ai_scientist.llm import create_client
-            from ai_scientist.perform_llm_review import load_paper, perform_review
-            from ai_scientist.review_context import build_auto_review_context
 
             if pdf_files:
                 # Smart PDF selection: prefer final > highest numbered > any reflection
@@ -1696,8 +1684,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
         print("\n📦 Archiving experiment artifacts to MinIO...")
         archive_uploaded = False
         try:
-            import tarfile
-            import tempfile
 
             with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
                 archive_path = tmp.name
@@ -1713,7 +1699,6 @@ def run_experiment_pipeline(run: Dict[str, Any], mongo_client: MongoClient) -> N
             if archive_uploaded:
                 print("✓ Archived experiment to MinIO")
                 print("🧹 Cleaning up local experiment directory...")
-                import shutil
 
                 shutil.rmtree(idea_dir, ignore_errors=True)
                 print(f"✓ Cleaned up {idea_dir}")
@@ -1877,8 +1862,6 @@ def perform_writeup_retry(run: Dict[str, Any], mongo_client: MongoClient) -> Non
                 print(f"   Found archive: {archive_key}")
 
                 # Download archive from MinIO
-                import tarfile
-                import tempfile
 
                 resp = requests.post(
                     f"{CONTROL_PLANE_URL}/api/runs/{run_id}/artifacts/presign",
@@ -1933,8 +1916,6 @@ def perform_writeup_retry(run: Dict[str, Any], mongo_client: MongoClient) -> Non
             raise FileNotFoundError(f"Config file not found: {config_path}")
 
         with open(config_path, "r") as f:
-            import yaml
-
             config = yaml.safe_load(f)
 
         writeup_config = config.get("writeup", {})
@@ -1954,8 +1935,6 @@ def perform_writeup_retry(run: Dict[str, Any], mongo_client: MongoClient) -> Non
             },
         )
 
-        from ai_scientist.perform_plotting import aggregate_plots
-
         aggregate_plots(str(exp_dir), small_model)
 
         emit_event(
@@ -1967,8 +1946,6 @@ def perform_writeup_retry(run: Dict[str, Any], mongo_client: MongoClient) -> Non
                 "source": "writeup_retry",
             },
         )
-
-        from ai_scientist.perform_icbinb_writeup import perform_writeup
 
         success = perform_writeup(
             base_folder=str(exp_dir),
@@ -1998,7 +1975,6 @@ def perform_writeup_retry(run: Dict[str, Any], mongo_client: MongoClient) -> Non
 
         if pdf_files:
             # Upload ALL PDFs (reflections and final paper)
-            import shutil
 
             backup_dir = Path("local_pdf_backups")
             backup_dir.mkdir(exist_ok=True)
