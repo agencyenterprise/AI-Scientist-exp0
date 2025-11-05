@@ -1,0 +1,380 @@
+/**
+ * RunPod Service
+ *
+ * A robust service for managing RunPod GPU instances with:
+ * - Setup script execution
+ * - GPU availability retry logic with round-robin fallback
+ * - Automatic pod termination using runpodctl
+ */
+
+// ============================================================================
+// Types and Interfaces
+// ============================================================================
+
+export interface SetupScript {
+  /** Name/description of the setup script */
+  name: string
+  /** The bash script content to execute */
+  content: string
+}
+
+export interface CreatePodOptions {
+  /** Name of the repository to clone */
+  repoName: string
+  /** GitHub organization (default: "agencyenterprise") */
+  repoOrg?: string
+  /** Branch to checkout (default: "main") */
+  repoBranch?: string
+  /** RunPod secret name for SSH key (must be base64 encoded) */
+  sshKeySecretName: string
+  /** Command to run after repository setup */
+  startupCommand?: string
+  /** List of GPU types to try in order (round-robin fallback) */
+  gpuTypes?: string[]
+  /** Number of GPUs to allocate */
+  gpuCount?: number
+  /** Environment variables to pass to the pod */
+  env?: Record<string, string>
+  /** Setup scripts to execute before repository setup */
+  setupScripts?: SetupScript[]
+  /** Container disk size in GB (default: 30) */
+  containerDiskInGb?: number
+  /** Volume size in GB (default: 50) */
+  volumeInGb?: number
+  /** Docker image to use (default: runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404) */
+  imageName?: string
+  /** Ports to expose (default: ["22/tcp", "8888/http"]) */
+  ports?: string[]
+  /** Maximum retry attempts for GPU availability (default: 3) */
+  maxRetries?: number
+  /** Whether to auto-terminate the pod after completion (default: true) */
+  autoTerminate?: boolean
+}
+
+export interface PodInfo {
+  id: string
+  name: string
+  desiredStatus: string
+  runtime?: {
+    uptimeInSeconds?: number
+    ports?: Array<{
+      ip: string
+      isIpPublic: boolean
+      privatePort: number
+      publicPort: number
+      type: string
+    }>
+    gpus?: Array<{
+      id: string
+      gpuTypeId: string
+    }>
+  }
+  machine?: {
+    gpuCount: number
+  }
+}
+
+export interface ListPodsResponse {
+  pods: PodInfo[]
+}
+
+export interface CreatePodResponse {
+  id: string
+  name: string
+  imageName: string
+  gpuCount: number
+  [key: string]: unknown
+}
+
+// ============================================================================
+// RunPod Service Class
+// ============================================================================
+
+class RunPodServiceError extends Error {
+  readonly status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "RunPodServiceError"
+    this.status = status
+  }
+}
+
+export class RunPodService {
+  private readonly apiKey: string
+  private readonly baseURL = "https://rest.runpod.io/v1"
+
+  constructor(apiKey: string) {
+    if (!apiKey) {
+      throw new Error("RunPod API key is required")
+    }
+    this.apiKey = apiKey
+  }
+
+  // --------------------------------------------------------------------------
+  // Private Helper Methods
+  // --------------------------------------------------------------------------
+
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${this.baseURL}${endpoint}`
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+        ...options.headers
+      }
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      let errorMessage: string
+      try {
+        const errorJson = JSON.parse(errorText)
+        errorMessage = JSON.stringify(errorJson, null, 2)
+      } catch {
+        errorMessage = errorText
+      }
+      throw new RunPodServiceError(
+        `RunPod API error (${response.status}): ${errorMessage}`,
+        response.status
+      )
+    }
+
+    return response.json() as Promise<T>
+  }
+
+  private buildDockerStartCommand(options: CreatePodOptions): string {
+    const { setupScripts = [], startupCommand, autoTerminate = true } = options
+
+    const scriptParts: string[] = ["set -euo pipefail", ""]
+
+    // Add setup scripts
+    if (setupScripts.length > 0) {
+      scriptParts.push("# === Setup Scripts ===")
+      setupScripts.forEach((script, index) => {
+        scriptParts.push(
+          `echo "Running setup script ${index + 1}/${setupScripts.length}: ${script.name}..."`
+        )
+        scriptParts.push(script.content)
+        scriptParts.push("")
+      })
+    }
+
+    // Add repository setup
+    scriptParts.push("# === Repository Setup ===")
+    scriptParts.push(
+      "curl -fsSL https://raw.githubusercontent.com/agencyenterprise/AE-Scientist-infra/refs/heads/main/setup_repo.sh | bash"
+    )
+    scriptParts.push("")
+
+    // Add startup command if provided
+    if (startupCommand) {
+      scriptParts.push("# === Startup Command ===")
+      scriptParts.push(`echo "Executing startup command..."`)
+      scriptParts.push(startupCommand)
+      scriptParts.push("")
+    }
+
+    // Add auto-termination
+    if (autoTerminate) {
+      scriptParts.push("# === Auto-termination ===")
+      scriptParts.push(
+        'echo "Work complete. Terminating pod $RUNPOD_POD_ID..."'
+      )
+      // Note: this is the command to terminate the pod using the RunPod CLI
+      // You can alternatively run this command from your program directly.
+      scriptParts.push("runpodctl remove pod $RUNPOD_POD_ID")
+      scriptParts.push('echo "Termination request sent!"')
+    }
+
+    return scriptParts.join("\n").trim()
+  }
+
+  private async attemptCreatePod(
+    options: CreatePodOptions,
+    gpuType: string,
+    attemptNumber: number
+  ): Promise<CreatePodResponse> {
+    const {
+      repoName,
+      repoOrg = "agencyenterprise",
+      repoBranch = "main",
+      sshKeySecretName,
+      startupCommand,
+      gpuCount = 1,
+      env = {},
+      containerDiskInGb = 30,
+      volumeInGb = 50,
+      imageName = "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404",
+      ports = ["22/tcp", "8888/http"]
+    } = options
+    const cloudType = "SECURE"
+
+    const podPayload = {
+      name: `${repoName}-worker-${Date.now()}`,
+      imageName,
+      cloudType,
+      gpuCount,
+      gpuTypeIds: [gpuType],
+      containerDiskInGb,
+      volumeInGb,
+      env: {
+        // Map the RunPod secret to a generic variable name
+        GIT_SSH_KEY_B64: `{{ RUNPOD_SECRET_${sshKeySecretName} }}`,
+        // Repository configuration
+        REPO_NAME: repoName,
+        REPO_ORG: repoOrg,
+        REPO_BRANCH: repoBranch,
+        REPO_STARTUP_CMD: startupCommand || "",
+        // User-provided environment variables
+        ...env
+      },
+      ports,
+      dockerStartCmd: ["bash", "-c", this.buildDockerStartCommand(options)]
+    }
+
+    console.log(
+      `[Attempt ${attemptNumber}] Creating pod with GPU type: ${gpuType}`
+    )
+
+    return await this.makeRequest<CreatePodResponse>("/pods", {
+      method: "POST",
+      body: JSON.stringify(podPayload)
+    })
+  }
+
+  // --------------------------------------------------------------------------
+  // Public API Methods
+  // --------------------------------------------------------------------------
+
+  /**
+   * List all pods in the account
+   */
+  async listPods(): Promise<PodInfo[]> {
+    const response = await this.makeRequest<ListPodsResponse>("/pods")
+    return response.pods || []
+  }
+
+  /**
+   * Get information about a specific pod
+   */
+  async getPod(podId: string): Promise<PodInfo> {
+    return await this.makeRequest<PodInfo>(`/pods/${podId}`)
+  }
+
+  /**
+   * Terminate a pod
+   */
+  async terminatePod(podId: string): Promise<void> {
+    await this.makeRequest<void>(`/pods/${podId}`, {
+      method: "DELETE"
+    })
+  }
+
+  /**
+   * Create a worker pod with GPU availability retry logic
+   *
+   * This method will attempt to create a pod with the specified GPU types.
+   * If a GPU type is unavailable (500 error), it will try the next one in
+   * round-robin fashion until one succeeds or max retries is reached.
+   */
+  async createWorkerPod(options: CreatePodOptions): Promise<CreatePodResponse> {
+    const { gpuTypes = ["NVIDIA RTX A4000"], maxRetries = 3 } = options
+
+    if (gpuTypes.length === 0) {
+      throw new Error("At least one GPU type must be specified")
+    }
+
+    let lastError: Error | null = null
+    let attemptCount = 0
+    const maxAttempts = Math.max(maxRetries, gpuTypes.length)
+
+    // Round-robin through GPU types
+    for (let i = 0; i < maxAttempts; i++) {
+      const gpuType = gpuTypes[i % gpuTypes.length]
+      attemptCount++
+
+      try {
+        const pod = await this.attemptCreatePod(options, gpuType, attemptCount)
+        console.log("✅ Pod created successfully!")
+        console.log(`   Pod ID: ${pod.id}`)
+        console.log(`   Pod name: ${pod.name}`)
+        console.log(`   GPU type: ${gpuType}`)
+        return pod
+      } catch (error) {
+        lastError = error as Error
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+
+        // Check if it's a 500 error (likely GPU unavailability)
+        const is500Error =
+          error instanceof RunPodServiceError && error.status === 500
+        const isGpuUnavailableError = errorMessage
+          .toLowerCase()
+          .includes(`no instances currently available`)
+
+        if (is500Error && isGpuUnavailableError && i < maxAttempts - 1) {
+          console.log(`Error: ${errorMessage}`)
+          console.warn(
+            `⚠️  GPU type "${gpuType}" unavailable (attempt ${attemptCount}/${maxAttempts}). Trying next GPU type...`
+          )
+          // Add a small delay before retrying
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          continue
+        } else if (!is500Error || !isGpuUnavailableError) {
+          // If it's not a 500 error, throw immediately (it's a different kind of error)
+          console.log(`Error: ${errorMessage}`)
+          throw error
+        }
+      }
+    }
+
+    // If we get here, all attempts failed
+    throw new Error(
+      `Failed to create pod after ${attemptCount} attempts. ` +
+        `Tried GPU types: ${gpuTypes.join(", ")}. ` +
+        `Last error: ${lastError?.message || "Unknown error"}`
+    )
+  }
+}
+
+// ============================================================================
+// Factory Function
+// ============================================================================
+
+/**
+ * Create a new RunPod service instance
+ */
+export function createRunPodService(apiKey?: string): RunPodService {
+  const key = apiKey || process.env.RUNPOD_API_KEY
+  if (!key) {
+    throw new Error(
+      "RunPod API key must be provided or set in RUNPOD_API_KEY environment variable"
+    )
+  }
+  return new RunPodService(key)
+}
+
+// ============================================================================
+// Convenience Functions
+// ============================================================================
+
+/**
+ * Quick function to create a worker pod with minimal configuration
+ */
+export async function createSimpleWorkerPod(
+  repoName: string,
+  sshKeySecretName: string,
+  startupCommand?: string,
+  apiKey?: string
+): Promise<CreatePodResponse> {
+  const service = createRunPodService(apiKey)
+  return service.createWorkerPod({
+    repoName,
+    sshKeySecretName,
+    startupCommand
+  })
+}
