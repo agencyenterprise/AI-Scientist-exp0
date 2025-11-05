@@ -269,14 +269,31 @@ class Interpreter:
         self.code_inq.put(code)
 
         # wait for child to actually start execution (we don't want interrupt child setup)
-        try:
-            state = self.event_outq.get(timeout=10)
-        except queue.Empty:
-            msg = "REPL child process failed to start execution"
-            logger.critical(msg)
-            while not self.result_outq.empty():
-                logger.error(f"REPL output queue dump: {self.result_outq.get()}")
-            raise RuntimeError(msg) from None
+        startup_deadline = time.time() + float(os.environ.get("AI_SCI_STARTUP_TIMEOUT", "60"))
+        state = None
+        while True:
+            remaining = startup_deadline - time.time()
+            if remaining <= 0:
+                msg = "REPL child process failed to start execution"
+                logger.critical(msg)
+                if self.process is not None and not self.process.is_alive():
+                    logger.critical(
+                        f"REPL child died before start (pid={self.process.pid}, exitcode={self.process.exitcode})"
+                    )
+                while not self.result_outq.empty():
+                    logger.error(f"REPL output queue dump: {self.result_outq.get()}")
+                raise RuntimeError(msg) from None
+            try:
+                state = self.event_outq.get(timeout=min(1.0, max(0.0, remaining)))
+                break
+            except queue.Empty:
+                if self.process is not None and not self.process.is_alive():
+                    msg = "REPL child process died before signaling readiness"
+                    logger.critical(msg)
+                    while not self.result_outq.empty():
+                        logger.error(f"REPL output queue dump: {self.result_outq.get()}")
+                    raise RuntimeError(msg) from None
+                continue
         assert state[0] == "state:ready", state
         start_time = time.time()
 
