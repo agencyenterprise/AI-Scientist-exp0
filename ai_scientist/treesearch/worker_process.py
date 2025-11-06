@@ -3,7 +3,9 @@ import os
 import pickle
 import traceback
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, cast
+
+from ai_scientist.llm.query import query
 
 from .codegen_agent import MinimalAgent
 from .interpreter import Interpreter
@@ -12,7 +14,131 @@ from .stages.stage1_baseline import Stage1Baseline
 from .stages.stage2_tuning import Stage2Tuning
 from .stages.stage3_plotting import Stage3Plotting
 from .stages.stage4_ablation import Stage4Ablation
+from .types import PromptType
 from .utils.config import Config as AppConfig
+from .utils.metric import MetricValue, WorstMetricValue
+from .vlm_function_specs import metric_parse_spec
+
+
+def parse_and_assign_metrics(
+    *,
+    worker_agent: MinimalAgent,
+    child_node: Node,
+    parent_node: Node | None,
+    cfg: AppConfig,
+    working_dir: str,
+    process_interpreter: Interpreter,
+    seed_eval: bool,
+    emit: Callable[[str, dict[str, object]], None],
+) -> None:
+    """Generate/execute metrics parsing code and assign structured metrics to the node."""
+    try:
+        working_path = Path(working_dir)
+        data_files = list(working_path.glob("*.npy"))
+        if not data_files:
+            emit(
+                "ai.run.log",
+                {
+                    "message": "No .npy files found in working directory. Data may not have been saved properly.",
+                    "level": "warn",
+                },
+            )
+
+        # Prepare or reuse metrics parsing code
+        if seed_eval and parent_node is not None:
+            parse_metrics_plan = parent_node.parse_metrics_plan
+            parse_metrics_code = parent_node.parse_metrics_code
+        else:
+            parse_metrics_prompt: PromptType = {
+                "Introduction": (
+                    "You are an AI researcher analyzing experimental results stored in numpy files. "
+                    "Write code to load and analyze the metrics from experiment_data.npy."
+                ),
+                "Context": [
+                    "Original Code: " + child_node.code,
+                ],
+                "Instructions": [
+                    "0. Make sure to get the working directory from os.path.join(os.getcwd(), 'working')",
+                    "1. Load the experiment_data.npy file, which is located in the working directory",
+                    "2. Extract metrics for each dataset. Refer to the original code to understand the data structure.",
+                    "3. Always print the name of the dataset before printing the metrics",
+                    "4. Always print the name of the metric before printing the value with precise labels (e.g., 'train accuracy', 'validation loss', 'test F1 score').",
+                    "5. Only print the best or final value for each metric for each dataset",
+                    "6. DO NOT CREATE ANY PLOTS",
+                    "Important code structure requirements:",
+                    "  - Do NOT put any execution code inside if __name__ == '" + "__main__" + "':",
+                    "  - All code should be at the global scope or in functions that are called from the global scope",
+                    "  - The script should execute immediately when run, without requiring any special entry point",
+                ],
+                "Example data loading code": [
+                    (
+                        "\nimport numpy as np\nimport os\n"
+                        "experiment_data = np.load(os.path.join(os.getcwd(), 'working', 'experiment_data.npy'), allow_pickle=True).item()\n"
+                    )
+                ],
+                "Response format": cast(
+                    dict[str, str | list[str]], worker_agent._prompt_metricparse_resp_fmt()
+                ),
+            }
+            parse_metrics_plan, parse_metrics_code = worker_agent.plan_and_code_query(
+                prompt=parse_metrics_prompt
+            )
+        child_node.parse_metrics_plan = parse_metrics_plan
+        child_node.parse_metrics_code = parse_metrics_code
+
+        # Execute metric parsing code
+        metrics_exec_result = process_interpreter.run(code=parse_metrics_code, reset_session=True)
+        process_interpreter.cleanup_session()
+        child_node.parse_term_out = metrics_exec_result.term_out
+        child_node.parse_exc_type = metrics_exec_result.exc_type
+        child_node.parse_exc_info = metrics_exec_result.exc_info
+        child_node.parse_exc_stack = metrics_exec_result.exc_stack
+
+        if metrics_exec_result.exc_type is None:
+            # Extract structured metrics from stdout
+            metrics_prompt = {
+                "Introduction": (
+                    "Parse the metrics from the execution output. You only need the final or best value "
+                    "of each metric for each dataset."
+                ),
+                "Execution Output": metrics_exec_result.term_out,
+            }
+            metrics_response = query(
+                system_message=metrics_prompt,
+                user_message=None,
+                func_spec=metric_parse_spec,
+                model=cfg.agent.feedback.model,
+                temperature=cfg.agent.feedback.temp,
+            )
+            if isinstance(metrics_response, dict) and metrics_response.get(
+                "valid_metrics_received"
+            ):
+                child_node.metric = MetricValue(
+                    value={"metric_names": metrics_response.get("metric_names", [])}
+                )
+            else:
+                child_node.metric = WorstMetricValue()
+                child_node.is_buggy = True
+        else:
+            child_node.metric = WorstMetricValue()
+            child_node.is_buggy = True
+
+        # Emit validation outcome
+        if child_node.is_buggy:
+            bug_summary = (child_node.analysis or "Unknown error")[:150]
+            emit(
+                "ai.run.log",
+                {"message": f"Implementation has bugs: {bug_summary}", "level": "warn"},
+            )
+        else:
+            emit(
+                "ai.run.log",
+                {"message": "Implementation passed validation", "level": "info"},
+            )
+    except Exception:
+        # On any unexpected error while parsing metrics, mark as worst
+        child_node.metric = WorstMetricValue()
+        child_node.is_buggy = True
 
 
 def process_node(
@@ -118,6 +244,16 @@ def process_node(
         emit("ai.run.log", {"message": "Analyzing results and extracting metrics", "level": "info"})
         worker_agent.parse_exec_result(
             node=child_node, exec_result=exec_result, workspace=working_dir
+        )
+        parse_and_assign_metrics(
+            worker_agent=worker_agent,
+            child_node=child_node,
+            parent_node=parent_node,
+            cfg=cfg,
+            working_dir=working_dir,
+            process_interpreter=process_interpreter,
+            seed_eval=seed_eval,
+            emit=emit,
         )
 
         if not child_node.is_buggy:

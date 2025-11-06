@@ -498,8 +498,8 @@ class Journal:
             selected_id = str(selection.get("selected_id", ""))
             selected_node = next((node for node in nodes if str(node.id) == selected_id), None)
             if selected_node:
-                logger.warning(f"Selected node {selected_node.id} as best implementation")
-                logger.warning(f"Reasoning: {selection.get('reasoning', '')}")
+                logger.info(f"Selected node {selected_node.id} as best implementation")
+                logger.info(f"Reasoning: {selection.get('reasoning', '')}")
 
                 # Emit user-facing event with the selection reasoning
                 self.event_callback(
