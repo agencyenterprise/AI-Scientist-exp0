@@ -32,6 +32,11 @@ cd AE-Scientist
 uv venv --system-site-packages
 ```
 
+This is important because RunPod provides images with pytorch and other gpu-related packages, 
+some of these packages may conflict with the packages listed in pyproject.toml.
+
+In order to use the pre-installed packages, we need to create a virtual environment with access to system-wide packages.
+
 3. Activate the virtual environment
 ```bash
 source .venv/bin/activate
