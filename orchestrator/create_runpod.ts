@@ -78,7 +78,12 @@ program
     "Comma-separated list of GPU types to try",
     CONFIG.defaultGpuTypes.join(",")
   )
-  .option("--branch <branch>", "Git branch to checkout", CONFIG.repoBranch)
+  .option(
+    "--gpu-count <count>",
+    "Number of GPUs to allocate",
+    CONFIG.gpuCount.toString()
+  )
+  .option("-b, --branch <branch>", "Git branch to checkout", CONFIG.repoBranch)
   .parse(process.argv)
 
 const options = program.opts()
@@ -95,6 +100,7 @@ async function main() {
   const autoTerminate = options.autoTerminate
   const gpuTypes = options.gpuTypes.split(",").map((t: string) => t.trim())
   const branch = options.branch
+  const gpuCount = Number.parseInt(options.gpuCount, 10)
 
   console.log(`\nConfiguration:`)
   console.log(`  Repository: ${CONFIG.repoOrg}/${CONFIG.repoName}`)
@@ -120,7 +126,7 @@ async function main() {
     repoBranch: branch,
     sshKeySecretName: CONFIG.sshKeySecretName,
     gpuTypes,
-    gpuCount: CONFIG.gpuCount,
+    gpuCount,
     containerDiskInGb: CONFIG.containerDiskInGb,
     volumeInGb: CONFIG.volumeInGb,
     imageName: CONFIG.imageName,
