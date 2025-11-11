@@ -53,8 +53,8 @@ const CONFIG = {
   // Pass environment variables to the pod
   podEnv: () => ({
     OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+    HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY ?? "",
     HUGGINGFACE_HUB_TOKEN: process.env.HUGGINGFACE_HUB_TOKEN ?? "",
-    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ?? "",
     HF_TOKEN: process.env.HF_TOKEN ?? ""
   })
 }
