@@ -153,8 +153,8 @@ pnpm install
 To run the complete BFTS experiment workflow including all stages, plot aggregation, paper writeup, and review:
 
 ```bash
-python launch_scientist_bfts.py \
-  --load_ideas <ideas_json_file> \
+python launch_scientist_bfts.py <config_file> \
+  --load_idea <idea_json_file> \
   --model_agg_plots <model_name> \
   --model_writeup <model_name> \
   --model_citation <model_name> \
@@ -162,7 +162,8 @@ python launch_scientist_bfts.py \
 ```
 
 **Required Arguments:**
-- `--load_ideas`: Path to a JSON file containing pregenerated research ideas
+- `<config_file>`: Path to the YAML configuration file (e.g., `bfts_config.yaml`)
+- `--load_idea`: Path to a JSON file containing the research idea
 - `--model_agg_plots`: Model to use for plot aggregation (e.g., `gpt-5`)
 - `--model_writeup`: Model to use for paper writeup (e.g., `gpt-5`) - required unless `--skip_writeup` is set
 - `--model_citation`: Model to use for citation gathering (e.g., `gpt-5`) - required unless `--skip_writeup` is set
@@ -170,19 +171,15 @@ python launch_scientist_bfts.py \
 
 **Optional Arguments:**
 - `--writeup-type`: Type of writeup to generate (`normal` for 8-page or `icbinb` for 4-page, default: `icbinb`)
-- `--load_code`: If set, load a Python file with same name as ideas file but `.py` extension
-- `--idea_idx`: Index of the idea to run from the ideas JSON file (default: `0`)
-- `--add_dataset_ref`: If set, add a HuggingFace dataset reference to the idea
 - `--writeup-retries`: Number of writeup attempts to try (default: `3`)
-- `--attempt_id`: Attempt ID for distinguishing same idea in parallel runs (default: `0`)
 - `--num_cite_rounds`: Number of citation rounds to perform (default: `20`)
 - `--skip_writeup`: Skip the writeup process (also skips review)
 - `--skip_review`: Skip the review process (writeup must still run)
 
 **Example - Full Pipeline:**
 ```bash
-python launch_scientist_bfts.py \
-  --load_ideas idea_example.json \
+python launch_scientist_bfts.py bfts_config.yaml \
+  --load_idea idea_example.json \
   --model_agg_plots gpt-5 \
   --model_writeup gpt-5 \
   --model_citation gpt-5 \
@@ -191,16 +188,16 @@ python launch_scientist_bfts.py \
 
 **Example - Skip Writeup (Experiments Only):**
 ```bash
-python launch_scientist_bfts.py \
-  --load_ideas idea_example.json \
+python launch_scientist_bfts.py bfts_config.yaml \
+  --load_idea idea_example.json \
   --skip_writeup \
   --model_agg_plots gpt-5
 ```
 
 **Example - Skip Review (Experiments + Writeup):**
 ```bash
-python launch_scientist_bfts.py \
-  --load_ideas idea_example.json \
+python launch_scientist_bfts.py bfts_config.yaml \
+  --load_idea idea_example.json \
   --skip_review \
   --model_agg_plots gpt-5 \
   --model_writeup gpt-5 \
@@ -209,23 +206,21 @@ python launch_scientist_bfts.py \
 
 **What the Full Pipeline Does:**
 1. **Loads research idea** from JSON file (and optionally code)
-2. **Creates experiment workspace** in `experiments/<timestamp>_<idea_name>_attempt_<id>/`
-3. **Runs all BFTS stages** via AgentManager:
+2. **Runs all BFTS stages** via AgentManager using directories from the provided config:
    - Stage 1: Initial implementation
    - Stage 2: Baseline tuning
    - Stage 3: Creative research (plotting)
    - Stage 4: Ablation studies
-4. **Aggregates plots** across runs using the specified model
-5. **Copies best solutions** to experiment root directory
-6. **Generates paper writeup** (normal or ICBINB format) using the specified model
-7. **Gathers citations** using the specified citation model
-8. **Performs paper review** (text and images/captions/references) using the specified review model
+3. **Aggregates plots** across runs using the specified model
+4. **Generates paper writeup** (normal or ICBINB format) using the specified model
+5. **Gathers citations** using the specified citation model
+6. **Performs paper review** (text and images/captions/references) using the specified review model
 
 **Output:**
-- Experiment directory: `experiments/<timestamp>_<idea_name>_attempt_<id>/`
-- Experiment logs: `experiments/.../logs/0-run/`
-- Best solution code: `experiments/.../best_code_stage_*.py`
-- Paper PDF: `experiments/.../*.pdf`
-- Review results: `experiments/.../review_text.txt` and `review_img_cap_ref.json`
-- Token usage: `experiments/.../token_tracker.json`
+- Experiment logs: under the `log_dir` specified in your config (e.g., `workspaces/logs/<exp_name>/`)
+- Mirrored logs for plotting/writeup: `$(dirname <idea_json_file>)/logs/<n>-run/`
+- Figures: `$(dirname <idea_json_file>)/figures/`
+- Paper PDF (if writeup enabled): saved under `$(dirname <idea_json_file>)/`
+- Review results (if writeup and review enabled): `review_text.txt` and `review_img_cap_ref.json`
+- Token usage: `token_tracker.json` in the idea folder
 
