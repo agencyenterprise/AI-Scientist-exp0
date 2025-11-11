@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Hashable, List, Optional, cast
@@ -19,9 +20,13 @@ from ..journal import Journal
 from . import copytree, preproc_data, serialize, tree_export
 
 shutup.mute_warnings()
-logging.basicConfig(level="WARNING", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()])
+_LEVEL_NAME = os.getenv("AI_SCIENTIST_LOG_LEVEL", "WARNING").upper()
+_LEVEL = getattr(logging, _LEVEL_NAME, logging.WARNING)
+logging.basicConfig(
+    level=_LEVEL, format="%(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)]
+)
 logger = logging.getLogger("ai-scientist")
-logger.setLevel(logging.WARNING)
+logger.setLevel(_LEVEL)
 
 
 """ these dataclasses are just for type hinting, the actual config is in config.yaml """
@@ -114,7 +119,6 @@ class ComputeConfig:
 class Config(Hashable):
     data_dir: Path
     desc_file: Path
-
     log_dir: Path
     workspace_dir: Path
 
@@ -122,15 +126,16 @@ class Config(Hashable):
     copy_data: bool
 
     exp_name: str
+    log_level: str
 
     exec: ExecConfig
     generate_report: bool
     report: StageConfig
-    writeup: Optional[WriteupConfig]
     agent: AgentConfig
     experiment: ExperimentConfig
     compute: ComputeConfig
     debug: DebugConfig
+    writeup: Optional[WriteupConfig]
 
 
 def _get_next_logindex(dir: Path) -> int:
@@ -193,6 +198,17 @@ def prep_cfg(cfg: object) -> Config:
 
     if cfg_obj.agent.type not in ["parallel", "sequential"]:
         raise ValueError("agent.type must be either 'parallel' or 'sequential'")
+
+    # Apply logging level from config
+    level_name = cfg_obj.log_level.upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.getLogger().setLevel(level)
+    for h in logging.getLogger().handlers:
+        try:
+            h.setLevel(level)
+        except Exception:
+            pass
+    logger.setLevel(level)
 
     return cfg_obj
 

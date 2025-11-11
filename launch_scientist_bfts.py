@@ -2,11 +2,8 @@
 End-to-end launcher for the BFTS experiment workflow.
 
 Steps:
-- Parse CLI args and load the selected idea (and optional code)
-- Prepare an isolated experiment workspace
-- Optionally merge dataset reference code with user-provided code
-- Convert idea JSON to markdown and persist raw JSON
-- Create a per-idea configuration for AgentManager (BFTS runner)
+- Parse CLI args and load config file
+- Load the idea from config's desc_file and merge dataset reference code
 - Run experiments via AgentManager (draft/debug/improve/tune/plot/ablate)
 - Collect artifacts and aggregate plots
 - Optionally generate the paper writeup
@@ -63,11 +60,6 @@ def parse_arguments() -> argparse.Namespace:
         default="icbinb",
         choices=["normal", "icbinb"],
         help="Type of writeup to generate (normal=8 page, icbinb=4 page)",
-    )
-    parser.add_argument(
-        "--load_idea",
-        type=str,
-        help="Path to a JSON file containing the research idea",
     )
     parser.add_argument(
         "--writeup-retries",
@@ -196,7 +188,7 @@ if __name__ == "__main__":
     existing_runs_before = {p.name for p in top_log_dir.iterdir() if p.is_dir()}
     reports_base = str(top_log_dir.parent.resolve())
 
-    # Determine the idea JSON from config and update it in place with dataset reference
+    # Load the idea JSON from config's desc_file and merge dataset reference
     idea_json_path = str(Path(base_cfg["desc_file"]).resolve())
     with open(idea_json_path, "r") as f:
         idea = json.load(f)

@@ -154,7 +154,6 @@ To run the complete BFTS experiment workflow including all stages, plot aggregat
 
 ```bash
 python launch_scientist_bfts.py <config_file> \
-  --load_idea <idea_json_file> \
   --model_agg_plots <model_name> \
   --model_writeup <model_name> \
   --model_citation <model_name> \
@@ -163,7 +162,6 @@ python launch_scientist_bfts.py <config_file> \
 
 **Required Arguments:**
 - `<config_file>`: Path to the YAML configuration file (e.g., `bfts_config.yaml`)
-- `--load_idea`: Path to a JSON file containing the research idea
 - `--model_agg_plots`: Model to use for plot aggregation (e.g., `gpt-5`)
 - `--model_writeup`: Model to use for paper writeup (e.g., `gpt-5`) - required unless `--skip_writeup` is set
 - `--model_citation`: Model to use for citation gathering (e.g., `gpt-5`) - required unless `--skip_writeup` is set
@@ -179,7 +177,6 @@ python launch_scientist_bfts.py <config_file> \
 **Example - Full Pipeline:**
 ```bash
 python launch_scientist_bfts.py bfts_config.yaml \
-  --load_idea idea_example.json \
   --model_agg_plots gpt-5 \
   --model_writeup gpt-5 \
   --model_citation gpt-5 \
@@ -189,7 +186,6 @@ python launch_scientist_bfts.py bfts_config.yaml \
 **Example - Skip Writeup (Experiments Only):**
 ```bash
 python launch_scientist_bfts.py bfts_config.yaml \
-  --load_idea idea_example.json \
   --skip_writeup \
   --model_agg_plots gpt-5
 ```
@@ -197,7 +193,6 @@ python launch_scientist_bfts.py bfts_config.yaml \
 **Example - Skip Review (Experiments + Writeup):**
 ```bash
 python launch_scientist_bfts.py bfts_config.yaml \
-  --load_idea idea_example.json \
   --skip_review \
   --model_agg_plots gpt-5 \
   --model_writeup gpt-5 \
@@ -205,7 +200,7 @@ python launch_scientist_bfts.py bfts_config.yaml \
 ```
 
 **What the Full Pipeline Does:**
-1. **Loads research idea** from JSON file (and optionally code)
+1. **Loads research idea** from the JSON file specified in config's `desc_file`
 2. **Runs all BFTS stages** via AgentManager using directories from the provided config:
    - Stage 1: Initial implementation
    - Stage 2: Baseline tuning
@@ -217,10 +212,9 @@ python launch_scientist_bfts.py bfts_config.yaml \
 6. **Performs paper review** (text and images/captions/references) using the specified review model
 
 **Output:**
-- Experiment logs: under the `log_dir` specified in your config (e.g., `workspaces/logs/<exp_name>/`)
-- Mirrored logs for plotting/writeup: `$(dirname <idea_json_file>)/logs/<n>-run/`
-- Figures: `$(dirname <idea_json_file>)/figures/`
-- Paper PDF (if writeup enabled): saved under `$(dirname <idea_json_file>)/`
-- Review results (if writeup and review enabled): `review_text.txt` and `review_img_cap_ref.json`
-- Token usage: `token_tracker.json` in the idea folder
+- Experiment logs: under the `log_dir` specified in your config (e.g., `workspaces/logs/<run_id>/`)
+- Figures: under the parent directory of `log_dir` (e.g., `workspaces/figures/`)
+- Paper PDF (if writeup enabled): under the parent directory of `log_dir` (e.g., `workspaces/`)
+- Review results (if writeup and review enabled): `review_text.txt` and `review_img_cap_ref.json` 
+- Token usage: `token_tracker.json` in the reports base directory
 

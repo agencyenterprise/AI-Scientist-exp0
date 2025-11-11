@@ -1,5 +1,6 @@
 # path to the task data directory
 preprocess_data: False
+log_level: "DEBUG"
 
 desc_file: idea_example.json
 workspace_dir: workspaces
