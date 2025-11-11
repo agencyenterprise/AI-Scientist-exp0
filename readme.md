@@ -141,4 +141,8 @@ pnpm install
 
 # Or from the root
 ./orchestrator/create_runpod.ts --gpu-count 3 --branch my-branch --gpu-types "NVIDIA GeForce RTX 5090"
+
+# Use a custom pod name
+./orchestrator/create_runpod.ts --gpu-count 3 --branch main --gpu-types "NVIDIA GeForce RTX 5090" --pod-name "my-pod-name"
+./orchestrator/create_runpod.ts --gpu-count 3 --branch main --gpu-types "NVIDIA GeForce RTX 5090" -n "my-pod-name"
 ```
