@@ -47,6 +47,12 @@ source .venv/bin/activate
 uv sync
 ```
 
+5. Quick setup (alternative)
+```bash
+bash install_run_pod.sh
+```
+This script creates a virtual environment with system packages, activates it, and installs dependencies.
+
 ## Environment Variables
 
 Before running experiments, you need to configure API keys and tokens.
