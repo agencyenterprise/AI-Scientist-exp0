@@ -361,6 +361,12 @@ class Journal:
     node_selection_model: str
     event_callback: Callable[[BaseEvent], None] = field(repr=False)
     nodes: list[Node] = field(default_factory=list)
+    # Simple memoization to avoid repeated LLM selection calls
+    _best_cache_signature: str | None = field(default=None, repr=False)
+    _best_cache_result: Node | None = field(default=None, repr=False)
+    _best_cache_time: float | None = field(default=None, repr=False)
+    _best_cache_candidate_ids: list[str] | None = field(default=None, repr=False)
+    _best_cache_total_nodes_count: int | None = field(default=None, repr=False)
 
     def __getstate__(self) -> dict:
         state = self.__dict__.copy()
@@ -426,21 +432,102 @@ class Journal:
         self, only_good: bool = True, use_val_metric_only: bool = False
     ) -> None | Node:
         """Return the best solution found so far."""
+        total_nodes_count = len(self.nodes)
+        buggy_count = len([n for n in self.nodes if n.is_buggy is True])
+        plot_buggy_count = len([n for n in self.nodes if n.is_buggy_plots is True])
+        print(
+            f"[DEBUG] get_best_node: only_good={only_good}, val_only={use_val_metric_only}, "
+            f"total_nodes={total_nodes_count}, buggy={buggy_count}, plot_buggy={plot_buggy_count}"
+        )
+
         if only_good:
             nodes = self.good_nodes
             if not nodes:
+                print(
+                    "[INFO] Skipping LLM best-node selection: only_good=True but there are no good candidates "
+                    "(all nodes are buggy or plots flagged)."
+                )
                 return None
         else:
             nodes = self.nodes
 
+        # Build a lightweight signature of the candidate set and selection mode.
+        # If unchanged since last call, reuse the cached result and skip LLM work.
+        def _selection_signature(nodes_for_sig: list[Node]) -> str:
+            parts: list[str] = [
+                f"og={only_good}",
+                f"val_only={use_val_metric_only}",
+                f"model={self.node_selection_model}",
+            ]
+            for n in sorted(nodes_for_sig, key=lambda x: x.id):
+                metric_val = n.metric.value if n.metric is not None else None
+                parts.append(f"{n.id}:{metric_val}:{n.is_buggy}:{n.is_buggy_plots}")
+            return "|".join(str(p) for p in parts)
+
+        candidate_ids = sorted([n.id for n in nodes])
+        print(
+            f"[DEBUG] Candidate set for best-node selection (count={len(candidate_ids)}): "
+            f"{[cid[:8] for cid in candidate_ids]}"
+        )
+
+        sig = _selection_signature(nodes)
+        if self._best_cache_signature == sig:
+            # If new nodes were added but candidates didn't change (only_good=True), likely new nodes are buggy
+            if (
+                only_good
+                and self._best_cache_total_nodes_count is not None
+                and total_nodes_count > self._best_cache_total_nodes_count
+                and self._best_cache_candidate_ids is not None
+                and candidate_ids == self._best_cache_candidate_ids
+            ):
+                print(
+                    "[DEBUG] Not checking for new best node: new node(s) detected but ignored because they are not good "
+                    "(buggy or plots flagged). Using cached best-node result."
+                )
+            else:
+                print(
+                    "[DEBUG] Skipping LLM best-node selection: candidate signature unchanged. "
+                    f"Returning cached result: {self._best_cache_result.id if self._best_cache_result else None}"
+                )
+            return self._best_cache_result
+
         if use_val_metric_only:
             nodes_with_metric = [n for n in nodes if n.metric is not None]
             if not nodes_with_metric:
+                # Cache the absence as well to avoid repeated work until state changes
+                self._best_cache_signature = sig
+                self._best_cache_result = None
+                self._best_cache_time = time.time()
+                self._best_cache_candidate_ids = candidate_ids
+                self._best_cache_total_nodes_count = total_nodes_count
+                print("[INFO] best-node (val_only=True): no candidates with metric. Caching None.")
                 return None
-            return max(nodes_with_metric, key=lambda n: cast(MetricValue, n.metric))
+            selected_metric_node = max(nodes_with_metric, key=lambda n: cast(MetricValue, n.metric))
+            self._best_cache_signature = sig
+            self._best_cache_result = selected_metric_node
+            self._best_cache_time = time.time()
+            self._best_cache_candidate_ids = candidate_ids
+            self._best_cache_total_nodes_count = total_nodes_count
+            sel_metric_val = (
+                selected_metric_node.metric.value if selected_metric_node.metric else None
+            )
+            print(
+                f"[INFO] best-node (val_only=True): selected by metric -> "
+                f"{selected_metric_node.id[:8]} (metric={sel_metric_val}). Cached."
+            )
+            return selected_metric_node
 
         if len(nodes) == 1:
-            return nodes[0]
+            selected_single = nodes[0]
+            self._best_cache_signature = sig
+            self._best_cache_result = selected_single
+            self._best_cache_time = time.time()
+            self._best_cache_candidate_ids = candidate_ids
+            self._best_cache_total_nodes_count = total_nodes_count
+            print(
+                f"[DEBUG] Only one candidate; bypassing LLM selection. Selected {selected_single.id[:8]}. Cached."
+            )
+            return selected_single
 
         # Create evaluation prompt for LLM
         prompt = {
@@ -477,6 +564,10 @@ class Journal:
                 prompt["Candidates"] += candidate_info
 
         try:
+            print(
+                f"[INFO] Invoking LLM for best-node selection with {len(candidate_ids)} candidates: "
+                f"{[cid[:8] for cid in candidate_ids]}"
+            )
             selection = query(
                 system_message=prompt,
                 user_message=None,
@@ -489,17 +580,31 @@ class Journal:
             if not isinstance(selection, dict):
                 logger.warning("Falling back to metric-based selection")
                 nodes_with_metric = [n for n in nodes if n.metric is not None]
-                return (
+                selected_fb = (
                     max(nodes_with_metric, key=lambda n: cast(MetricValue, n.metric))
                     if nodes_with_metric
                     else None
                 )
+                self._best_cache_signature = sig
+                self._best_cache_result = selected_fb
+                self._best_cache_time = time.time()
+                self._best_cache_candidate_ids = candidate_ids
+                self._best_cache_total_nodes_count = total_nodes_count
+                print(
+                    f"[WARN] LLM returned non-dict selection. Falling back to metric. "
+                    f"Selected: {selected_fb.id[:8] if selected_fb else None}. Cached."
+                )
+                return selected_fb
 
             selected_id = str(selection.get("selected_id", ""))
             selected_node = next((node for node in nodes if str(node.id) == selected_id), None)
             if selected_node:
                 logger.info(f"Selected node {selected_node.id} as best implementation")
                 logger.info(f"Reasoning: {selection.get('reasoning', '')}")
+                print(
+                    f"[INFO] LLM-selected best node: {selected_node.id[:8]}. "
+                    "Emitting events and caching result."
+                )
 
                 # Emit user-facing event with the selection reasoning
                 self.event_callback(
@@ -517,25 +622,51 @@ class Journal:
                     RunLogEvent(message=f"💡 Reasoning: {reasoning_preview}", level="info")
                 )
 
+                # Update cache
+                self._best_cache_signature = sig
+                self._best_cache_result = selected_node
+                self._best_cache_time = time.time()
+                self._best_cache_candidate_ids = candidate_ids
+                self._best_cache_total_nodes_count = total_nodes_count
                 return selected_node
             else:
                 logger.warning("Falling back to metric-based selection")
                 nodes_with_metric = [n for n in nodes if n.metric is not None]
-                return (
+                selected_fallback = (
                     max(nodes_with_metric, key=lambda n: cast(MetricValue, n.metric))
                     if nodes_with_metric
                     else None
                 )
+                self._best_cache_signature = sig
+                self._best_cache_result = selected_fallback
+                self._best_cache_time = time.time()
+                self._best_cache_candidate_ids = candidate_ids
+                self._best_cache_total_nodes_count = total_nodes_count
+                print(
+                    f"[WARN] LLM selection id not found among candidates. Falling back to metric. "
+                    f"Selected: {selected_fallback.id[:8] if selected_fallback else None}. Cached."
+                )
+                return selected_fallback
 
         except Exception as e:
             logger.error(f"Error in LLM selection process: {e}")
             logger.warning("Falling back to metric-based selection")
             nodes_with_metric = [n for n in nodes if n.metric is not None]
-            return (
+            selected_on_error = (
                 max(nodes_with_metric, key=lambda n: cast(MetricValue, n.metric))
                 if nodes_with_metric
                 else None
             )
+            self._best_cache_signature = sig
+            self._best_cache_result = selected_on_error
+            self._best_cache_time = time.time()
+            self._best_cache_candidate_ids = candidate_ids
+            self._best_cache_total_nodes_count = total_nodes_count
+            print(
+                f"[ERROR] Exception during LLM selection. Falling back to metric. "
+                f"Selected: {selected_on_error.id[:8] if selected_on_error else None}. Cached."
+            )
+            return selected_on_error
 
     def generate_summary(self, include_code: bool = False) -> str:
         """Generate a summary of the research progress using LLM, including both successes and failures."""
