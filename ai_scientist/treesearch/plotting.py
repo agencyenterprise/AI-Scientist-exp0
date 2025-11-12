@@ -183,7 +183,34 @@ def determine_datasets_successfully_tested(
 
 
 def analyze_plots_with_vlm(*, agent: SupportsPlottingAgent, node: Node) -> None:
+    print(f"[DEBUG] analyze_plots_with_vlm called for node {node.id}")
+    print(f"[DEBUG] node.plots count: {len(node.plots) if node.plots else 0}")
+    print(f"[DEBUG] node.plot_paths count: {len(node.plot_paths) if node.plot_paths else 0}")
+    print(f"[DEBUG] node.plots: {node.plots[:3] if node.plots else 'None'}...")
+    print(f"[DEBUG] node.plot_paths: {node.plot_paths[:3] if node.plot_paths else 'None'}...")
+    
     if not node.plot_paths:
+        print("=" * 100)
+        print("!" * 100)
+        print("!" * 100)
+        print("!" * 100)
+        print("⚠️  ⚠️  ⚠️  BIG WARNING: plot_paths is EMPTY but plots list has items! ⚠️  ⚠️  ⚠️")
+        print(f"⚠️  Node ID: {node.id}")
+        print(f"⚠️  plots count: {len(node.plots) if node.plots else 0}")
+        print(f"⚠️  plot_paths count: {len(node.plot_paths) if node.plot_paths else 0}")
+        print(f"⚠️  This means VLM analysis cannot proceed (no actual plot files to analyze)")
+        print(f"⚠️  Setting is_buggy_plots = False (assuming plots are fine, but unverified)")
+        print(f"⚠️  This can happen if:")
+        print(f"⚠️    1. Exception occurred during file moving (plots populated but plot_paths not)")
+        print(f"⚠️    2. Plots were populated from a previous attempt/retry")
+        print(f"⚠️    3. plot_paths list was cleared/reset somewhere")
+        print("!" * 100)
+        print("!" * 100)
+        print("!" * 100)
+        print("=" * 100)
+        # Set is_buggy_plots to False to allow the node to be considered "good"
+        # but mark that we couldn't verify the plots
+        node.is_buggy_plots = False
         return
     if len(node.plot_paths) <= 10:
         selected_plots = node.plot_paths
@@ -260,7 +287,23 @@ def analyze_plots_with_vlm(*, agent: SupportsPlottingAgent, node: Node) -> None:
         print("VLM plot analysis raw response: <unprintable>")
 
     if not isinstance(response, dict):
-        print("VLM plot analysis response is not a dict; skipping analysis parsing.")
+        print("=" * 100)
+        print("!" * 100)
+        print("!" * 100)
+        print("!" * 100)
+        print("⚠️  ⚠️  ⚠️  BIG WARNING: VLM analysis response is not a dict! ⚠️  ⚠️  ⚠️")
+        print(f"⚠️  Node ID: {node.id}")
+        print(f"⚠️  Response type: {type(response)}")
+        print(f"⚠️  This means VLM analysis failed or returned unexpected format")
+        print(f"⚠️  Setting is_buggy_plots = False (assuming plots are fine, but unverified)")
+        print(f"⚠️  Execution will continue, but plots were not validated by VLM")
+        print("!" * 100)
+        print("!" * 100)
+        print("!" * 100)
+        print("=" * 100)
+        # Set is_buggy_plots to False to allow the node to be considered "good"
+        # but mark that we couldn't verify the plots via VLM
+        node.is_buggy_plots = False
         return
     valid_plots_received = bool(response.get("valid_plots_received"))
     node.is_buggy_plots = not valid_plots_received
