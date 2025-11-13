@@ -70,7 +70,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--writeup-type",
         type=str,
-        default="icbinb",
+        default="normal",
         choices=["normal", "icbinb"],
         help="Type of writeup to generate (normal=8 page, icbinb=4 page)",
     )

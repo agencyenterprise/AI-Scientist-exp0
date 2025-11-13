@@ -29,43 +29,7 @@ from ai_scientist.perform_vlm_review import (
     perform_imgs_cap_ref_review,
     perform_imgs_cap_ref_review_selection,
 )
-
-
-def _ensure_graphicspath(writeup_file: str, latex_folder: str, figures_dir: str) -> None:
-    """
-    Ensure LaTeX graphicspath includes the run-specific figures directory.
-    """
-    try:
-        wf = Path(writeup_file)
-        lf = Path(latex_folder)
-        fd = Path(figures_dir)
-        rel = os.path.relpath(str(fd), str(lf)).replace("\\", "/")
-        # Build directive like: \graphicspath{{../figures/<run>/}{../figures/}}
-        new_gp = "\\graphicspath{{" + rel + "/}{../figures/}}"
-        # Replace entire line containing \graphicspath, else insert after \usepackage{graphicx}
-        lines: list[str] = []
-        with open(wf, "r") as f:
-            lines = f.readlines()
-        found = False
-        for i, line in enumerate(lines):
-            if "\\graphicspath" in line:
-                lines[i] = new_gp + "\n"
-                found = True
-                break
-        if not found:
-            for i, line in enumerate(lines):
-                if "\\usepackage{graphicx}" in line:
-                    lines.insert(i + 1, new_gp + "\n")
-                    found = True
-                    break
-        if not found:
-            # Fallback: prepend at top
-            lines.insert(0, new_gp + "\n")
-        with open(wf, "w") as f:
-            f.writelines(lines)
-    except Exception:
-        print("Warning: failed to adjust \\graphicspath; figures may not render.")
-        print(traceback.format_exc())
+from ai_scientist.perform_writeup import _ensure_graphicspath
 
 
 def remove_accents_and_clean(s: str) -> str:

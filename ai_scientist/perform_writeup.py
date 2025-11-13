@@ -26,6 +26,43 @@ from ai_scientist.llm import (
 from ai_scientist.perform_vlm_review import generate_vlm_img_review
 
 
+def _ensure_graphicspath(writeup_file: str, latex_folder: str, figures_dir: str) -> None:
+    """
+    Ensure LaTeX graphicspath includes the run-specific figures directory.
+    """
+    try:
+        wf = Path(writeup_file)
+        lf = Path(latex_folder)
+        fd = Path(figures_dir)
+        rel = os.path.relpath(str(fd), str(lf)).replace("\\", "/")
+        # Build directive like: \graphicspath{{../figures/<run>/}{../figures/}}
+        new_gp = "\\graphicspath{{" + rel + "/}{../figures/}}"
+        # Replace entire line containing \graphicspath, else insert after \usepackage{graphicx}
+        lines: list[str] = []
+        with open(wf, "r") as f:
+            lines = f.readlines()
+        found = False
+        for i, line in enumerate(lines):
+            if "\\graphicspath" in line:
+                lines[i] = new_gp + "\n"
+                found = True
+                break
+        if not found:
+            for i, line in enumerate(lines):
+                if "\\usepackage{graphicx}" in line:
+                    lines.insert(i + 1, new_gp + "\n")
+                    found = True
+                    break
+        if not found:
+            # Fallback: prepend at top
+            lines.insert(0, new_gp + "\n")
+        with open(wf, "w") as f:
+            f.writelines(lines)
+    except Exception:
+        print("Warning: failed to adjust \\graphicspath; figures may not render.")
+        print(traceback.format_exc())
+
+
 def remove_accents_and_clean(s: str) -> str:
     # print("Original:", s)
     # Normalize to separate accents
@@ -838,6 +875,10 @@ def perform_writeup(
         with open(writeup_file, "w") as f:
             f.write(updated_latex_code)
         print(f"[SUCCESS] Wrote {len(updated_latex_code)} chars to template.tex")
+        # Ensure LaTeX \graphicspath points to the run-specific figures directory
+        _ensure_graphicspath(
+            writeup_file=writeup_file, latex_folder=latex_folder, figures_dir=figures_dir
+        )
 
         # Multiple reflection loops on the final LaTeX
         for i in range(n_writeup_reflections):
@@ -924,6 +965,12 @@ If you believe you are done, simply say: "I am done".
                     with open(writeup_file, "w") as fo:
                         fo.write(final_text)
 
+                    # Ensure LaTeX \graphicspath stays correct after edits
+                    _ensure_graphicspath(
+                        writeup_file=writeup_file,
+                        latex_folder=latex_folder,
+                        figures_dir=figures_dir,
+                    )
                     compile_latex(latex_folder, base_pdf_file + f"_{compile_attempt}.pdf")
                     compile_attempt += 1
                     print(f"Compiled {base_pdf_file}_{compile_attempt}.pdf")
