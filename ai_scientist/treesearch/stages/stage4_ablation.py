@@ -1,3 +1,4 @@
+import logging
 from typing import List, Protocol, Tuple
 
 from ai_scientist.llm.query import FunctionSpec, query
@@ -8,6 +9,8 @@ from ..types import PromptType
 from ..utils.config import Config as AppConfig
 from ..utils.response import wrap_code
 from .base import Stage
+
+logger = logging.getLogger(__name__)
 
 
 class AblationIdea:
@@ -31,6 +34,9 @@ class Stage4Ablation(Stage):
         "- Conduct systematic component analysis that reveals the contribution of each part\n"
         "- Use the same datasets you used from the previous stage"
     )
+    # Memoization cache for substage-completion queries:
+    # key -> (is_complete, message)
+    _substage_completion_cache: dict[str, tuple[bool, str]] = {}
 
     @staticmethod
     def build_ablation_node(
@@ -73,6 +79,9 @@ class Stage4Ablation(Stage):
         abl_instructions |= agent._prompt_ablation_resp_fmt
         prompt["Instructions"] = abl_instructions
         plan, code = agent.plan_and_code_query(prompt=prompt)
+        logger.debug("----- LLM code start (stage4 ablation) -----")
+        logger.debug(code)
+        logger.debug("----- LLM code end (stage4 ablation) -----")
         return Node(
             plan="Ablation name: " + ablation_idea.name + ".\n" + plan,
             code=code,
@@ -144,6 +153,19 @@ class Stage4Ablation(Stage):
         best_node = journal.get_best_node()
         if not best_node:
             return False, "No best node found"
+        metric_val = best_node.metric.value if best_node.metric is not None else None
+        cache_key = f"stage=4_substage|id={best_node.id}|metric={metric_val}|goals={goals}"
+        cached = Stage4Ablation._substage_completion_cache.get(cache_key)
+        if cached is not None:
+            logger.debug(
+                f"Stage4 substage-completion cache HIT for best_node={best_node.id[:8]} "
+                f"(metric={metric_val}). Goals unchanged. Skipping LLM."
+            )
+            return cached
+        logger.debug(
+            f"Stage4 substage-completion cache MISS for best_node={best_node.id[:8]} "
+            f"(metric={metric_val}). Goals changed or new best node. Invoking LLM."
+        )
         prompt = f"""
         Evaluate if the ablation sub-stage is complete given the goals:
         - {goals}
@@ -171,11 +193,29 @@ class Stage4Ablation(Stage):
             temperature=cfg.agent.feedback.temp,
         )
         if isinstance(evaluation, dict) and evaluation.get("is_complete"):
-            return True, str(evaluation.get("reasoning", "sub-stage complete"))
+            result = True, str(evaluation.get("reasoning", "sub-stage complete"))
+            Stage4Ablation._substage_completion_cache[cache_key] = result
+            logger.debug(
+                f"Stage4 substage-completion result cached for best_node={best_node.id[:8]} "
+                f"(metric={metric_val})."
+            )
+            return result
         if isinstance(evaluation, dict):
             missing = ", ".join(evaluation.get("missing_criteria", []))
-            return False, "Missing criteria: " + missing
-        return False, "Sub-stage not complete"
+            result = False, "Missing criteria: " + missing
+            Stage4Ablation._substage_completion_cache[cache_key] = result
+            logger.debug(
+                f"Stage4 substage-completion result cached (incomplete) for best_node={best_node.id[:8]} "
+                f"(metric={metric_val}). Missing: {missing}"
+            )
+            return result
+        result = False, "Sub-stage not complete"
+        Stage4Ablation._substage_completion_cache[cache_key] = result
+        logger.debug(
+            f"Stage4 substage-completion result cached (non-dict fallback) for best_node={best_node.id[:8]} "
+            f"(metric={metric_val})."
+        )
+        return result
 
     @staticmethod
     def compute_stage_completion(*, journal: Journal) -> tuple[bool, str]:

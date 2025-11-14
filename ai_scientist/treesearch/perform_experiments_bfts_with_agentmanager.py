@@ -45,7 +45,7 @@ def perform_experiments_bfts(
     global_step = 0
 
     # Prepare a clean agent workspace for the run
-    print("Preparing agent workspace (copying and extracting files) ...")
+    logger.info("Preparing agent workspace (copying and extracting files) ...")
     prep_agent_workspace(cfg)
 
     def cleanup() -> None:
@@ -76,7 +76,7 @@ def perform_experiments_bfts(
 
     def step_callback(stage: StageMeta, journal: Journal) -> None:
         # Persist progress snapshot and emit progress events after each step
-        print("Step complete")
+        logger.debug("Step complete")
         try:
             # Track iteration timing
             current_time = time.time()
@@ -102,11 +102,14 @@ def perform_experiments_bfts(
 
             # Generate and save stage progress summary
             best_node = journal.get_best_node()
+            # Compute good_nodes once to avoid repeated property calls (which also log)
+            good_nodes_list = journal.good_nodes
+            good_nodes_count = len(good_nodes_list)
             stage_summary = {
                 "stage": stage.name,
                 "total_nodes": len(journal.nodes),
                 "buggy_nodes": len(journal.buggy_nodes),
-                "good_nodes": len(journal.good_nodes),
+                "good_nodes": good_nodes_count,
                 "best_metric": (str(best_node.metric) if best_node else "None"),
                 "current_findings": journal.generate_summary(include_code=False),
             }
@@ -118,8 +121,10 @@ def perform_experiments_bfts(
             save_run(cfg, journal, stage_name=f"stage_{stage.name}")
 
             # ALWAYS emit progress - show actual work being done
-            # Use total nodes as iteration count so progress shows even when all buggy
+            # Use total nodes as iteration count so progress shows even when all buggy,
+            # but clamp displayed iteration to max_iterations to avoid "Step N/(N-1)" logs.
             current_iteration = len(journal.nodes)
+            iteration_display = min(current_iteration, stage.max_iterations)
             progress = (
                 max(0.0, min(current_iteration / stage.max_iterations, 1.0))
                 if stage.max_iterations > 0
@@ -132,7 +137,7 @@ def perform_experiments_bfts(
                 # Use last 5 iterations (or fewer if not enough data)
                 recent_durations = iteration_durations[-5:]
                 avg_duration = sum(recent_durations) / len(recent_durations)
-                remaining_iterations = stage.max_iterations - current_iteration
+                remaining_iterations = max(stage.max_iterations - current_iteration, 0)
                 eta_s = int(remaining_iterations * avg_duration)
 
             # Get latest node execution time for display
@@ -144,17 +149,16 @@ def perform_experiments_bfts(
             ):
                 latest_exec_time_s = int(latest_node.exec_time)
 
-            # Map internal BFTS stage names to Stage_1 (all BFTS stages are part of experiments phase)
-            # Internal names like "1_initial_implementation_1_preliminary" → "Stage_1"
+            # Emit progress with the actual stage name to reflect current substage accurately
             event_callback(
                 RunStageProgressEvent(
-                    stage="Stage_1",
-                    iteration=current_iteration,
+                    stage=stage.name,
+                    iteration=iteration_display,
                     max_iterations=stage.max_iterations,
                     progress=progress,
                     total_nodes=len(journal.nodes),
                     buggy_nodes=len(journal.buggy_nodes),
-                    good_nodes=len(journal.good_nodes),
+                    good_nodes=good_nodes_count,
                     best_metric=str(best_node.metric) if best_node else None,
                     eta_s=eta_s,
                     latest_iteration_time_s=latest_exec_time_s,
@@ -162,17 +166,17 @@ def perform_experiments_bfts(
             )
 
             # Also emit a log event describing what's happening
-            if len(journal.good_nodes) == 0 and len(journal.buggy_nodes) > 0:
+            if good_nodes_count == 0 and len(journal.buggy_nodes) > 0:
                 event_callback(
                     RunLogEvent(
                         message=f"Debugging failed implementations ({len(journal.buggy_nodes)} buggy nodes, retrying...)",
                         level="info",
                     )
                 )
-            elif len(journal.good_nodes) > 0:
+            elif good_nodes_count > 0:
                 event_callback(
                     RunLogEvent(
-                        message=f"Found {len(journal.good_nodes)} working implementation(s), continuing...",
+                        message=f"Found {good_nodes_count} working implementation(s), continuing...",
                         level="info",
                     )
                 )
@@ -181,23 +185,24 @@ def perform_experiments_bfts(
             if latest_node is not None and latest_node_summary:
                 event_callback(
                     ExperimentNodeCompletedEvent(
-                        stage="Stage_1",
+                        stage=stage.name,
                         node_id=latest_node.id if hasattr(latest_node, "id") else None,
                         summary=latest_node_summary,
                     )
                 )
 
         except Exception as e:
-            print(f"Error in step callback: {e}")
+            logger.exception(f"Error in step callback: {e}")
 
-        print(f"Run saved at {cfg.log_dir / f'stage_{stage.name}'}")
-        print(f"Step {len(journal)}/{stage.max_iterations} at stage_{stage.name}")
-        print(f"Run saved at {cfg.log_dir / f'stage_{stage.name}'}")
+        logger.info(f"Run saved at {cfg.log_dir / f'stage_{stage.name}'}")
+        logger.debug(
+            f"Step {min(len(journal), stage.max_iterations)}/{stage.max_iterations} at stage_{stage.name}"
+        )
 
     manager.run(exec_callback=create_exec_callback(), step_callback=step_callback)
 
     if cfg.generate_report:
-        print("Generating final report from all stages...")
+        logger.info("Generating final report from all stages...")
         (
             draft_summary,
             baseline_summary,
@@ -221,11 +226,11 @@ def perform_experiments_bfts(
         with open(ablation_summary_path, "w") as ablation_file:
             json.dump(ablation_summary, ablation_file, indent=2)
 
-        print("Summary reports written to files:")
-        print(f"- Draft summary: {draft_summary_path}")
-        print(f"- Baseline summary: {baseline_summary_path}")
-        print(f"- Research summary: {research_summary_path}")
-        print(f"- Ablation summary: {ablation_summary_path}")
+        logger.info("Summary reports written to files:")
+        logger.info(f"- Draft summary: {draft_summary_path}")
+        logger.info(f"- Baseline summary: {baseline_summary_path}")
+        logger.info(f"- Research summary: {research_summary_path}")
+        logger.info(f"- Ablation summary: {ablation_summary_path}")
 
 
 if __name__ == "__main__":

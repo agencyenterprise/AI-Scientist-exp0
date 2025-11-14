@@ -1,4 +1,5 @@
 import base64
+import logging
 from typing import List, Protocol, Tuple, cast
 
 from ai_scientist.llm.query import FunctionSpec, query
@@ -12,6 +13,8 @@ from ..plotting import generate_plotting_code as generic_generate_plotting_code
 from ..types import PromptType
 from ..utils.config import Config as AppConfig
 from .base import Stage
+
+logger = logging.getLogger(__name__)
 
 
 class SupportsStage3Agent(Protocol):
@@ -34,6 +37,9 @@ class Stage3Plotting(Stage):
         "- Be creative and think outside the box\n"
         "- Test your models on multiple HuggingFace datasets to demonstrate generalization. Use dataset sizes appropriate to the experiment. Usually THREE datasets are enough."
     )
+    # Memoization cache for substage-completion queries:
+    # key -> (is_complete, message)
+    _substage_completion_cache: dict[str, tuple[bool, str]] = {}
 
     @staticmethod
     def generate_plotting_code(
@@ -89,6 +95,19 @@ class Stage3Plotting(Stage):
         best_node = journal.get_best_node()
         if not best_node:
             return False, "No best node found"
+        metric_val = best_node.metric.value if best_node.metric is not None else None
+        cache_key = f"stage=3_substage|id={best_node.id}|metric={metric_val}|goals={goals}"
+        cached = Stage3Plotting._substage_completion_cache.get(cache_key)
+        if cached is not None:
+            logger.debug(
+                f"Stage3 substage-completion cache HIT for best_node={best_node.id[:8]} "
+                f"(metric={metric_val}). Goals unchanged. Skipping LLM."
+            )
+            return cached
+        logger.debug(
+            f"Stage3 substage-completion cache MISS for best_node={best_node.id[:8]} "
+            f"(metric={metric_val}). Goals changed or new best node. Invoking LLM."
+        )
         vlm_feedback = Stage3Plotting.parse_vlm_feedback(node=best_node)
         eval_prompt = f"""
         Evaluate if the current sub-stage is complete based on the following evidence:
@@ -121,11 +140,29 @@ class Stage3Plotting(Stage):
             temperature=cfg.agent.feedback.temp,
         )
         if isinstance(evaluation, dict) and evaluation.get("is_complete"):
-            return True, str(evaluation.get("reasoning", "sub-stage complete"))
+            result = True, str(evaluation.get("reasoning", "sub-stage complete"))
+            Stage3Plotting._substage_completion_cache[cache_key] = result
+            logger.debug(
+                f"Stage3 substage-completion result cached for best_node={best_node.id[:8]} "
+                f"(metric={metric_val})."
+            )
+            return result
         if isinstance(evaluation, dict):
             missing = ", ".join(evaluation.get("missing_criteria", []))
-            return False, "Missing criteria: " + missing
-        return False, "Sub-stage not complete"
+            result = False, "Missing criteria: " + missing
+            Stage3Plotting._substage_completion_cache[cache_key] = result
+            logger.debug(
+                f"Stage3 substage-completion result cached (incomplete) for best_node={best_node.id[:8]} "
+                f"(metric={metric_val}). Missing: {missing}"
+            )
+            return result
+        result = False, "Sub-stage not complete"
+        Stage3Plotting._substage_completion_cache[cache_key] = result
+        logger.debug(
+            f"Stage3 substage-completion result cached (non-dict fallback) for best_node={best_node.id[:8]} "
+            f"(metric={metric_val})."
+        )
+        return result
 
     @staticmethod
     def compute_stage_completion(
