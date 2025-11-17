@@ -135,7 +135,7 @@ def run_aggregator_script(
 
 def aggregate_plots(
     base_folder: str,
-    model: str = "o1-2024-12-17",
+    model: str,
     n_reflections: int = 5,
     run_dir_name: Optional[str] = None,
 ) -> None:
@@ -338,8 +338,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--model",
-        default="o1-2024-12-17",
-        help="LLM model to use (default: o1-2024-12-17).",
+        default="gpt-5",
+        help="LLM model to use (default: gpt-5).",
     )
     parser.add_argument(
         "--reflections",

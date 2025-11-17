@@ -546,10 +546,9 @@ with "latex" syntax highlighting, like so:
 
 def perform_writeup(
     base_folder: str,
+    model: str,
     no_writing: bool = False,
     num_cite_rounds: int = 20,
-    small_model: str = "gpt-4o-2024-05-13",
-    big_model: str = "o1-2024-12-17",
     n_writeup_reflections: int = 3,
     page_limit: int = 8,
     citations_text: str | None = None,
@@ -561,7 +560,7 @@ def perform_writeup(
     logger.debug(f"base_folder exists: {osp.exists(base_folder)}")
     logger.debug(f"base_folder is absolute: {osp.isabs(base_folder)}")
     logger.debug(f"Current working directory: {os.getcwd()}")
-    logger.debug(f"big_model: {big_model}")
+    logger.debug(f"model: {model}")
     logger.debug(f"n_writeup_reflections: {n_writeup_reflections}")
     logger.debug(f"citations_text provided: {citations_text is not None}")
     logger.info("=" * 80 + "\n")
@@ -713,7 +712,7 @@ def perform_writeup(
             return osp.exists(base_pdf_file + ".pdf")
 
         # Run small model for citation additions
-        client, client_model = create_client(small_model)
+        client, client_model = create_client(model)
         for round_idx in range(num_cite_rounds):
             with open(writeup_file, "r") as f:
                 writeup_text = f.read()
@@ -804,7 +803,7 @@ def perform_writeup(
 
         # Generate VLM-based descriptions but do not overwrite plot_names
         try:
-            vlm_client, vlm_model = create_vlm_client("gpt-4o-2024-05-13")
+            vlm_client, vlm_model = create_vlm_client(model)
             desc_map = {}
             for pf in plot_names:
                 ppath = osp.join(figures_dir, pf)
@@ -832,7 +831,7 @@ def perform_writeup(
 
         # Construct final prompt for big model, placing the figure descriptions alongside the plot list
         big_model_system_message = writeup_system_message_template.format(page_limit=page_limit)
-        big_client, big_client_model = create_client(big_model)
+        big_client, big_client_model = create_client(model)
         with open(writeup_file, "r") as f:
             writeup_text = f.read()
 
@@ -1005,16 +1004,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         type=str,
-        default="bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
+        default="gpt-5",
         choices=AVAILABLE_LLMS,
-        help="Model to use for citation collection (small model).",
-    )
-    parser.add_argument(
-        "--big-model",
-        type=str,
-        default="o1-2024-12-17",
-        choices=AVAILABLE_LLMS,
-        help="Model to use for final writeup (big model).",
+        help="Model to use for writeup.",
     )
     parser.add_argument(
         "--writeup-reflections",
@@ -1035,8 +1027,7 @@ if __name__ == "__main__":
             base_folder=args.folder,
             no_writing=args.no_writing,
             num_cite_rounds=args.num_cite_rounds,
-            small_model=args.model,
-            big_model=args.big_model,
+            model=args.model,
             n_writeup_reflections=args.writeup_reflections,
             page_limit=args.page_limit,
         )

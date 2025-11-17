@@ -575,7 +575,7 @@ if __name__ == "__main__":
         citations_text = gather_citations(
             base_folder=reports_base,
             num_cite_rounds=args.num_cite_rounds,
-            small_model=args.model_citation,
+            model=args.model_citation,
             run_dir_name=run_dir_path.name if run_dir_path is not None else None,
         )
         try:
@@ -584,7 +584,7 @@ if __name__ == "__main__":
                 if args.writeup_type == "normal":
                     writeup_success = perform_writeup(
                         base_folder=reports_base,
-                        big_model=args.model_writeup,
+                        model=args.model_writeup,
                         page_limit=8,
                         citations_text=citations_text,
                         run_dir_name=run_dir_path.name if run_dir_path is not None else None,
@@ -592,7 +592,7 @@ if __name__ == "__main__":
                 else:
                     writeup_success = perform_icbinb_writeup(
                         base_folder=reports_base,
-                        big_model=args.model_writeup,
+                        model=args.model_writeup,
                         page_limit=4,
                         citations_text=citations_text,
                         run_dir_name=run_dir_path.name if run_dir_path is not None else None,
