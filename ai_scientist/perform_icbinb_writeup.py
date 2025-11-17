@@ -822,8 +822,8 @@ def filter_experiment_summaries(exp_summaries: Dict[str, Any], step_name: str) -
 
 def gather_citations(
     base_folder: str,
+    model: str,
     num_cite_rounds: int = 20,
-    small_model: str = "gpt-4o-2024-05-13",
     run_dir_name: Optional[str] = None,
 ) -> Optional[str]:
     """
@@ -832,7 +832,7 @@ def gather_citations(
     Args:
         base_folder: Path to project folder
         num_cite_rounds: Maximum number of citation gathering rounds
-        small_model: Model to use for citation collection
+        model: Model to use for writeup.
         resume: Whether to try to resume from previous progress
 
     Returns:
@@ -873,7 +873,7 @@ def gather_citations(
         filtered_summaries_str = json.dumps(filtered_summaries, indent=2)
 
         # Run small model for citation additions
-        client, client_model = create_client(small_model)
+        client, client_model = create_client(model)
 
         for round_idx in range(current_round, num_cite_rounds):
             try:
@@ -937,11 +937,10 @@ def gather_citations(
 
 def perform_writeup(
     base_folder: str,
+    model: str,
     citations_text: Optional[str] = None,
     no_writing: bool = False,
     num_cite_rounds: int = 20,
-    small_model: str = "gpt-4o-2024-05-13",
-    big_model: str = "o1-2024-12-17",
     n_writeup_reflections: int = 3,
     page_limit: int = 4,
     run_dir_name: Optional[str] = None,
@@ -1035,7 +1034,10 @@ def perform_writeup(
             # If still no citations, gather them
             if not citations_text:
                 citations_text = gather_citations(
-                    base_folder, num_cite_rounds, small_model, run_dir_name=run_dir_name
+                    base_folder,
+                    model=model,
+                    num_cite_rounds=num_cite_rounds,
+                    run_dir_name=run_dir_name,
                 )
                 if citations_text is None:
                     logger.warning("Warning: Citation gathering failed")
@@ -1052,7 +1054,7 @@ def perform_writeup(
 
         # Generate VLM-based descriptions
         try:
-            vlm_client, vlm_model = create_vlm_client("gpt-4o-2024-05-13")
+            vlm_client, vlm_model = create_vlm_client(model)
             desc_map = {}
             for pf in plot_names:
                 ppath = osp.join(figures_dir, pf)
@@ -1079,7 +1081,7 @@ def perform_writeup(
             plot_descriptions_str = "No descriptions available."
 
         big_model_system_message = writeup_system_message_template.format(page_limit=page_limit)
-        big_client, big_client_model = create_client(big_model)
+        big_client, big_client_model = create_client(model)
         with open(writeup_file, "r") as f:
             writeup_text = f.read()
 
@@ -1380,16 +1382,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         type=str,
-        default="bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
+        default="gpt-5",
         choices=AVAILABLE_LLMS,
-        help="Model to use for citation collection (small model).",
-    )
-    parser.add_argument(
-        "--big-model",
-        type=str,
-        default="o1-2024-12-17",
-        choices=AVAILABLE_LLMS,
-        help="Model to use for final writeup (big model).",
+        help="Model to use for writeup.",
     )
     parser.add_argument(
         "--writeup-reflections",
@@ -1410,8 +1405,7 @@ if __name__ == "__main__":
             base_folder=args.folder,
             no_writing=args.no_writing,
             num_cite_rounds=args.num_cite_rounds,
-            small_model=args.model,
-            big_model=args.big_model,
+            model=args.model,
             n_writeup_reflections=args.writeup_reflections,
             page_limit=args.page_limit,
         )

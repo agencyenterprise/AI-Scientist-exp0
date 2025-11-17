@@ -27,8 +27,7 @@ report:
 
 # LLM settings for paper writeup
 writeup:
-  big_model: claude-haiku-4-5
-  small_model: claude-haiku-4-5
+  model: claude-haiku-4-5
   plot_model: claude-haiku-4-5
 
 experiment:

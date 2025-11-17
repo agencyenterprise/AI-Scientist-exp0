@@ -142,8 +142,7 @@ class ExperimentConfig:
 
 @dataclass
 class WriteupConfig:
-    big_model: str
-    small_model: str
+    model: str
     plot_model: str
 
 

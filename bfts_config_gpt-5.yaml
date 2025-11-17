@@ -27,8 +27,7 @@ report:
 
 # LLM settings for paper writeup
 writeup:
-  big_model: gpt-5
-  small_model: gpt-5
+  model: gpt-5
   plot_model: gpt-5
 
 experiment:
