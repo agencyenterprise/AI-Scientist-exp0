@@ -1,0 +1,18 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Stage 1 Only",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "launch_stage1_only.py",
+            "args": ["bfts_config.yaml"],
+            "envFile": "${workspaceFolder}/.env",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
