@@ -205,3 +205,5 @@ workspaces/
 .env_real_api
 .env_run_pod
 research_topic_example.json
+
+configure_pod.sh
