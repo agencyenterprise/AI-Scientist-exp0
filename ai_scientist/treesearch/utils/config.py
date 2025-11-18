@@ -147,19 +147,6 @@ class WriteupConfig:
 
 
 @dataclass
-class GPUConfig:
-    type: str
-    count: int
-    vram_gb: int
-
-
-@dataclass
-class ComputeConfig:
-    gpu: GPUConfig
-    notes: str
-
-
-@dataclass
 class Config(Hashable):
     data_dir: Path
     desc_file: Path
@@ -177,7 +164,6 @@ class Config(Hashable):
     report: StageConfig
     agent: AgentConfig
     experiment: ExperimentConfig
-    compute: ComputeConfig
     writeup: Optional[WriteupConfig]
 
 
