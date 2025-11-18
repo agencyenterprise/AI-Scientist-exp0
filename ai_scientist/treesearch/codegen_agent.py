@@ -90,6 +90,8 @@ class MinimalAgent:
         env_prompt = {
             "Installed Packages": f"Your solution can use any relevant machine learning packages such as: {pkg_str}. Feel free to use any other packages too (all packages are already installed!). For neural networks we suggest using PyTorch rather than TensorFlow.{gpu_info}"
         }
+        # Debug: show GPU context fed to the LLM
+        logger.debug(f"LLM environment GPU context: gpu_id={self.gpu_id}, gpu_spec={self.gpu_spec}")
         return env_prompt
 
     @property
@@ -324,6 +326,9 @@ class MinimalAgent:
         last_completion: str = ""
         for _ in range(retries):
             # 1) Call LLM once to get combined plan + code
+            logger.debug(
+                f"Calling code-generation LLM with gpu_id={self.gpu_id}, gpu_spec={self.gpu_spec}"
+            )
             completion_any = query(
                 system_message=prompt,
                 user_message=None,
@@ -343,9 +348,8 @@ class MinimalAgent:
                 if self.gpu_id is not None:
                     is_valid, validation_msg = self._validate_code_uses_gpu_id(code)
                     if not is_valid:
-                        logger.warning(
-                            "GPU id enforcement validation failed; retrying with feedback"
-                        )
+                        logger.warning("GPU id enforcement validation failed")
+                        logger.warning(f"GPU validation details: {validation_msg}")
                         prompt["Validation Feedback"] = validation_msg
                         continue
                 # merge all code blocks into a single string
