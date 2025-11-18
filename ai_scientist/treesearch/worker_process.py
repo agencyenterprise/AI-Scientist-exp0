@@ -9,6 +9,7 @@ from typing import Callable, Optional, cast
 from ai_scientist.llm.query import query
 
 from .codegen_agent import MinimalAgent
+from .gpu_manager import get_gpu_specs
 from .interpreter import Interpreter
 from .journal import Node
 from .plotting import analyze_plots_with_vlm, generate_plotting_code
@@ -189,14 +190,18 @@ def process_node(
     working_dir = os.path.join(workspace, "working")
     os.makedirs(working_dir, exist_ok=True)
 
+    gpu_spec = None
     if gpu_id is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        gpu_spec = get_gpu_specs(gpu_id)
     else:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
     worker_agent = MinimalAgent(
         task_desc=task_desc,
         cfg=cfg,
+        gpu_id=gpu_id,
+        gpu_spec=gpu_spec,
         memory_summary=memory_summary,
         evaluation_metrics=evaluation_metrics,
         stage_name=stage_name,

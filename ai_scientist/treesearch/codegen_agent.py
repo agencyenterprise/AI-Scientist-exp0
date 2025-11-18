@@ -13,12 +13,14 @@ Scope:
 
 import logging
 import random
+import re
 from typing import cast
 
 import humanize
 
 from ai_scientist.llm.query import query
 
+from .gpu_manager import GPUSpec
 from .interpreter import ExecutionResult
 from .journal import Node
 from .types import PromptType
@@ -36,6 +38,8 @@ class MinimalAgent:
         self,
         task_desc: str,
         cfg: Config,
+        gpu_id: int | None = None,
+        gpu_spec: GPUSpec | None = None,
         memory_summary: str | None = None,
         evaluation_metrics: str | list[str] | None = None,
         stage: int | None = None,
@@ -44,6 +48,8 @@ class MinimalAgent:
         self.task_desc = task_desc
         self.memory_summary = memory_summary
         self.cfg = cfg
+        self.gpu_id = gpu_id
+        self.gpu_spec = gpu_spec
         self.evaluation_metrics = evaluation_metrics
         self.stage_name = stage_name
         self.data_preview = None
@@ -70,18 +76,16 @@ class MinimalAgent:
 
         # Add GPU info if available in config
         gpu_info = ""
-        compute_cfg = self.cfg.compute
-        if compute_cfg is not None:
-            gpu_type = compute_cfg.gpu.type
-            vram_gb = compute_cfg.gpu.vram_gb
+        if self.gpu_spec is not None and self.gpu_id is not None:
             gpu_info = (
-                f"\n\n**Available Hardware**: You have access to ONE {gpu_type} GPU with {vram_gb}GB VRAM. This is a powerful enterprise GPU that can handle:\n"
-                "  - Large models (up to ~7B parameters for inference, ~3B for training)\n"
+                f"\n\n**Available Hardware**: You have access to ONE {self.gpu_spec['name']} GPU with {self.gpu_spec['memory_total_mib']}MB VRAM. This is a powerful enterprise GPU that can handle:\n"
+                "  - Large models (up to ~{self.gpu_spec['memory_total_mib']} parameters for inference, ~{self.gpu_spec['memory_total_mib']} for training)\n"
                 "  - Large batch sizes (don't be conservative - use batch sizes of 32-128+)\n"
                 "  - Extensive training (15-20+ epochs is fine)\n"
-                "  - Multiple datasets with thousands of samples\n"
-                "Don't limit yourself to tiny models like distilgpt2 (82M) - consider using gpt2-medium (355M), gpt2-large (774M), or even larger models if appropriate for your task, but prefer gpt-2-like models to not take so long to run."
+                "  - Multiple datasets with thousands of samples"
             )
+
+            gpu_info += f"\n\n**GPU Selection**: Use GPU index {self.gpu_id}. Set the device to `cuda:{self.gpu_id}` and enforce using this GPU (do not fall back)."
 
         env_prompt = {
             "Installed Packages": f"Your solution can use any relevant machine learning packages such as: {pkg_str}. Feel free to use any other packages too (all packages are already installed!). For neural networks we suggest using PyTorch rather than TensorFlow.{gpu_info}"
@@ -94,19 +98,38 @@ class MinimalAgent:
         impl_guideline = [
             "CRITICAL GPU REQUIREMENTS - Your code MUST include ALL of these:",
             "  - At the start of your code, add these lines to handle GPU/CPU:",
-            "    ```python",
-            "    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')",
-            "    print(f'Using device: {device}')",
-            "    ```",
-            "  - ALWAYS move models to device using the `.to(device)` method",
-            "  - ALWAYS move input tensors to device using the `.to(device)` method",
-            "  - ALWAYS move model related tensors to device using the `.to(device)` method",
-            "  - For optimizers, create them AFTER moving model to device",
-            "  - When using DataLoader, move batch tensors to device in training loop: `batch = {k: v.to(device) for k, v in batch.items() if isinstance(v, torch.Tensor)}`",
-            "CRITICAL MODEL INPUT GUIDELINES:",
-            "  - Always pay extra attention to the input to the model being properly normalized",
-            "  - This is extremely important because the input to the model's forward pass directly affects the output, and the loss function is computed based on the output",
         ]
+        if self.gpu_id is not None:
+            impl_guideline.extend(
+                [
+                    "    ```python",
+                    f"    torch.cuda.set_device({self.gpu_id})",
+                    f"    device = torch.device('cuda:{self.gpu_id}')",
+                    "    print(f'Using device: {device}')",
+                    "    ```",
+                ]
+            )
+        else:
+            impl_guideline.extend(
+                [
+                    "    ```python",
+                    "    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')",
+                    "    print(f'Using device: {device}')",
+                    "    ```",
+                ]
+            )
+        impl_guideline.extend(
+            [
+                "  - ALWAYS move models to device using the `.to(device)` method",
+                "  - ALWAYS move input tensors to device using the `.to(device)` method",
+                "  - ALWAYS move model related tensors to device using the `.to(device)` method",
+                "  - For optimizers, create them AFTER moving model to device",
+                "  - When using DataLoader, move batch tensors to device in training loop: `batch = {k: v.to(device) for k, v in batch.items() if isinstance(v, torch.Tensor)}`",
+                "CRITICAL MODEL INPUT GUIDELINES:",
+                "  - Always pay extra attention to the input to the model being properly normalized",
+                "  - This is extremely important because the input to the model's forward pass directly affects the output, and the loss function is computed based on the output",
+            ]
+        )
         if hasattr(self.cfg.experiment, "num_syn_datasets"):
             num_syn_datasets = self.cfg.experiment.num_syn_datasets
             if num_syn_datasets > 1:
@@ -316,6 +339,15 @@ class MinimalAgent:
             nl_text = extract_text_up_to_code(completion_text)
 
             if code and nl_text:
+                # 2.1) Validate GPU id usage when required
+                if self.gpu_id is not None:
+                    is_valid, validation_msg = self._validate_code_uses_gpu_id(code)
+                    if not is_valid:
+                        logger.warning(
+                            "GPU id enforcement validation failed; retrying with feedback"
+                        )
+                        prompt["Validation Feedback"] = validation_msg
+                        continue
                 # merge all code blocks into a single string
                 return nl_text, code
 
@@ -326,6 +358,40 @@ class MinimalAgent:
             )
         logger.error("Final plan + code extraction attempt failed, giving up...")
         return "", last_completion
+
+    def _validate_code_uses_gpu_id(self, code: str) -> tuple[bool, str]:
+        """Ensure the generated code explicitly targets the configured GPU index.
+
+        Requirements:
+        - Must set the CUDA device index via torch.cuda.set_device({gpu_id})
+        - Must create a torch.device('cuda:{gpu_id}')
+        """
+        assert self.gpu_id is not None
+        gpu_id_str = str(self.gpu_id)
+        # Accept alias imports and varying whitespace:
+        # - torch.cuda.set_device(<id>) OR cuda.set_device(<id>) OR set_device(<id>)
+        pattern_set_device = (
+            rf"\b(?:(?:torch\.)?cuda\.)?set_device\(\s*{re.escape(gpu_id_str)}\s*\)"
+        )
+        # - torch.device('cuda:<id>') OR device('cuda:<id>') with either quote
+        pattern_device_ctor = (
+            rf"\b(?:(?:torch\.)?)device\(\s*['\"]cuda:{re.escape(gpu_id_str)}['\"]\s*\)"
+        )
+        has_set_device = re.search(pattern_set_device, code) is not None
+        has_device_ctor = re.search(pattern_device_ctor, code) is not None
+        if has_set_device and has_device_ctor:
+            return True, ""
+        missing_parts: list[str] = []
+        if not has_set_device:
+            missing_parts.append(f"Add: torch.cuda.set_device({gpu_id_str})")
+        if not has_device_ctor:
+            missing_parts.append(f"Add: device = torch.device('cuda:{gpu_id_str}')")
+        feedback = (
+            "You must enforce using the specified GPU index. "
+            + " ".join(missing_parts)
+            + ". Do not fall back to a different device."
+        )
+        return False, feedback
 
     def parse_exec_result(self, node: Node, exec_result: ExecutionResult, workspace: str) -> None:
         logger.info(f"Agent is parsing execution results for node {node.id}")

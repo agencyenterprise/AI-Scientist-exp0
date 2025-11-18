@@ -2,13 +2,12 @@
 GPU discovery and simple process-level allocation utilities.
 
 Notes:
-- Avoids importing torch; uses nvidia-smi or CUDA_VISIBLE_DEVICES as fallback
+- Avoids importing torch; uses nvidia-smi
 - Provides a minimal manager to reserve/release GPUs per process id
 """
 
-import os
 import subprocess
-from typing import Dict, Set
+from typing import Dict, Set, TypedDict
 
 
 class GPUManager:
@@ -36,6 +35,11 @@ class GPUManager:
             del self.gpu_assignments[process_id]
 
 
+class GPUSpec(TypedDict):
+    name: str
+    memory_total_mib: int
+
+
 def get_gpu_count() -> int:
     """Return number of available NVIDIA GPUs without importing torch."""
     try:
@@ -48,9 +52,43 @@ def get_gpu_count() -> int:
         gpus = result.stdout.strip().split("\n")
         return len(gpus) if gpus != [""] else 0
     except (subprocess.SubprocessError, FileNotFoundError):
-        # Fallback to environment variable used by many schedulers/launchers
-        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
-        if cuda_visible_devices:
-            devices = [d for d in cuda_visible_devices.split(",") if d and d != "-1"]
-            return len(devices)
         return 0
+
+
+def get_gpu_specs(gpu_id: int) -> GPUSpec:
+    """Return name and total memory (MiB) for the specified GPU id using nvidia-smi."""
+    query_fields = [
+        "index",
+        "name",
+        "memory.total",
+    ]
+    try:
+        result = subprocess.run(
+            args=[
+                "nvidia-smi",
+                "-i",
+                str(gpu_id),
+                f"--query-gpu={','.join(query_fields)}",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return {"name": "Unknown", "memory_total_mib": 0}
+
+    lines = [line for line in result.stdout.strip().splitlines() if line]
+    if not lines:
+        return {"name": "Unknown", "memory_total_mib": 0}
+
+    # Expect a single line for the selected GPU id
+    parts = [p.strip() for p in lines[0].split(",")]
+    if len(parts) != len(query_fields):
+        return {"name": "Unknown", "memory_total_mib": 0}
+    _, name, mem_total_str = parts
+    try:
+        mem_total_mib = int(mem_total_str)
+    except ValueError:
+        return {"name": name or "Unknown", "memory_total_mib": 0}
+    return {"name": name, "memory_total_mib": mem_total_mib}
