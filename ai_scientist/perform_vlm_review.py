@@ -1,36 +1,15 @@
 import base64
-import contextlib
 import hashlib
 import logging
 import os
 import re
-import sys
-import warnings
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, Dict, List, Optional
 
 import openai
 import pymupdf  # type: ignore[import-untyped]
 
 from ai_scientist.llm import extract_json_between_markers_vlm, get_response_from_vlm
 from ai_scientist.perform_llm_review import load_paper
-
-# Suppress PyMuPDF layout warning
-warnings.filterwarnings("ignore", message=".*pymupdf_layout.*", category=UserWarning)
-warnings.filterwarnings("ignore", message="Consider using the pymupdf_layout package.*")
-
-
-@contextlib.contextmanager
-def suppress_pymupdf_output() -> Generator[None, None, None]:
-    """Context manager to suppress pymupdf's direct print statements."""
-    original_stderr = sys.stderr
-    try:
-        # Redirect stderr to devnull to suppress pymupdf's print statements
-        with open(os.devnull, "w") as devnull:
-            sys.stderr = devnull
-            yield
-    finally:
-        sys.stderr = original_stderr
-
 
 logger = logging.getLogger(__name__)
 
@@ -188,12 +167,7 @@ def extract_figure_screenshots(
     Avoid partial matches, e.g. "Figure 11" doesn't match "Figure 1".
     """
     os.makedirs(img_folder_path, exist_ok=True)
-    try:
-        with suppress_pymupdf_output():
-            doc = pymupdf.open(pdf_path)
-    except Exception:
-        logger.exception(f"Error: Could not open PDF for image extraction: {pdf_path}")
-        return []
+    doc = pymupdf.open(pdf_path)
     page_range = range(len(doc)) if num_pages is None else range(min(num_pages, len(doc)))
 
     # ---------- (A) EXTRACT ALL TEXT BLOCKS FROM THE DOCUMENT ----------
