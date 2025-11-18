@@ -1,32 +1,12 @@
-import base64
 import logging
-from typing import List, Protocol, Tuple, cast
 
 from ai_scientist.llm.query import FunctionSpec, query
 
 from ..journal import Journal, Node
-from ..plotting import SupportsPlottingAgent
-from ..plotting import (
-    determine_datasets_successfully_tested as generic_determine_datasets_successfully_tested,
-)
-from ..plotting import generate_plotting_code as generic_generate_plotting_code
-from ..types import PromptType
 from ..utils.config import Config as AppConfig
 from .base import Stage
 
 logger = logging.getLogger(__name__)
-
-
-class SupportsStage3Agent(Protocol):
-    stage_name: str | None
-    cfg: AppConfig
-
-    def plan_and_code_query(self, *, prompt: PromptType, retries: int = 3) -> Tuple[str, str]:
-        pass
-
-    @property
-    def _prompt_resp_fmt(self) -> dict[str, str]:
-        pass
 
 
 class Stage3Plotting(Stage):
@@ -40,38 +20,6 @@ class Stage3Plotting(Stage):
     # Memoization cache for substage-completion queries:
     # key -> (is_complete, message)
     _substage_completion_cache: dict[str, tuple[bool, str]] = {}
-
-    @staticmethod
-    def generate_plotting_code(
-        *,
-        agent: SupportsStage3Agent,
-        node: Node,
-        working_dir: str,
-        plot_code_from_prev_stage: str | None,
-    ) -> str:
-        # Delegate to stage-agnostic plotting utility
-        return generic_generate_plotting_code(
-            agent=cast(SupportsPlottingAgent, agent),
-            node=node,
-            working_dir=working_dir,
-            plot_code_from_prev_stage=plot_code_from_prev_stage,
-        )
-
-    @staticmethod
-    def _encode_image_to_base64(image_path: str) -> str | None:
-        try:
-            with open(image_path, "rb") as image_file:
-                return base64.b64encode(image_file.read()).decode("utf-8")
-        except Exception:
-            return None
-
-    @staticmethod
-    def determine_datasets_successfully_tested(
-        *, agent: SupportsStage3Agent, node: Node
-    ) -> List[str]:
-        return generic_determine_datasets_successfully_tested(
-            agent=cast(SupportsPlottingAgent, agent), node=node
-        )
 
     @staticmethod
     def parse_vlm_feedback(*, node: Node) -> str:
@@ -186,9 +134,6 @@ class Stage3Plotting(Stage):
                 return False, exec_time_feedback
         return False, "stage not completed"
 
-    def curate_task_desc(self) -> str:
-        return self._context.task_desc
-
     def evaluate_substage_completion(self) -> tuple[bool, str]:
         return Stage3Plotting.compute_substage_completion(
             goals=self._meta.goals,
@@ -204,6 +149,3 @@ class Stage3Plotting(Stage):
             stage_name=self._context.stage_name,
             max_stage3_iterations=self._meta.max_iterations,
         )
-
-    def generate_substage_goal(self) -> tuple[str, str]:
-        return self._meta.goals, "first_attempt"

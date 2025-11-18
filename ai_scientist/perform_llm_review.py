@@ -1,11 +1,8 @@
-import contextlib
 import json
 import logging
 import os
-import sys
-import warnings
 from textwrap import dedent
-from typing import Any, Dict, Generator, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import anthropic
 import numpy as np
@@ -19,24 +16,6 @@ from ai_scientist.llm import (
     get_batch_responses_from_llm,
     get_response_from_llm,
 )
-
-# Suppress PyMuPDF layout warning
-warnings.filterwarnings("ignore", message=".*pymupdf_layout.*", category=UserWarning)
-warnings.filterwarnings("ignore", message="Consider using the pymupdf_layout package.*")
-
-
-@contextlib.contextmanager
-def suppress_pymupdf_output() -> Generator[None, None, None]:
-    """Context manager to suppress pymupdf's direct print statements."""
-    original_stderr = sys.stderr
-    try:
-        # Redirect stderr to devnull to suppress pymupdf's print statements
-        with open(os.devnull, "w") as devnull:
-            sys.stderr = devnull
-            yield
-    finally:
-        sys.stderr = original_stderr
-
 
 logger = logging.getLogger(__name__)
 
@@ -344,8 +323,7 @@ def load_paper(pdf_path: str, num_pages: int | None = None, min_size: int = 100)
     except Exception as e:
         logger.warning(f"Error with pymupdf4llm, falling back to pymupdf: {e}")
         try:
-            with suppress_pymupdf_output():
-                doc = pymupdf.open(pdf_path)
+            doc = pymupdf.open(pdf_path)
             if num_pages:
                 doc = doc[:num_pages]
             text = ""

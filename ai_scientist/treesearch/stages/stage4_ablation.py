@@ -221,9 +221,6 @@ class Stage4Ablation(Stage):
     def compute_stage_completion(*, journal: Journal) -> tuple[bool, str]:
         return False, "stage not completed"
 
-    def curate_task_desc(self) -> str:
-        return self._context.task_desc
-
     def evaluate_substage_completion(self) -> tuple[bool, str]:
         return Stage4Ablation.compute_substage_completion(
             goals=self._meta.goals, journal=self._context.journal, cfg=self._context.cfg
@@ -231,12 +228,3 @@ class Stage4Ablation(Stage):
 
     def evaluate_stage_completion(self) -> tuple[bool, str]:
         return Stage4Ablation.compute_stage_completion(journal=self._context.journal)
-
-    def update_state(self, *, result_node: Node) -> None:
-        state_set: set[str] = set()
-        Stage4Ablation.update_ablation_state(
-            stage_name=self._context.stage_name, result_node=result_node, state_set=state_set
-        )
-
-    def generate_substage_goal(self) -> tuple[str, str]:
-        return self._meta.goals, "first_attempt"

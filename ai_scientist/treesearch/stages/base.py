@@ -41,9 +41,6 @@ class Stage:
     def context(self) -> StageContext:
         return self._context
 
-    def curate_task_desc(self) -> str:
-        return self._context.task_desc
-
     def prepare_substage(self) -> bool:
         return True
 
@@ -52,12 +49,6 @@ class Stage:
 
     def evaluate_stage_completion(self) -> Tuple[bool, str]:
         raise NotImplementedError
-
-    def generate_substage_goal(self) -> Tuple[str, str]:
-        raise NotImplementedError
-
-    def update_state(self, *, result_node: Node) -> None:
-        return None
 
     def best_carryover_nodes(self) -> Dict[int, Node]:
         return self._context.best_nodes_by_stage

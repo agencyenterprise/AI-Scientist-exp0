@@ -183,9 +183,6 @@ class Stage1Baseline(Stage):
         )
         return result
 
-    def curate_task_desc(self) -> str:
-        return self._context.task_desc
-
     def evaluate_substage_completion(self) -> tuple[bool, str]:
         return Stage1Baseline.compute_substage_completion(
             goals=self._meta.goals, journal=self._context.journal, cfg=self._context.cfg
@@ -193,6 +190,3 @@ class Stage1Baseline(Stage):
 
     def evaluate_stage_completion(self) -> tuple[bool, str]:
         return Stage1Baseline.compute_stage_completion(journal=self._context.journal)
-
-    def generate_substage_goal(self) -> tuple[str, str]:
-        return self._meta.goals, "first_attempt"
