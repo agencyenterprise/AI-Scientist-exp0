@@ -47,11 +47,16 @@ source .venv/bin/activate
 uv sync
 ```
 
-5. Quick setup (alternative)
+5. Install LaTeX packages (required for paper generation)
+```bash
+apt-get update && apt-get install -y texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-bibtex-extra biber poppler-utils chktex
+```
+
+6. Quick setup (alternative)
 ```bash
 bash install_run_pod.sh
 ```
-This script creates a virtual environment with system packages, activates it, and installs dependencies.
+This script creates a virtual environment with system packages, activates it, installs dependencies, and installs LaTeX packages.
 
 ## Environment Variables
 
