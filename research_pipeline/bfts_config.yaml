@@ -16,7 +16,7 @@ exec:
 generate_report: True
 # LLM settings for final report from journal
 report:
-  model: Qwen/Qwen2.5-VL-7B-Instruct
+  model: gpt-4o-mini
   temp: 1.0
 
 # LLM settings for paper writeup
@@ -54,16 +54,16 @@ agent:
 
   # LLM settings for coding
   code:
-    model: Qwen/Qwen2.5-VL-7B-Instruct
+    model: gpt-4o-mini
     temp: 1.0
 
   # LLM settings for evaluating program output / tracebacks
   feedback:
-    model: Qwen/Qwen2.5-VL-7B-Instruct
+    model: gpt-4o-mini
     temp: 0.5
 
   vlm_feedback:
-    model: Qwen/Qwen2.5-VL-7B-Instruct
+    model: gpt-4o-mini
     temp: 0.5
 
   search:
