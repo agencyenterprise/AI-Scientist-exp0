@@ -43,12 +43,10 @@ def _prepare_workspace(*, cfg: AppConfig, process_id: str) -> tuple[str, str]:
     return str(workspace_path), str(working_dir_path)
 
 
-def _should_run_plotting_and_vlm(*, stage_name: str | None) -> bool:
+def _should_run_plotting_and_vlm(*, stage_name: str) -> bool:
     """Return True if plotting + VLM analysis should run for this stage."""
-    if stage_name is None:
-        return True
-    # Skip plotting and VLM for Stage 1 (initial implementation)
-    return not stage_name.startswith("1_")
+    # Skip plotting and VLM for Stage 1 and Stage 2; only run for later stages
+    return not (stage_name.startswith("1_") or stage_name.startswith("2_"))
 
 
 def _configure_gpu_for_worker(*, gpu_id: int | None) -> GPUSpec | None:
@@ -58,6 +56,42 @@ def _configure_gpu_for_worker(*, gpu_id: int | None) -> GPUSpec | None:
         return None
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     return get_gpu_specs(gpu_id)
+
+
+def _assign_datasets_from_metrics_response(
+    *,
+    child_node: Node,
+    metrics_response: dict[str, object],
+) -> None:
+    """Populate datasets_successfully_tested from the structured metrics response."""
+    raw_metric_names = metrics_response.get("metric_names", [])
+    metric_entries: list[object] = (
+        list(raw_metric_names) if isinstance(raw_metric_names, list) else []
+    )
+
+    dataset_names: list[str] = []
+    for metric_entry in metric_entries:
+        if not isinstance(metric_entry, dict):
+            continue
+        data_entries = metric_entry.get("data", [])
+        if not isinstance(data_entries, list):
+            continue
+        for data_entry in data_entries:
+            if not isinstance(data_entry, dict):
+                continue
+            dataset_name = data_entry.get("dataset_name")
+            if isinstance(dataset_name, str) and dataset_name:
+                dataset_names.append(dataset_name)
+
+    seen: set[str] = set()
+    unique_datasets: list[str] = []
+    for name in dataset_names:
+        if name not in seen:
+            seen.add(name)
+            unique_datasets.append(name)
+
+    if unique_datasets:
+        child_node.datasets_successfully_tested = unique_datasets
 
 
 def _create_worker_agent(
@@ -195,7 +229,6 @@ def _analyze_results_and_metrics(
     worker_agent.parse_exec_result(
         node=child_node,
         exec_result=exec_result,
-        workspace=working_dir,
     )
     parse_and_assign_metrics(
         worker_agent=worker_agent,
@@ -216,9 +249,7 @@ def _select_plotting_code(
     child_node: Node,
     parent_node: Node | None,
     seed_eval: bool,
-    best_stage2_plot_code: str | None,
     best_stage3_plot_code: str | None,
-    working_dir: str,
 ) -> str:
     if seed_eval:
         assert parent_node is not None
@@ -226,12 +257,6 @@ def _select_plotting_code(
 
     plot_code_from_prev_stage: str | None
     if (
-        worker_agent.stage_name
-        and worker_agent.stage_name.startswith("3_")
-        and best_stage2_plot_code
-    ):
-        plot_code_from_prev_stage = best_stage2_plot_code
-    elif (
         worker_agent.stage_name
         and worker_agent.stage_name.startswith("4_")
         and best_stage3_plot_code
@@ -243,7 +268,6 @@ def _select_plotting_code(
     return generate_plotting_code(
         agent=worker_agent,
         node=child_node,
-        working_dir=working_dir,
         plot_code_from_prev_stage=plot_code_from_prev_stage,
     )
 
@@ -253,10 +277,8 @@ def _execute_plotting_with_retries(
     worker_agent: MinimalAgent,
     child_node: Node,
     parent_node: Node | None,
-    working_dir: str,
     process_interpreter: Interpreter,
     seed_eval: bool,
-    best_stage2_plot_code: str | None,
     best_stage3_plot_code: str | None,
     emit: Callable[[str, dict[str, object]], None],
 ) -> str:
@@ -270,9 +292,7 @@ def _execute_plotting_with_retries(
             child_node=child_node,
             parent_node=parent_node,
             seed_eval=seed_eval,
-            best_stage2_plot_code=best_stage2_plot_code,
             best_stage3_plot_code=best_stage3_plot_code,
-            working_dir=working_dir,
         )
         emit("ai.run.log", {"message": "Executing plotting code", "level": "info"})
         plot_exec_result = process_interpreter.run(
@@ -431,7 +451,6 @@ def _run_plotting_and_vlm(
     working_dir: str,
     process_interpreter: Interpreter,
     seed_eval: bool,
-    best_stage2_plot_code: str | None,
     best_stage3_plot_code: str | None,
     emit: Callable[[str, dict[str, object]], None],
 ) -> None:
@@ -445,10 +464,8 @@ def _run_plotting_and_vlm(
             worker_agent=worker_agent,
             child_node=child_node,
             parent_node=parent_node,
-            working_dir=working_dir,
             process_interpreter=process_interpreter,
             seed_eval=seed_eval,
-            best_stage2_plot_code=best_stage2_plot_code,
             best_stage3_plot_code=best_stage3_plot_code,
             emit=emit,
         )
@@ -594,8 +611,11 @@ def parse_and_assign_metrics(
             if isinstance(metrics_response, dict) and metrics_response.get(
                 "valid_metrics_received"
             ):
-                child_node.metric = MetricValue(
-                    value={"metric_names": metrics_response.get("metric_names", [])}
+                metric_names = metrics_response.get("metric_names", [])
+                child_node.metric = MetricValue(value={"metric_names": metric_names})
+                _assign_datasets_from_metrics_response(
+                    child_node=child_node,
+                    metrics_response=metrics_response,
                 )
             else:
                 child_node.metric = WorstMetricValue()
@@ -634,7 +654,6 @@ def process_node(
     new_ablation_idea: Optional[AblationIdea] = None,
     new_hyperparam_idea: Optional[HyperparamTuningIdea] = None,
     best_stage3_plot_code: Optional[str] = None,
-    best_stage2_plot_code: Optional[str] = None,
     seed_eval: bool = False,
     event_callback: Optional[Callable[[str, dict[str, object]], None]] = None,
 ) -> dict[str, object]:
@@ -706,7 +725,6 @@ def process_node(
                     working_dir=working_dir,
                     process_interpreter=process_interpreter,
                     seed_eval=seed_eval,
-                    best_stage2_plot_code=best_stage2_plot_code,
                     best_stage3_plot_code=best_stage3_plot_code,
                     emit=emit,
                 )

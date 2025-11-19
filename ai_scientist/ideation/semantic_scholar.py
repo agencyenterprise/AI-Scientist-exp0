@@ -104,7 +104,7 @@ class SemanticScholarSearchTool(BaseTool):
                 "Set the S2_API_KEY environment variable for higher limits."
             )
 
-    def use_tool(self, query: str, **kwargs: str) -> str | None:  # type: ignore[override]
+    def use_tool(self, query: str, **_kwargs: str) -> str | None:  # type: ignore[override]
         papers = self.search_for_papers(query)
         if papers:
             return self.format_papers(papers)

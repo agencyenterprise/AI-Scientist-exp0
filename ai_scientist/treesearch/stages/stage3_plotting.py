@@ -38,7 +38,7 @@ class Stage3Plotting(Stage):
 
     @staticmethod
     def compute_substage_completion(
-        *, goals: str, journal: Journal, cfg: AppConfig, current_substage_name: str
+        *, goals: str, journal: Journal, cfg: AppConfig
     ) -> tuple[bool, str]:
         best_node = journal.get_best_node()
         if not best_node:
@@ -114,7 +114,7 @@ class Stage3Plotting(Stage):
 
     @staticmethod
     def compute_stage_completion(
-        *, journal: Journal, cfg: AppConfig, stage_name: str, max_stage3_iterations: int
+        *, journal: Journal, cfg: AppConfig, max_stage3_iterations: int
     ) -> tuple[bool, str]:
         best_node = journal.get_best_node()
         if not best_node:
@@ -139,13 +139,11 @@ class Stage3Plotting(Stage):
             goals=self._meta.goals,
             journal=self._context.journal,
             cfg=self._context.cfg,
-            current_substage_name=self._context.stage_name,
         )
 
     def evaluate_stage_completion(self) -> tuple[bool, str]:
         return Stage3Plotting.compute_stage_completion(
             journal=self._context.journal,
             cfg=self._context.cfg,
-            stage_name=self._context.stage_name,
             max_stage3_iterations=self._meta.max_iterations,
         )

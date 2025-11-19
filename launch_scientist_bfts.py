@@ -260,14 +260,6 @@ if __name__ == "__main__":
         assert isinstance(cfg_obj, Config)
         return cfg_obj
 
-    def _load_stage1_journal(stage1_dir: Path) -> tuple[str, Journal]:
-        stage_name = stage1_dir.name.replace("stage_", "", 1)
-        journal_path = stage1_dir / "journal.json"
-        if not journal_path.exists():
-            raise FileNotFoundError(str(journal_path))
-        journal = load_json_dc(path=journal_path, cls=Journal)
-        return stage_name, journal
-
     def _load_stage_journal(stage_dir: Path) -> tuple[str, Journal]:
         stage_name = stage_dir.name.replace("stage_", "", 1)
         journal_path = stage_dir / "journal.json"
@@ -480,7 +472,7 @@ if __name__ == "__main__":
                         except Exception:
                             traceback.print_exc()
 
-                    def exec_callback(code: str, is_exec: bool) -> ExecutionResult:
+                    def exec_callback(_code: str, _is_exec: bool) -> ExecutionResult:
                         return ExecutionResult(term_out=[], exec_time=0.0, exc_type=None)
 
                     manager.run_stage(

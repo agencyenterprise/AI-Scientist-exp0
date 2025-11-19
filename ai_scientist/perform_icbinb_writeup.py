@@ -236,9 +236,7 @@ def extract_page_line_counts(pdf_file: str, first_page: int, last_page: int) -> 
     return page_lines
 
 
-def check_page_limit(
-    pdf_file: str, page_limit: int = 4, timeout: int = 30
-) -> Optional[Dict[str, int]]:
+def check_page_limit(pdf_file: str, page_limit: int = 4) -> Optional[Dict[str, int]]:
     """
     Compile the LaTeX project in a temporary folder, then determine where the
     "References" section begins using cleaned text extraction. Next, count the

@@ -38,12 +38,11 @@ class MinimalAgent:
         self,
         task_desc: str,
         cfg: Config,
+        stage_name: str,
         gpu_id: int | None = None,
         gpu_spec: GPUSpec | None = None,
         memory_summary: str | None = None,
         evaluation_metrics: str | list[str] | None = None,
-        stage: int | None = None,
-        stage_name: str | None = None,
     ) -> None:
         self.task_desc = task_desc
         self.memory_summary = memory_summary
@@ -397,7 +396,7 @@ class MinimalAgent:
         )
         return False, feedback
 
-    def parse_exec_result(self, node: Node, exec_result: ExecutionResult, workspace: str) -> None:
+    def parse_exec_result(self, node: Node, exec_result: ExecutionResult) -> None:
         logger.info(f"Agent is parsing execution results for node {node.id}")
         # Store raw execution output into the node first
         node.absorb_exec_result(exec_result)

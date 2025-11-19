@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class SupportsPlottingAgent(Protocol):
-    stage_name: str | None
+    stage_name: str
     cfg: AppConfig
 
     def plan_and_code_query(self, *, prompt: PromptType, retries: int) -> Tuple[str, str]:
@@ -32,7 +32,6 @@ def generate_plotting_code(
     *,
     agent: SupportsPlottingAgent,
     node: Node,
-    working_dir: str,
     plot_code_from_prev_stage: str | None,
 ) -> str:
     prompt_guideline: list[str] = [
@@ -99,21 +98,8 @@ def generate_plotting_code(
     }
     plotting_prompt["Instructions"] = plotting_instructions
 
-    # If provided, allow seeding from a prior stage's plotting code.
-    if agent.stage_name and agent.stage_name.startswith("3_") and plot_code_from_prev_stage:
-        prompt_guideline.extend(
-            [
-                "IMPORTANT: Use the following base plotting code as a starting point:",
-                "Base plotting code: " + plot_code_from_prev_stage,
-                "Modify the base plotting code to:",
-                "1. Keep the same numpy data structure and plotting style",
-                "2. Add comparison plots between different datasets",
-                "3. Add dataset-specific visualizations if needed",
-                "4. Include clear labels indicating which plots are from which dataset",
-                "5. Use consistent naming conventions for saved files",
-            ]
-        )
-    elif agent.stage_name and agent.stage_name.startswith("4_") and plot_code_from_prev_stage:
+    # If provided, allow seeding from a prior stage's plotting code (currently used for Stage 4).
+    if agent.stage_name.startswith("4_") and plot_code_from_prev_stage:
         prompt_guideline.extend(
             [
                 "IMPORTANT: This is an ablation study. Use the following base plotting code as a starting point:",

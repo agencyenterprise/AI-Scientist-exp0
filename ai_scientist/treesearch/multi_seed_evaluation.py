@@ -38,9 +38,7 @@ def generate_seed_eval_aggregation_node(*, node: Node, agg_plotting_code: str) -
     )
 
 
-def aggregate_seed_eval_results(
-    *, agent: SupportsSeedAgent, seed_nodes: List[Node], parent_node: Node
-) -> str:
+def aggregate_seed_eval_results(*, agent: SupportsSeedAgent, seed_nodes: List[Node]) -> str:
     # Build a guidance list the LLM should follow when writing aggregation code
     prompt_guideline: list[str] = []
     prompt_guideline += [
@@ -107,9 +105,7 @@ def run_plot_aggregation(*, agent: SupportsSeedAgent, node: Node, seed_nodes: Li
         return node
     try:
         # Create aggregation plotting code
-        agg_plotting_code = aggregate_seed_eval_results(
-            agent=agent, seed_nodes=seed_nodes, parent_node=node
-        )
+        agg_plotting_code = aggregate_seed_eval_results(agent=agent, seed_nodes=seed_nodes)
 
         # Create a special aggregation node
         agg_node = generate_seed_eval_aggregation_node(

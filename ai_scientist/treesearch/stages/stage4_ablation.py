@@ -135,9 +135,7 @@ class Stage4Ablation(Stage):
         return AblationIdea(name="add one more layer", description="add one more layer")
 
     @staticmethod
-    def update_ablation_state(
-        *, stage_name: str | None, result_node: Node, state_set: set[str]
-    ) -> None:
+    def update_ablation_state(*, stage_name: str, result_node: Node, state_set: set[str]) -> None:
         if not stage_name or not stage_name.startswith("4_"):
             return
         ablation_name = result_node.ablation_name
@@ -218,7 +216,7 @@ class Stage4Ablation(Stage):
         return result
 
     @staticmethod
-    def compute_stage_completion(*, journal: Journal) -> tuple[bool, str]:
+    def compute_stage_completion() -> tuple[bool, str]:
         return False, "stage not completed"
 
     def evaluate_substage_completion(self) -> tuple[bool, str]:
@@ -227,4 +225,4 @@ class Stage4Ablation(Stage):
         )
 
     def evaluate_stage_completion(self) -> tuple[bool, str]:
-        return Stage4Ablation.compute_stage_completion(journal=self._context.journal)
+        return Stage4Ablation.compute_stage_completion()

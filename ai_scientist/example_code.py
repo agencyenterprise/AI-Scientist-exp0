@@ -1,6 +1,5 @@
 import os
 import random
-from typing import Any
 
 import matplotlib.pyplot as plt
 import torch
@@ -376,8 +375,8 @@ for tok in rare_tokens:
 
 
 def train_model(
-    model: Any,
-    dataset: Any,
+    model: torch.nn.Module,
+    dataset: Dataset,
     num_epochs: int,
     batch_size: int,
     logging_steps: int,
