@@ -43,6 +43,14 @@ def _prepare_workspace(*, cfg: AppConfig, process_id: str) -> tuple[str, str]:
     return str(workspace_path), str(working_dir_path)
 
 
+def _should_run_plotting_and_vlm(*, stage_name: str | None) -> bool:
+    """Return True if plotting + VLM analysis should run for this stage."""
+    if stage_name is None:
+        return True
+    # Skip plotting and VLM for Stage 1 (initial implementation)
+    return not stage_name.startswith("1_")
+
+
 def _configure_gpu_for_worker(*, gpu_id: int | None) -> GPUSpec | None:
     """Configure CUDA visibility and return GPU specs if a GPU is assigned."""
     if gpu_id is None:
@@ -689,18 +697,22 @@ def process_node(
         )
 
         if not child_node.is_buggy:
-            _run_plotting_and_vlm(
-                worker_agent=worker_agent,
-                child_node=child_node,
-                parent_node=parent_node,
-                cfg=cfg,
-                working_dir=working_dir,
-                process_interpreter=process_interpreter,
-                seed_eval=seed_eval,
-                best_stage2_plot_code=best_stage2_plot_code,
-                best_stage3_plot_code=best_stage3_plot_code,
-                emit=emit,
-            )
+            if _should_run_plotting_and_vlm(stage_name=worker_agent.stage_name):
+                _run_plotting_and_vlm(
+                    worker_agent=worker_agent,
+                    child_node=child_node,
+                    parent_node=parent_node,
+                    cfg=cfg,
+                    working_dir=working_dir,
+                    process_interpreter=process_interpreter,
+                    seed_eval=seed_eval,
+                    best_stage2_plot_code=best_stage2_plot_code,
+                    best_stage3_plot_code=best_stage3_plot_code,
+                    emit=emit,
+                )
+            elif child_node.is_buggy_plots is None:
+                # If plotting/VLM is skipped (e.g., Stage 1), treat plots as non-buggy
+                child_node.is_buggy_plots = False
 
         result_data = child_node.to_dict()
         # sanity pickle
