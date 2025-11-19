@@ -10,6 +10,12 @@ ROOT_DIR = Path(__file__).parent
 
 
 class Task(BaseModel):
+    """
+    This class represents a research task/idea
+
+    This is the input passed to the agent on its first step
+    """
+
     model_config = ConfigDict(extra="allow")
 
     name: Annotated[str, Field(alias="Name")]
@@ -18,9 +24,7 @@ class Task(BaseModel):
     related_work: Annotated[str, Field(alias="Related Work")]
     abstract: Annotated[str, Field(alias="Abstract")]
     code: Annotated[str | None, Field(default=None, alias="Code")]
-    experiments: Annotated[
-        str | list[str] | list[dict[str, str]], Field(alias="Experiments")
-    ]
+    experiments: Annotated[str | list[str], Field(alias="Experiments")]
     risk_factors_and_limitations: Annotated[
         str | list[str], Field(alias="Risk Factors and Limitations")
     ]
@@ -81,11 +85,11 @@ def _to_script(code: str, deps: list[str] = []) -> str:
 
 
 async def exec_code(
+    cwd: str | Path,
     code: str,
     deps: list[str] = [],
 ) -> RunCodeResult:
-    dir = TemporaryDirectory(delete=False)
-    file = NamedTemporaryFile(mode="wt", suffix=".py", dir=dir.name, delete=False)
+    file = NamedTemporaryFile(mode="wt", suffix=".py", dir=cwd, delete=False)
 
     script = _to_script(code, deps)
     file.write(script)
@@ -95,7 +99,7 @@ async def exec_code(
         "uv",
         "run",
         file.name,
-        cwd=dir.name,
+        cwd=cwd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -113,7 +117,7 @@ async def exec_code(
         stdout=stdout.decode(),
         stderr=stderr.decode(),
         returncode=returncode,
-        directory=dir.name,
+        directory=cwd,
         filename=file.name,
     )
 
