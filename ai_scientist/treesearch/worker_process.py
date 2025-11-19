@@ -20,6 +20,7 @@ from .types import PromptType
 from .utils.config import Config as AppConfig
 from .utils.config import apply_log_level
 from .utils.metric import MetricValue, WorstMetricValue
+from .utils.response import wrap_code
 from .vlm_function_specs import metric_parse_spec
 
 logger = logging.getLogger("ai-scientist")
@@ -184,9 +185,49 @@ def _create_child_node(
         return child_node
 
     logger.info(f"Improving node {parent_node.id}")
-    child_node = Stage1Baseline.improve(agent=worker_agent, parent_node=parent_node)
+    child_node = _improve_existing_implementation(
+        worker_agent=worker_agent,
+        parent_node=parent_node,
+    )
     child_node.parent = parent_node
     return child_node
+
+
+def _improve_existing_implementation(
+    *,
+    worker_agent: MinimalAgent,
+    parent_node: Node,
+) -> Node:
+    """Improve an existing implementation based on the current experimental stage."""
+    prompt: PromptType = {
+        "Introduction": (
+            "You are an experienced AI researcher. You are provided with a previously developed "
+            "implementation. Your task is to improve it based on the current experimental stage."
+        ),
+        "Research idea": worker_agent.task_desc,
+        "Memory": worker_agent.memory_summary if worker_agent.memory_summary else "",
+        "Feedback based on generated plots": parent_node.vlm_feedback_summary,
+        "Feedback about execution time": parent_node.exec_time_feedback,
+        "Instructions": {},
+    }
+    prompt["Previous solution"] = {
+        "Code": wrap_code(code=parent_node.code),
+    }
+
+    improve_instructions: dict[str, str | list[str]] = {}
+    improve_instructions |= worker_agent._prompt_resp_fmt
+    improve_instructions |= worker_agent._prompt_impl_guideline
+    prompt["Instructions"] = improve_instructions
+
+    plan, code = worker_agent.plan_and_code_query(prompt=prompt)
+    logger.debug("----- LLM code start (improve) -----")
+    logger.debug(code)
+    logger.debug("----- LLM code end (improve) -----")
+    return Node(
+        plan=plan,
+        code=code,
+        parent=parent_node,
+    )
 
 
 def _execute_experiment(

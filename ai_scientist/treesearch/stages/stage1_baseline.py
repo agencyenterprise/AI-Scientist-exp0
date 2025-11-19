@@ -6,7 +6,6 @@ from ..codegen_agent import MinimalAgent
 from ..journal import Journal, Node
 from ..types import PromptType
 from ..utils.config import Config as AppConfig
-from ..utils.response import wrap_code
 from .base import Stage
 
 logger = logging.getLogger(__name__)
@@ -68,39 +67,6 @@ class Stage1Baseline(Stage):
         logger.debug("----- LLM code end -----")
         logger.info(f"✓ Generated {len(code)} characters of code")
         return Node(plan=plan, code=code)
-
-    @staticmethod
-    def improve(agent: "MinimalAgent", parent_node: Node) -> Node:
-        """Stage 1: Improve an existing baseline implementation."""
-        prompt: PromptType = {
-            "Introduction": (
-                "You are an experienced AI researcher. You are provided with a previously developed "
-                "implementation. Your task is to improve it based on the current experimental stage."
-            ),
-            "Research idea": agent.task_desc,
-            "Memory": agent.memory_summary if agent.memory_summary else "",
-            "Feedback based on generated plots": parent_node.vlm_feedback_summary,
-            "Feedback about execution time": parent_node.exec_time_feedback,
-            "Instructions": {},
-        }
-        prompt["Previous solution"] = {
-            "Code": wrap_code(parent_node.code),
-        }
-
-        improve_instructions: dict[str, str | list[str]] = {}
-        improve_instructions |= agent._prompt_resp_fmt
-        improve_instructions |= agent._prompt_impl_guideline
-        prompt["Instructions"] = improve_instructions
-
-        plan, code = agent.plan_and_code_query(prompt=prompt)
-        logger.debug("----- LLM code start (improve) -----")
-        logger.debug(code)
-        logger.debug("----- LLM code end (improve) -----")
-        return Node(
-            plan=plan,
-            code=code,
-            parent=parent_node,
-        )
 
     @staticmethod
     def compute_stage_completion(*, journal: Journal) -> tuple[bool, str]:
