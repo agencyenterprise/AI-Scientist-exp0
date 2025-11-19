@@ -34,7 +34,7 @@ def get_batch_responses_from_llm(
     model: str,
     system_message: str,
     temperature: float,
-    print_debug: bool = False,
+    print_debug: bool = True,
     msg_history: list[dict[str, Any]] | None = None,
     n_responses: int = 1,
 ) -> tuple[list[str], list[list[dict[str, Any]]]]:
@@ -222,7 +222,7 @@ def get_response_from_llm(
     model: str,
     system_message: str,
     temperature: float,
-    print_debug: bool = False,
+    print_debug: bool = True,
     msg_history: list[dict[str, Any]] | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     msg = prompt

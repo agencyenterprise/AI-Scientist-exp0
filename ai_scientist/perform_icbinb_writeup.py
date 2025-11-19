@@ -440,7 +440,6 @@ This JSON will be automatically parsed, so ensure the format is precise."""
             system_message=citation_system_msg_template.format(total_rounds=total_rounds),
             temperature=1.0,
             msg_history=msg_history,
-            print_debug=False,
         )
         if "No more citations needed" in text:
             logger.info("No more citations needed.")
@@ -487,7 +486,6 @@ This JSON will be automatically parsed, so ensure the format is precise."""
             system_message=citation_system_msg_template.format(total_rounds=total_rounds),
             temperature=1.0,
             msg_history=msg_history,
-            print_debug=False,
         )
         if "Do not add any" in text:
             logger.info("Do not add any.")
@@ -1099,7 +1097,6 @@ def perform_writeup(
                 model=big_client_model,
                 system_message=big_model_system_message,
                 temperature=1.0,
-                print_debug=False,
             )
         except Exception as e:
             logger.exception(f"ERROR: Exception calling {big_client_model}: {e}")
@@ -1203,7 +1200,6 @@ Ensure proper citation usage:
                 system_message=big_model_system_message,
                 temperature=1.0,
                 msg_history=msg_history[-1:],
-                print_debug=False,
             )
 
             # 2nd run:
@@ -1269,7 +1265,6 @@ If you believe you are done with reflection, simply say: "I am done"."""
                 system_message=big_model_system_message,
                 temperature=1.0,
                 msg_history=msg_history[-1:],
-                print_debug=False,
             )
 
             if "I am done" in reflection_response:
@@ -1321,7 +1316,6 @@ USE MINIMAL EDITS TO OPTIMIZE THE PAGE LIMIT USAGE."""
             system_message=big_model_system_message,
             temperature=1.0,
             msg_history=msg_history[-1:],
-            print_debug=False,
         )
 
         reflection_pdf = osp.join(run_out_dir, "paper_reflection_final_page_limit.pdf")

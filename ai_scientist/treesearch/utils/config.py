@@ -56,9 +56,11 @@ def apply_log_level(*, level_name: str) -> None:
         fm_logger = logging.getLogger("matplotlib.font_manager")
         fm_logger.setLevel(logging.WARNING)
         fm_logger.propagate = False
-        # Suppress OpenAI client/httpx/httpcore and remote IO verbose logs
+        # Suppress OpenAI client/httpx/httpcore, image loaders, and remote IO verbose logs
         noisy_loggers = [
             "matplotlib",
+            "PIL",
+            "PIL.PngImagePlugin",
             "openai",
             "openai._base_client",
             "openai._client",
