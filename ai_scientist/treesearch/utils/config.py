@@ -32,9 +32,18 @@ logger.setLevel(_LEVEL)
 class _SuppressPngDebugFilter(logging.Filter):
     """Filter out noisy Pillow PNG STREAM debug logs while keeping real errors."""
 
-    def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+    def filter(self, record: logging.LogRecord) -> bool:
         # Match by filename to be robust to different logger names
         if record.filename == "PngImagePlugin.py" and record.levelno < logging.WARNING:
+            return False
+        # Suppress extremely noisy Matplotlib font manager debug chatter
+        if record.filename == "font_manager.py" and record.levelno < logging.WARNING:
+            return False
+        # Suppress verbose urllib3 / huggingface HEAD request connection pool debug logs
+        if record.filename == "connectionpool.py" and record.levelno < logging.WARNING:
+            return False
+        # Hide periodic long‑running interpreter progress spam while keeping real errors
+        if record.filename == "interpreter.py" and "Still executing..." in record.getMessage():
             return False
         return True
 
@@ -49,15 +58,21 @@ def apply_log_level(*, level_name: str) -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
     log_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d - %(message)s",
+        fmt="%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    log_filter = _SuppressPngDebugFilter()
+    if not any(isinstance(existing, _SuppressPngDebugFilter) for existing in root_logger.filters):
+        root_logger.addFilter(filter=log_filter)
     for handler in root_logger.handlers:
         try:
-            handler.setLevel(level)
-            handler.setFormatter(log_format)
+            handler.setLevel(level=level)
+            handler.setFormatter(fmt=log_format)
             # Always attach filter to hide extremely noisy Pillow PNG STREAM debug logs
-            handler.addFilter(_SuppressPngDebugFilter())
+            if not any(
+                isinstance(existing, _SuppressPngDebugFilter) for existing in handler.filters
+            ):
+                handler.addFilter(filter=log_filter)
         except Exception:
             # Be resilient to odd handlers in some environments
             pass

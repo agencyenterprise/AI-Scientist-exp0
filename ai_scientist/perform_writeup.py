@@ -66,6 +66,68 @@ def _ensure_graphicspath(writeup_file: str, latex_folder: str, figures_dir: str)
         logger.debug(traceback.format_exc())
 
 
+def _ensure_all_figures_referenced(writeup_file: str, plot_names: list[str]) -> None:
+    """
+    Ensure that every available PNG figure is referenced in the LaTeX file.
+
+    If some figures are not used in any \\includegraphics command, append simple
+    figure environments near the end of the document so they appear in the PDF.
+    """
+    if not plot_names:
+        return
+
+    try:
+        wf = Path(writeup_file)
+        text = wf.read_text(encoding="utf-8")
+    except Exception:
+        logger.warning("Warning: failed to read LaTeX file when ensuring figures.")
+        logger.debug(traceback.format_exc())
+        return
+
+    # Collect base names (without extension) of all currently used figures
+    referenced_paths = re.findall(r"\\includegraphics(?:\[[^]]*])?{([^}]+)}", text)
+    used_basenames: set[str] = set()
+    for ref_path in referenced_paths:
+        ref_stem = Path(ref_path).stem
+        used_basenames.add(ref_stem)
+
+    # Determine which available figures are never referenced
+    missing_stems: list[str] = []
+    for plot_name in plot_names:
+        stem = Path(plot_name).stem
+        if stem not in used_basenames:
+            missing_stems.append(stem)
+
+    if not missing_stems:
+        return
+
+    # Build simple figure blocks for missing figures
+    figure_blocks: list[str] = []
+    for stem in missing_stems:
+        figure_blocks.append(
+            "\\begin{figure}[t]\n"
+            "\\centering\n"
+            f"\\includegraphics[width=0.9\\linewidth]{{{stem}}}\n"
+            f"\\caption{{Automatically inserted figure for {stem}.}}\n"
+            f"\\label{{fig:{stem}}}\n"
+            "\\end{figure}\n"
+        )
+    figures_tex = "\n".join(figure_blocks)
+
+    # Insert before \end{document} if present; otherwise append at the end
+    insert_pos = text.rfind("\\end{document}")
+    if insert_pos == -1:
+        new_text = text + "\n" + figures_tex + "\n"
+    else:
+        new_text = text[:insert_pos] + figures_tex + "\n" + text[insert_pos:]
+
+    try:
+        wf.write_text(new_text, encoding="utf-8")
+    except Exception:
+        logger.warning("Warning: failed to write LaTeX file after inserting figures.")
+        logger.debug(traceback.format_exc())
+
+
 def remove_accents_and_clean(s: str) -> str:
     # Normalize to separate accents
     nfkd_form = unicodedata.normalize("NFKD", s)
@@ -884,6 +946,8 @@ def perform_writeup(
         _ensure_graphicspath(
             writeup_file=writeup_file, latex_folder=latex_folder, figures_dir=figures_dir
         )
+        # Ensure that all available figures are actually referenced in the LaTeX
+        _ensure_all_figures_referenced(writeup_file=writeup_file, plot_names=plot_names)
 
         # Multiple reflection loops on the final LaTeX
         for i in range(n_writeup_reflections):
@@ -974,6 +1038,11 @@ If you believe you are done, simply say: "I am done".
                         writeup_file=writeup_file,
                         latex_folder=latex_folder,
                         figures_dir=figures_dir,
+                    )
+                    # Ensure that all available figures are still referenced
+                    _ensure_all_figures_referenced(
+                        writeup_file=writeup_file,
+                        plot_names=plot_names,
                     )
                     compile_latex(latex_folder, base_pdf_file + f"_{compile_attempt}.pdf")
                     compile_attempt += 1
