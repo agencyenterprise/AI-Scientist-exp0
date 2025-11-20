@@ -5,11 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch Stage 1 Only",
+            "name": "Launch Agent",
             "type": "debugpy",
             "request": "launch",
             "program": "t.py",
             "args": [],
+            "envFile": "${workspaceFolder}/.env",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Launch BFTS",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "launch_scientist_bfts.py",
+            "args": ["bfts_config.yaml", "--model_agg_plots", "gpt-5", "--model_writeup", "gpt-5", "--model_citation", "gpt-5", "--model_review", "gpt-5"],
             "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}"
