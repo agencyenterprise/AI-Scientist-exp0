@@ -61,8 +61,8 @@ class Context(BaseModel):
         return init_chat_model(model=self.model, temperature=self.temperature)
 
 
-async def node_code_plotting(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_code_plotting")
+async def node_plotting_code_plotting(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_plotting_code_plotting")
 
     class Schema(BaseModel):
         plan: str
@@ -104,12 +104,12 @@ async def node_code_plotting(state: State, runtime: Runtime[Context]) -> State:
     logger.debug(f"plotting_deps: {state.plotting_deps}")
     logger.debug(f"plotting_retry_count: {state.plotting_retry_count}")
 
-    logger.info("node_code_plotting completed")
+    logger.info("Finished node_plotting_code_plotting")
     return state
 
 
-async def node_exec_plotting(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_exec_plotting")
+async def node_plotting_exec_plotting(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_plotting_exec_plotting")
     assert state.plotting_code, "plotting_code is required"
 
     response = await utils.exec_code(
@@ -129,14 +129,14 @@ async def node_exec_plotting(state: State, runtime: Runtime[Context]) -> State:
     logger.debug(f"plotting_returncode: {state.plotting_returncode}")
     logger.debug(f"plotting_filename: {state.plotting_filename}")
 
-    logger.info("node_exec_plotting completed")
+    logger.info("Finished node_plotting_exec_plotting")
     return state
 
 
-async def node_parse_plotting_output(
+async def node_plotting_parse_plotting_output(
     state: State, runtime: Runtime[Context]
 ) -> State:
-    logger.info("Starting node_parse_plotting_output")
+    logger.info("Starting node_plotting_parse_plotting_output")
 
     class Schema(BaseModel):
         is_bug: bool
@@ -157,12 +157,12 @@ async def node_parse_plotting_output(
     logger.debug(f"plotting_is_bug: {state.plotting_is_bug}")
     logger.debug(f"plotting_summary: {state.plotting_summary[:32]!r}")
 
-    logger.info("node_parse_plotting_output completed")
+    logger.info("Finished node_plotting_parse_plotting_output")
     return state
 
 
-async def node_prepare_analysis(state: State, runtime: Runtime[Context]) -> list[Send]:
-    logger.info("Starting node_prepare_analysis")
+async def node_plotting_prepare_analysis(state: State, runtime: Runtime[Context]) -> list[Send]:
+    logger.info("Starting node_plotting_prepare_analysis")
 
     pngs = sorted(list(state.cwd.glob("*.png")))
     for png in pngs:
@@ -170,7 +170,7 @@ async def node_prepare_analysis(state: State, runtime: Runtime[Context]) -> list
 
     sends: list[Send] = []
     for png in pngs:
-        sends.append(Send("analyze_single_plot", {"image": png}))
+        sends.append(Send("node_plotting_analyze_single_plot", {"image": png}))
 
     return sends
 
@@ -180,8 +180,8 @@ class AnalyzeSinglePlotState(BaseModel):
     image: Path
 
 
-async def node_analyze_single_plot(state: AnalyzeSinglePlotState, runtime: Runtime[Context]) -> dict:
-    logger.info(f"Starting node_analyze_single_plot for {state.image}")
+async def node_plotting_analyze_single_plot(state: AnalyzeSinglePlotState, runtime: Runtime[Context]) -> dict:
+    logger.info(f"Starting node_plotting_analyze_single_plot for {state.image}")
 
     class Schema(BaseModel):
         analysis: str
@@ -211,6 +211,7 @@ async def node_analyze_single_plot(state: AnalyzeSinglePlotState, runtime: Runti
 
     llms = runtime.context.llm.with_structured_output(Schema)
     response: Schema = await llms.ainvoke(messages)  # type: ignore
+    logger.info(f"Finished node_plotting_analyze_single_plot for {state.image}")
     return {'plots': [utils.Plot(path=state.image, analysis=response.analysis)]}
 
 
@@ -218,16 +219,16 @@ def build() -> CompiledStateGraph[State, Context, State, State]:
     builder = StateGraph(state_schema=State, context_schema=Context)
 
     # Add nodes
-    builder.add_node("code_plotting", node_code_plotting)
-    builder.add_node("exec_plotting", node_exec_plotting)
-    builder.add_node("parse_plotting_output", node_parse_plotting_output)
-    builder.add_node("analyze_single_plot", node_analyze_single_plot)
+    builder.add_node("node_plotting_code_plotting", node_plotting_code_plotting)
+    builder.add_node("node_plotting_exec_plotting", node_plotting_exec_plotting)
+    builder.add_node("node_plotting_parse_plotting_output", node_plotting_parse_plotting_output)
+    builder.add_node("node_plotting_analyze_single_plot", node_plotting_analyze_single_plot)
 
     # Add edges
-    builder.add_edge(START, "code_plotting")
-    builder.add_edge("code_plotting", "exec_plotting")
-    builder.add_edge("exec_plotting", "parse_plotting_output")
-    builder.add_conditional_edges("parse_plotting_output", node_prepare_analysis, ["analyze_single_plot"])
-    builder.add_edge("analyze_single_plot", END)
+    builder.add_edge(START, "node_plotting_code_plotting")
+    builder.add_edge("node_plotting_code_plotting", "node_plotting_exec_plotting")
+    builder.add_edge("node_plotting_exec_plotting", "node_plotting_parse_plotting_output")
+    builder.add_conditional_edges("node_plotting_parse_plotting_output", node_plotting_prepare_analysis, ["node_plotting_analyze_single_plot"])
+    builder.add_edge("node_plotting_analyze_single_plot", END)
 
-    return builder.compile()  # type: ignore
+    return builder.compile(name="graph_plotting")  # type: ignore

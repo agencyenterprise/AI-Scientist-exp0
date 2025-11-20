@@ -70,8 +70,8 @@ class Context(BaseModel):
         return init_chat_model(model=self.model, temperature=self.temperature)
 
 
-async def node_define_metrics(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_define_metrics")
+async def node_baseline_define_metrics(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_baseline_define_metrics")
 
     class Schema(BaseModel):
         metrics: list[utils.Metric]
@@ -81,12 +81,12 @@ async def node_define_metrics(state: State, runtime: Runtime[Context]) -> State:
     response: Schema = await llms.ainvoke(prompt)  # type: ignore
     state.metrics = set(response.metrics)
 
-    logger.info("node_define_metrics completed")
+    logger.info("Finished node_baseline_define_metrics")
     return state
 
 
-async def node_code_experiment(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_code_experiment")
+async def node_baseline_code_experiment(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_baseline_code_experiment")
 
     class Schema(BaseModel):
         plan: str
@@ -128,12 +128,12 @@ async def node_code_experiment(state: State, runtime: Runtime[Context]) -> State
     logger.debug(f"experiment_deps: {state.experiment_deps}")
     logger.debug(f"experiment_retry_count: {state.experiment_retry_count}")
 
-    logger.info("node_code_experiment completed")
+    logger.info("Finished node_baseline_code_experiment")
     return state
 
 
-async def node_exec_experiment(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_exec_experiment")
+async def node_baseline_exec_experiment(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_baseline_exec_experiment")
     assert state.experiment_code, "experiment_code is required"
 
     response = await utils.exec_code(
@@ -153,14 +153,14 @@ async def node_exec_experiment(state: State, runtime: Runtime[Context]) -> State
     logger.debug(f"experiment_returncode: {state.experiment_returncode}")
     logger.debug(f"experiment_filename: {state.experiment_filename}")
 
-    logger.info("node_exec_experiment completed")
+    logger.info("Finished node_baseline_exec_experiment")
     return state
 
 
-async def node_parse_experiment_output(
+async def node_baseline_parse_experiment_output(
     state: State, runtime: Runtime[Context]
 ) -> State:
-    logger.info("Starting node_parse_experiment_output")
+    logger.info("Starting node_baseline_parse_experiment_output")
 
     class Schema(BaseModel):
         is_bug: bool
@@ -181,25 +181,25 @@ async def node_parse_experiment_output(
     logger.debug(f"experiment_is_bug: {state.experiment_is_bug}")
     logger.debug(f"experiment_summary: {state.experiment_summary[:32]!r}")
 
-    logger.info("node_parse_experiment_output completed")
+    logger.info("Finished node_baseline_parse_experiment_output")
     return state
 
 
-async def node_should_retry_code_from_output(
+async def node_baseline_should_retry_code_from_output(
     state: State, runtime: Runtime[Context]
-) -> Literal["code_experiment", "code_metrics_parser"]:
-    logger.info("Starting node_should_retry_code_from_output")
+) -> Literal["node_baseline_code_experiment", "node_baseline_code_metrics_parser"]:
+    logger.info("Starting node_baseline_should_retry_code_from_output")
 
     if state.experiment_is_bug is True:
-        logger.info('Going to `code_experiment`')
-        return "code_experiment"
+        logger.info('Going to `node_baseline_code_experiment`')
+        return "node_baseline_code_experiment"
 
-    logger.info('Going to `code_metrics_parser`')
-    return "code_metrics_parser"
+    logger.info('Going to `node_baseline_code_metrics_parser`')
+    return "node_baseline_code_metrics_parser"
 
 
-async def node_code_metrics_parser(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_code_metrics_parser")
+async def node_baseline_code_metrics_parser(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_baseline_code_metrics_parser")
     assert state.experiment_code, "experiment_code is required"
 
     class Schema(BaseModel):
@@ -240,12 +240,12 @@ async def node_code_metrics_parser(state: State, runtime: Runtime[Context]) -> S
     logger.debug(f"parse_deps: {state.parse_deps}")
     logger.debug(f"parser_retry_count: {state.parser_retry_count}")
 
-    logger.info("node_code_metrics_parser completed")
+    logger.info("Finished node_baseline_code_metrics_parser")
     return state
 
 
-async def node_exec_metrics_parser(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_exec_metrics_parser")
+async def node_baseline_exec_metrics_parser(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_baseline_exec_metrics_parser")
     assert state.parse_code, "parse_code is required"
 
     response = await utils.exec_code(
@@ -265,12 +265,12 @@ async def node_exec_metrics_parser(state: State, runtime: Runtime[Context]) -> S
     logger.debug(f"parse_returncode: {state.parse_returncode}")
     logger.debug(f"parse_filename: {state.parse_filename}")
 
-    logger.info("node_exec_metrics_parser completed")
+    logger.info("Finished node_baseline_exec_metrics_parser")
     return state
 
 
-async def node_parse_metrics_output(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_parse_metrics_output")
+async def node_baseline_parse_metrics_output(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_baseline_parse_metrics_output")
 
     class Schema(BaseModel):
         is_bug: bool
@@ -287,18 +287,18 @@ async def node_parse_metrics_output(state: State, runtime: Runtime[Context]) -> 
     state.parse_is_bug = response.is_bug
     state.parse_summary = response.summary
 
-    logger.info("node_parse_metrics_output completed")
+    logger.info("Finished node_baseline_parse_metrics_output")
     return state
 
 
-async def node_should_retry_parser_from_output(
+async def node_baseline_should_retry_parser_from_output(
     state: State, runtime: Runtime[Context]
-) -> Literal["code_metrics_parser", '__end__']:
-    logger.info("Starting node_should_retry_parser_from_output")
+) -> Literal["node_baseline_code_metrics_parser", '__end__']:
+    logger.info("Starting node_baseline_should_retry_parser_from_output")
 
     if state.parse_is_bug is True:
-        logger.info('Going to `code_metrics_parser`')
-        return "code_metrics_parser"
+        logger.info('Going to `node_baseline_code_metrics_parser`')
+        return "node_baseline_code_metrics_parser"
 
     logger.info('Going to `__end__`')
     return '__end__'
@@ -308,22 +308,22 @@ def build() -> CompiledStateGraph[State, Context, State, State]:
     builder = StateGraph(state_schema=State, context_schema=Context)
 
     # Add nodes
-    builder.add_node("define_metrics", node_define_metrics)
-    builder.add_node("code_experiment", node_code_experiment)
-    builder.add_node("exec_experiment", node_exec_experiment)
-    builder.add_node("parse_experiment_output", node_parse_experiment_output)
-    builder.add_node("code_metrics_parser", node_code_metrics_parser)
-    builder.add_node("exec_metrics_parser", node_exec_metrics_parser)
-    builder.add_node("parse_metrics_output", node_parse_metrics_output)
+    builder.add_node("node_baseline_define_metrics", node_baseline_define_metrics)
+    builder.add_node("node_baseline_code_experiment", node_baseline_code_experiment)
+    builder.add_node("node_baseline_exec_experiment", node_baseline_exec_experiment)
+    builder.add_node("node_baseline_parse_experiment_output", node_baseline_parse_experiment_output)
+    builder.add_node("node_baseline_code_metrics_parser", node_baseline_code_metrics_parser)
+    builder.add_node("node_baseline_exec_metrics_parser", node_baseline_exec_metrics_parser)
+    builder.add_node("node_baseline_parse_metrics_output", node_baseline_parse_metrics_output)
 
     # Add edges
-    builder.add_edge(START, "define_metrics")
-    builder.add_edge("define_metrics", "code_experiment")
-    builder.add_edge("code_experiment", "exec_experiment")
-    builder.add_edge("exec_experiment", "parse_experiment_output")
-    builder.add_conditional_edges("parse_experiment_output", node_should_retry_code_from_output)
-    builder.add_edge("code_metrics_parser", "exec_metrics_parser")
-    builder.add_edge("exec_metrics_parser", "parse_metrics_output")
-    builder.add_conditional_edges("parse_metrics_output", node_should_retry_parser_from_output)
+    builder.add_edge(START, "node_baseline_define_metrics")
+    builder.add_edge("node_baseline_define_metrics", "node_baseline_code_experiment")
+    builder.add_edge("node_baseline_code_experiment", "node_baseline_exec_experiment")
+    builder.add_edge("node_baseline_exec_experiment", "node_baseline_parse_experiment_output")
+    builder.add_conditional_edges("node_baseline_parse_experiment_output", node_baseline_should_retry_code_from_output)
+    builder.add_edge("node_baseline_code_metrics_parser", "node_baseline_exec_metrics_parser")
+    builder.add_edge("node_baseline_exec_metrics_parser", "node_baseline_parse_metrics_output")
+    builder.add_conditional_edges("node_baseline_parse_metrics_output", node_baseline_should_retry_parser_from_output)
 
-    return builder.compile()  # type: ignore
+    return builder.compile(name="graph_baseline")  # type: ignore

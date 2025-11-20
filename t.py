@@ -49,7 +49,7 @@ class State(BaseModel):
 
 async def node_baseline(state: State) -> State:
     sub_state = baseline.State(cwd=state.cwd, task=state.task)
-    sub_context = baseline.Context(model="gpt-5-mini", temperature=0.0)
+    sub_context = baseline.Context(model="gpt-4o-mini", temperature=0.0)
     graph = baseline.build()
     state.baseline_output = await graph.ainvoke(input=sub_state, context=sub_context)
     return state
@@ -60,7 +60,7 @@ async def node_tuning(state: State) -> State:
     code = state.baseline_output["experiment_code"]
     
     sub_state = tuning.State(cwd=state.cwd, task=state.task, code=code)
-    sub_context = tuning.Context(model="gpt-5-mini", temperature=0.0)
+    sub_context = tuning.Context(model="gpt-4o-mini", temperature=0.0)
     
     graph = tuning.build()
     state.tuning_output = await graph.ainvoke(input=sub_state, context=sub_context)
@@ -72,7 +72,7 @@ async def node_ablation(state: State) -> State:
     code = state.tuning_output["tuning_code"]
     
     sub_state = ablation.State(cwd=state.cwd, task=state.task, code=code)
-    sub_context = ablation.Context(model="gpt-5-mini", temperature=0.0)
+    sub_context = ablation.Context(model="gpt-4o-mini", temperature=0.0)
     
     graph = ablation.build()
     state.ablation_output = await graph.ainvoke(input=sub_state, context=sub_context)
@@ -84,7 +84,7 @@ async def node_plotting(state: State) -> State:
     code = state.tuning_output["tuning_code"]
     
     sub_state = plotting.State(cwd=state.cwd, task=state.task, code=code)
-    sub_context = plotting.Context(model="gpt-5-mini", temperature=0.0)
+    sub_context = plotting.Context(model="gpt-4o-mini", temperature=0.0)
     
     graph = plotting.build()
     state.plotting_output = await graph.ainvoke(input=sub_state, context=sub_context)
@@ -106,8 +106,9 @@ async def main() -> None:
     
     graph: CompiledStateGraph[State, None, State, State] = builder.compile() # type: ignore
     
+    config = RunnableConfig(callbacks=[CallbackHandler()])
     state = State(cwd=Path("./tst"), task=task)
-    result = await graph.ainvoke(input=state)
+    result = await graph.ainvoke(input=state, config=config)
     
     pp(result["baseline_output"])
     print("=" * 80)
