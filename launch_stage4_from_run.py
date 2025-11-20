@@ -221,7 +221,7 @@ def main(run_arg: str) -> None:
         global_step += 1
         save_run(cfg=cfg, journal=journal, stage_name=f"stage_{stage.name}")
 
-    def exec_callback(code: str, is_exec: bool) -> ExecutionResult:
+    def exec_callback(_code: str, _is_exec: bool) -> ExecutionResult:
         return ExecutionResult(term_out=[], exec_time=0.0, exc_type=None)
 
     def cleanup() -> None:

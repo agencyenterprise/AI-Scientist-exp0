@@ -41,7 +41,10 @@ node_selection_spec = FunctionSpec(
 
 @dataclass(eq=False)
 class Node(DataClassJsonMixin):
-    """A single node in the solution tree. Contains code, execution results, and evaluation information."""
+    """A single node in the solution tree.
+
+    Contains code, execution results, and evaluation information.
+    """
 
     # ---- code & plan ----
     plan: str = field(default="", kw_only=True)
@@ -214,7 +217,7 @@ class Node(DataClassJsonMixin):
             return 0
         return self.parent.debug_depth + 1
 
-    def to_dict(self, encode_json: bool = False) -> dict[str, object]:  # type: ignore[override]
+    def to_dict(self) -> dict[str, object]:  # type: ignore[override]
         """Convert node to dictionary for serialization"""
         return {
             "code": self.code,
@@ -475,7 +478,7 @@ class Journal:
             if not nodes:
                 logger.info(
                     "Skipping LLM best-node selection: only_good=True but there are no good candidates "
-                    "(all nodes are buggy or plots flagged)."
+                    "(all nodes are buggy or plots flagged).",
                 )
                 return None
         else:
@@ -512,7 +515,8 @@ class Journal:
 
         sig = _selection_signature(candidate_nodes)
         if sig in self._best_cache:
-            # If new nodes were added but candidates didn't change (only_good=True), likely new nodes are buggy
+            # If new nodes were added but candidates didn't change (only_good=True),
+            # likely new nodes are buggy
             prev_total = self._best_cache_total_nodes_count_map.get(sig)
             prev_candidates = self._best_cache_candidate_ids_map.get(sig)
             if (
@@ -522,8 +526,9 @@ class Journal:
                 and prev_candidates == candidate_ids
             ):
                 logger.debug(
-                    "Not checking for new best node: new node(s) detected but ignored because they are not good "
-                    "(buggy or plots flagged). Using cached best-node result."
+                    "Not checking for new best node: new node(s) detected but ignored "
+                    "because they are not good (buggy or plots flagged). "
+                    "Using cached best-node result.",
                 )
             else:
                 node_or_none = self._best_cache[sig]
@@ -565,7 +570,8 @@ class Journal:
             self._best_cache_candidate_ids_map[sig] = candidate_ids
             self._best_cache_total_nodes_count_map[sig] = total_nodes_count
             logger.debug(
-                f"Only one candidate; bypassing LLM selection. Selected {selected_single.id[:8]}. Cached."
+                f"Only one candidate; bypassing LLM selection. "
+                f"Selected {selected_single.id[:8]}. Cached.",
             )
             return selected_single
 
@@ -579,9 +585,10 @@ class Journal:
             "Task": (
                 "Select the best implementation from the candidates below, considering all available evidence."
                 "Avoid relying too heavily on the validation loss alone, because "
-                "it may not be directly comparable across different objective functions or training details. "
-                "If there are multiple validation losses (e.g., when evaluating multiple datasets), "
-                "consider all of them and select the implementation that performs best overall."
+                "it may not be directly comparable across different objective functions "
+                "or training details. If there are multiple validation losses "
+                "(e.g., when evaluating multiple datasets), consider all of them and "
+                "select the implementation that performs best overall."
             ),
             "Candidates": "",
         }
@@ -602,7 +609,8 @@ class Journal:
             else:
                 candidate_info += "N/A\n"
             logger.debug(
-                f"Adding candidate to prompt: {node.id[:8]} (has_metric={node.metric is not None}, is_seed={node.is_seed_node})"
+                f"Adding candidate to prompt: {node.id[:8]} "
+                f"(has_metric={node.metric is not None}, is_seed={node.is_seed_node})",
             )
             prompt["Candidates"] += candidate_info
 
@@ -718,7 +726,10 @@ class Journal:
             return selected_on_error
 
     def generate_summary(self, include_code: bool = False) -> str:
-        """Generate a summary of the research progress using LLM, including both successes and failures."""
+        """Generate a summary of the research progress using LLM.
+
+        Includes both successes and failures.
+        """
         if not self.nodes:
             return "No experiments conducted yet."
 

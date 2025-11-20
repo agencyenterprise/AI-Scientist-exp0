@@ -38,12 +38,11 @@ class MinimalAgent:
         self,
         task_desc: str,
         cfg: Config,
+        stage_name: str,
         gpu_id: int | None = None,
         gpu_spec: GPUSpec | None = None,
         memory_summary: str | None = None,
         evaluation_metrics: str | list[str] | None = None,
-        stage: int | None = None,
-        stage_name: str | None = None,
     ) -> None:
         self.task_desc = task_desc
         self.memory_summary = memory_summary
@@ -367,8 +366,9 @@ class MinimalAgent:
         """Ensure the generated code explicitly targets the configured GPU index.
 
         Requirements:
-        - Must set the CUDA device index via torch.cuda.set_device({gpu_id})
-        - Must create a torch.device('cuda:{gpu_id}')
+        - Must set the CUDA device index via torch.cuda.set_device({gpu_id}) when CUDA is available
+        - Must create a torch.device(...) that refers to 'cuda:{gpu_id}' when CUDA is available
+        - It is allowed to fall back to CPU when CUDA is not available
         """
         assert self.gpu_id is not None
         gpu_id_str = str(self.gpu_id)
@@ -379,7 +379,7 @@ class MinimalAgent:
         )
         # - torch.device('cuda:<id>') OR device('cuda:<id>') with either quote
         pattern_device_ctor = (
-            rf"\b(?:(?:torch\.)?)device\(\s*['\"]cuda:{re.escape(gpu_id_str)}['\"]\s*\)"
+            rf"\b(?:(?:torch\.)?)device\([^)]*['\"]cuda:{re.escape(gpu_id_str)}['\"][^)]*\)"
         )
         has_set_device = re.search(pattern_set_device, code) is not None
         has_device_ctor = re.search(pattern_device_ctor, code) is not None
@@ -391,13 +391,13 @@ class MinimalAgent:
         if not has_device_ctor:
             missing_parts.append(f"Add: device = torch.device('cuda:{gpu_id_str}')")
         feedback = (
-            "You must enforce using the specified GPU index. "
+            "You must enforce using the specified GPU index when CUDA is available. "
             + " ".join(missing_parts)
-            + ". Do not fall back to a different device."
+            + " CPU fallback via torch.cuda.is_available() checks is allowed."
         )
         return False, feedback
 
-    def parse_exec_result(self, node: Node, exec_result: ExecutionResult, workspace: str) -> None:
+    def parse_exec_result(self, node: Node, exec_result: ExecutionResult) -> None:
         logger.info(f"Agent is parsing execution results for node {node.id}")
         # Store raw execution output into the node first
         node.absorb_exec_result(exec_result)

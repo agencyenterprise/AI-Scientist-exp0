@@ -77,17 +77,32 @@ def _run_uv(
         env[key] = value
     cmd_display = " ".join(["uv", *args])
     logger.debug(f"Running uv command: {cmd_display} (cwd={cwd})")
-    proc = subprocess.run(
-        args=["uv", *args],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=timeout_seconds,
-        env=env,
-        cwd=str(cwd),
-    )
+    try:
+        proc = subprocess.run(
+            args=["uv", *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            env=env,
+            cwd=str(cwd),
+        )
+    except subprocess.CalledProcessError as exc:
+        logger.error(
+            "uv command failed: %s (cwd=%s, returncode=%d)\nstdout:\n%s\nstderr:\n%s",
+            cmd_display,
+            cwd,
+            exc.returncode,
+            exc.stdout,
+            exc.stderr,
+        )
+        raise
+
     logger.debug(
-        f"uv command completed: {cmd_display} (stdout_len={len(proc.stdout)}, stderr_len={len(proc.stderr)})"
+        "uv command completed: %s (stdout_len=%d, stderr_len=%d)",
+        cmd_display,
+        len(proc.stdout),
+        len(proc.stderr),
     )
     return proc
 
@@ -99,7 +114,10 @@ def _ensure_managed_venv(*, working_dir: Path, timeout_seconds: int) -> Path:
     """
     venv_dir = _managed_venv_dir(working_dir)
     logger.debug(
-        f"Ensuring managed venv (working_dir={working_dir}, venv_dir={venv_dir}, timeout={timeout_seconds})"
+        "Ensuring managed venv (working_dir=%s, venv_dir=%s, timeout=%d)",
+        working_dir,
+        venv_dir,
+        timeout_seconds,
     )
     if not venv_dir.exists():
         logger.debug(f"Creating managed venv via uv venv --system-site-packages at {venv_dir}")
@@ -163,7 +181,10 @@ class ExecutionResult(DataClassJsonMixin):
 def exception_summary(
     e: Exception, working_dir: Path, exec_file_name: str, format_tb_ipython: bool
 ) -> tuple[str, str, dict[str, Any], list[tuple[str, int, str, str | None]]]:
-    """Generates a string that summarizes an exception and its stack trace (either in standard python repl or in IPython format)."""
+    """
+    Generate a summary string for an exception and its stack trace.
+    Supports both standard Python REPL and IPython formatting.
+    """
     if format_tb_ipython:
         tb = IPython.core.ultratb.VerboseTB(tb_offset=1, color_scheme="NoColor")
         tb_str = str(tb.text(*sys.exc_info()))
@@ -276,10 +297,14 @@ class Interpreter:
 
         Args:
             working_dir (Path | str): working directory of the agent
-            timeout (int, optional): Timeout for each code execution step. Defaults to 3600.
-            format_tb_ipython (bool, optional): Whether to use IPython or default python REPL formatting for exceptions. Defaults to False.
-            agent_file_name (str, optional): The name for the agent's code file. Defaults to "runfile.py".
-            env_vars (dict[str, str], optional): Environment variables to set in the child process. Defaults to {}.
+        timeout (int, optional): Timeout for each code execution step.
+            Defaults to 3600.
+        format_tb_ipython (bool, optional): Whether to use IPython or the
+            default Python REPL formatting for exceptions. Defaults to False.
+        agent_file_name (str, optional): The name for the agent's code file.
+            Defaults to "runfile.py".
+        env_vars (dict[str, str], optional): Environment variables to set in
+            the child process. Defaults to {}.
         """
         # this really needs to be a path, otherwise causes issues that don't raise exc
         self.working_dir = Path(working_dir).resolve()
@@ -314,7 +339,9 @@ class Interpreter:
 
         os.chdir(str(self.working_dir))
         logger.debug(
-            f"Child process environment prepared (cwd={self.working_dir}, env_overrides={list(self.env_vars.keys())})"
+            "Child process environment prepared (cwd=%s, env_overrides=%s)",
+            self.working_dir,
+            list(self.env_vars.keys()),
         )
 
         # this seems to only  benecessary because we're exec'ing code from a string,
@@ -380,7 +407,9 @@ class Interpreter:
             # Use a generous timeout for environment setup independent of execution timeout
             setup_timeout = max(900, int(self.timeout))
             logger.debug(
-                f"Preparing managed venv for child (parent_executable={sys.executable}, timeout={setup_timeout})"
+                "Preparing managed venv for child (parent_executable=%s, timeout=%d)",
+                sys.executable,
+                setup_timeout,
             )
             self._venv_python = _ensure_managed_venv(
                 working_dir=self.working_dir, timeout_seconds=setup_timeout

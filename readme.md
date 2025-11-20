@@ -214,7 +214,7 @@ python launch_scientist_bfts.py bfts_config_gpt-5.yaml \
 # Resume run "4-run" (or pass just 4). If stage 2/3/4 are missing, the launcher will run the next missing stage.
 # If all summaries exist under logs/4-run, it will skip stages and perform aggregation/writeup only.
 python launch_scientist_bfts.py bfts_config_gpt-5.yaml \
-  --resume 4 \
+  --resume 1 \
   --model_agg_plots gpt-5 \
   --model_writeup gpt-5 \
   --model_citation gpt-5 \

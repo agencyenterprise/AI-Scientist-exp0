@@ -452,7 +452,7 @@ Your research idea:\n\n
             return fallback
 
     def _create_next_substage(
-        self, current_substage: StageMeta, journal: Journal, substage_feedback: str
+        self, current_substage: StageMeta, journal: Journal
     ) -> Optional[StageMeta]:
         """Create the next sub-stage. Ask LLM to come up with the next sub-stage name and goals
         based on what has been done so far.
@@ -489,9 +489,7 @@ Your research idea:\n\n
             num_drafts=0,
         )
 
-    def _create_next_main_stage(
-        self, current_substage: StageMeta, journal: Journal
-    ) -> Optional[StageMeta]:
+    def _create_next_main_stage(self, current_substage: StageMeta) -> Optional[StageMeta]:
         main_stage_num = current_substage.number
         if main_stage_num == 4:
             return None
@@ -648,7 +646,6 @@ Your research idea:\n\n
                 next_substage = self._create_next_substage(
                     current_substage=current_substage,
                     journal=self.journals[current_substage.name],
-                    substage_feedback=substage_feedback,
                 )
                 if next_substage:
                     # Record sub-stage transition
@@ -680,7 +677,6 @@ Your research idea:\n\n
         # Promote the last substage to the first substage of the next main stage
         next_main_stage = self._create_next_main_stage(
             current_substage=self.stages[-1],
-            journal=self.journals[self.stages[-1].name],
         )
         if next_main_stage:
             # Record main stage transition

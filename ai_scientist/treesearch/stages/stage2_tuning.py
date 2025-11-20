@@ -143,9 +143,7 @@ class Stage2Tuning(Stage):
         )
 
     @staticmethod
-    def update_hyperparam_state(
-        *, stage_name: str | None, result_node: Node, state_set: set[str]
-    ) -> None:
+    def update_hyperparam_state(*, stage_name: str, result_node: Node, state_set: set[str]) -> None:
         if not stage_name or not stage_name.startswith("2_"):
             return
         hyperparam_name = result_node.hyperparam_name
@@ -238,7 +236,7 @@ class Stage2Tuning(Stage):
             return False, "No improvement from base node"
         metric_val = best_node.metric.value if best_node.metric is not None else None
         # Static requirement goals for Stage 2 completion encoded as a short signature
-        goals_sig = "stable_convergence;two_datasets;no_plot_instabilities"
+        goals_sig = "stable_convergence;two_datasets;no_training_instabilities"
         cache_key = f"stage=2_stage|id={best_node.id}|metric={metric_val}|goals={goals_sig}"
         cached = Stage2Tuning._stage_completion_cache.get(cache_key)
         if cached is not None:
@@ -257,9 +255,9 @@ class Stage2Tuning(Stage):
         1. Datasets Tested: {best_node.datasets_successfully_tested}
 
         Requirements for completion:
-        1. Training curves should show stable convergence
+        1. Training dynamics (metrics/loss curves) should show stable convergence
         2. Results should be tested on at least two datasets
-        3. No major instabilities or issues in the plots
+        3. There should be no clear signs of training instabilities or divergence in the reported metrics
 
         Provide a detailed evaluation of completion status.
         """

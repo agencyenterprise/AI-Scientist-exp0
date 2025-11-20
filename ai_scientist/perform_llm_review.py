@@ -192,13 +192,12 @@ Here is the paper you are asked to review:
     review: Optional[Dict[str, Any]] = None
     if num_reviews_ensemble > 1:
         llm_reviews, msg_histories = get_batch_responses_from_llm(
-            base_prompt,
-            model=model,
+            prompt=base_prompt,
             client=client,
+            model=model,
             system_message=reviewer_system_prompt,
-            print_debug=False,
-            msg_history=msg_history,
             temperature=temperature,
+            msg_history=msg_history,
             n_responses=num_reviews_ensemble,
         )
         parsed_reviews: List[Dict[str, Any]] = []
@@ -255,13 +254,12 @@ REVIEW JSON:
 
     if review is None:
         llm_review, msg_history = get_response_from_llm(
-            base_prompt,
-            model=model,
+            prompt=base_prompt,
             client=client,
+            model=model,
             system_message=reviewer_system_prompt,
-            print_debug=False,
-            msg_history=msg_history,
             temperature=temperature,
+            msg_history=msg_history,
         )
         review = extract_json_between_markers(llm_review)
 
@@ -418,13 +416,12 @@ Review {i + 1}/{len(reviews)}:
 """
     base_prompt = neurips_form + review_text
     llm_review, _ = get_response_from_llm(
-        base_prompt,
-        model=model,
+        prompt=base_prompt,
         client=client,
+        model=model,
         system_message=meta_reviewer_system_prompt.format(reviewer_count=len(reviews)),
-        print_debug=False,
-        msg_history=None,
         temperature=temperature,
+        msg_history=None,
     )
     meta_review = extract_json_between_markers(llm_review)
     return meta_review

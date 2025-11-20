@@ -111,3 +111,16 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+
+[tool.ruff]
+target-version = "py312"
+extend-exclude = ["workspaces", ".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes (includes unused imports/vars)
+    "ARG", # flake8-unused-arguments (unused function/method args)
+]
+extend-select = ["ANN401"]
+ignore = ["E501"]  # Line too long

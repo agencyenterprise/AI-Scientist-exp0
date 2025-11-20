@@ -34,7 +34,7 @@ def get_batch_responses_from_llm(
     model: str,
     system_message: str,
     temperature: float,
-    print_debug: bool = False,
+    print_debug: bool = True,
     msg_history: list[dict[str, Any]] | None = None,
     n_responses: int = 1,
 ) -> tuple[list[str], list[list[dict[str, Any]]]]:
@@ -151,6 +151,19 @@ def make_llm_call(
     system_message: str,
     prompt: list[dict[str, Any]],
 ) -> Any:  # noqa: ANN401
+    # Log full request payload when in DEBUG mode
+    if logger.isEnabledFor(logging.DEBUG):
+        try:
+            logger.debug("*" * 20 + " LLM REQUEST " + "*" * 20)
+            logger.debug(f"Model: {model}")
+            logger.debug(f"System message:\n{system_message}")
+            logger.debug(f"Messages payload:\n{json.dumps(prompt, indent=2)}")
+            logger.debug("*" * 22 + " END REQUEST " + "*" * 22)
+        except Exception:
+            # Never fail the call due to logging
+            logger.debug("Failed to log LLM request payload (non-fatal).")
+
+    response: Any
     if "gpt-5" in model:
         # gpt-5 models only support temperature=1 and use max_completion_tokens
         # Use 16K tokens for long-form generation (papers, writeups)
@@ -177,14 +190,13 @@ def make_llm_call(
                 logger.warning(
                     "gpt-5 hit token limit! Consider increasing max_completion_tokens further"
                 )
-            return response
         except Exception as e:
             logger.debug(f"Exception in gpt-5 API call: {e}")
             logger.debug(f"Exception type: {type(e)}")
             raise
     elif "gpt" in model:
         assert isinstance(client, openai.OpenAI)
-        return client.chat.completions.create(
+        response = client.chat.completions.create(
             model=model,
             messages=cast(Any, [{"role": "system", "content": system_message}] + prompt),
             temperature=temperature,
@@ -195,16 +207,31 @@ def make_llm_call(
         )
     elif "o1" in model or "o3" in model:
         assert isinstance(client, openai.OpenAI)
-        return client.chat.completions.create(
+        response = client.chat.completions.create(
             model=model,
             messages=cast(Any, [{"role": "user", "content": system_message}] + prompt),
             temperature=1,
             n=1,
             seed=0,
         )
-
     else:
         raise ValueError(f"Model {model} not supported.")
+
+    # Log full response payload when in DEBUG mode
+    if logger.isEnabledFor(logging.DEBUG):
+        try:
+            logger.debug("*" * 20 + " LLM RESPONSE " + "*" * 20)
+            # OpenAI-style chat.completions.create response
+            try:
+                content = response.choices[0].message.content
+            except Exception:
+                content = str(response)
+            logger.debug(f"Raw response content:\n{content}")
+            logger.debug("*" * 22 + " END RESPONSE " + "*" * 22)
+        except Exception:
+            logger.debug("Failed to log LLM response payload (non-fatal).")
+
+    return response
 
 
 @backoff.on_exception(
@@ -222,7 +249,7 @@ def get_response_from_llm(
     model: str,
     system_message: str,
     temperature: float,
-    print_debug: bool = False,
+    print_debug: bool = True,
     msg_history: list[dict[str, Any]] | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     msg = prompt

@@ -154,7 +154,11 @@ def get_stage_summary(
 ) -> dict[str, Any] | None:
     sys_msg, prompt = get_summarizer_prompt(journal=journal, stage_name=stage_name)
     response_text, _ = get_response_from_llm(
-        prompt=prompt, client=client, model=model, system_message=sys_msg, temperature=1.0
+        prompt=prompt,
+        client=client,
+        model=model,
+        system_message=sys_msg,
+        temperature=1.0,
     )
     summary_json = extract_json_between_markers(response_text)
     return summary_json
@@ -346,8 +350,31 @@ def overall_summarize(
                     "aggregated results of nodes with different seeds": get_node_log(agg_node),
                 }
         elif idx == 3:
-            good_leaf_nodes = [n for n in journal.good_nodes if n.is_leaf and n.ablation_name]
-            return [get_node_log(n) for n in good_leaf_nodes]
+            # Stage 4 (ablation): summarize each non-buggy ablation using its seed-aggregation
+            # node when available, otherwise the ablation implementation node itself.
+            ablation_roots = [
+                n for n in journal.nodes if n.ablation_name is not None and not n.is_seed_node
+            ]
+            ablation_summaries: list[dict[str, Any]] = []
+            for root in ablation_roots:
+                if root.is_buggy:
+                    continue
+                agg_node = next(
+                    (
+                        child
+                        for child in root.children
+                        if child.is_seed_node and child.is_seed_agg_node
+                    ),
+                    None,
+                )
+                source_node = agg_node if agg_node is not None else root
+                node_log = get_node_log(node=source_node)
+                # Ensure ablation_name is present for downstream consumers, even when
+                # the source node is the seed-aggregation node (which has no ablation_name).
+                if "ablation_name" not in node_log and root.ablation_name is not None:
+                    node_log["ablation_name"] = root.ablation_name
+                ablation_summaries.append(node_log)
+            return ablation_summaries
         elif idx == 0:
             summary_json = get_stage_summary(journal, stage_name, model, client)
             return summary_json

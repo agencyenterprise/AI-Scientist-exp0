@@ -51,7 +51,7 @@ class ParallelAgent:
         task_desc: str,
         cfg: Config,
         journal: Journal,
-        stage_name: str | None,
+        stage_name: str,
         best_stage3_node: Node | None,
         best_stage2_node: Node | None,
         best_stage1_node: Node | None,
@@ -193,8 +193,6 @@ class ParallelAgent:
 
             new_ablation_idea = None
             new_hyperparam_idea = None
-            best_stage1_plot_code = None
-            best_stage2_plot_code = None
             best_stage3_plot_code = None
             seed_eval = True
             memory_summary = ""
@@ -211,8 +209,6 @@ class ParallelAgent:
                     stage_name=self.stage_name,
                     new_ablation_idea=new_ablation_idea,
                     new_hyperparam_idea=new_hyperparam_idea,
-                    best_stage1_plot_code=best_stage1_plot_code,
-                    best_stage2_plot_code=best_stage2_plot_code,
                     best_stage3_plot_code=best_stage3_plot_code,
                     seed_eval=seed_eval,
                     event_callback=None,
@@ -376,7 +372,7 @@ class ParallelAgent:
 
         return nodes_to_process
 
-    def step(self, exec_callback: ExecCallbackType) -> None:
+    def step(self, _exec_callback: ExecCallbackType) -> None:
         """Drive one iteration: select nodes, submit work, collect results, update state."""
         logger.debug("Selecting nodes to process")
         nodes_to_process = self._select_parallel_nodes()
@@ -482,12 +478,6 @@ class ParallelAgent:
                 new_ablation_idea = None
                 new_hyperparam_idea = None
 
-            best_stage1_plot_code = (
-                self.best_stage1_node.plot_code if self.best_stage1_node else None
-            )
-            best_stage2_plot_code = (
-                self.best_stage2_node.plot_code if self.best_stage2_node else None
-            )
             best_stage3_plot_code = (
                 self.best_stage3_node.plot_code if self.best_stage3_node else None
             )
@@ -504,8 +494,6 @@ class ParallelAgent:
                     stage_name=self.stage_name,
                     new_ablation_idea=new_ablation_idea,
                     new_hyperparam_idea=new_hyperparam_idea,
-                    best_stage1_plot_code=best_stage1_plot_code,
-                    best_stage2_plot_code=best_stage2_plot_code,
                     best_stage3_plot_code=best_stage3_plot_code,
                     seed_eval=seed_eval,
                     event_callback=None,

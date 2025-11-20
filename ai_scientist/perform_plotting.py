@@ -232,7 +232,6 @@ def aggregate_plots(
             model=model_name,
             system_message=AGGREGATOR_SYSTEM_MSG,
             temperature=1.0,
-            print_debug=False,
             msg_history=msg_history,
         )
     except Exception:
@@ -284,7 +283,6 @@ If you believe you are done, simply say: "I am done". Otherwise, please provide 
                 model=model_name,
                 system_message=AGGREGATOR_SYSTEM_MSG,
                 temperature=1.0,
-                print_debug=False,
                 msg_history=msg_history,
             )
 

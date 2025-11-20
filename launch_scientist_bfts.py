@@ -25,7 +25,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator
 
-import psutil
 import yaml
 from omegaconf import OmegaConf
 
@@ -260,14 +259,6 @@ if __name__ == "__main__":
         assert isinstance(cfg_obj, Config)
         return cfg_obj
 
-    def _load_stage1_journal(stage1_dir: Path) -> tuple[str, Journal]:
-        stage_name = stage1_dir.name.replace("stage_", "", 1)
-        journal_path = stage1_dir / "journal.json"
-        if not journal_path.exists():
-            raise FileNotFoundError(str(journal_path))
-        journal = load_json_dc(path=journal_path, cls=Journal)
-        return stage_name, journal
-
     def _load_stage_journal(stage_dir: Path) -> tuple[str, Journal]:
         stage_name = stage_dir.name.replace("stage_", "", 1)
         journal_path = stage_dir / "journal.json"
@@ -480,7 +471,7 @@ if __name__ == "__main__":
                         except Exception:
                             traceback.print_exc()
 
-                    def exec_callback(code: str, is_exec: bool) -> ExecutionResult:
+                    def exec_callback(_code: str, _is_exec: bool) -> ExecutionResult:
                         return ExecutionResult(term_out=[], exec_time=0.0, exc_type=None)
 
                     manager.run_stage(
@@ -647,58 +638,4 @@ if __name__ == "__main__":
         else:
             logger.warning("No PDF found for review (writeup likely failed). Skipping review.")
 
-    # Clean up any lingering worker processes to avoid resource leaks
-    logger.info("Start cleaning up processes")
-    # Kill all mp and torch processes associated with this experiment
-
-    # Get the current process and all its children
-    current_process = psutil.Process()
-    children = current_process.children(recursive=True)
-
-    # First try graceful termination (tolerant to already-exited processes)
-    for child in children:
-        try:
-            if child.is_running():
-                child.terminate()
-        except (psutil.NoSuchProcess, psutil.ZombieProcess, psutil.AccessDenied):
-            continue
-
-    # Wait briefly for processes to terminate
-    try:
-        gone, alive = psutil.wait_procs(children, timeout=3)
-    except Exception:
-        # Be resilient to any unexpected psutil issues here
-        gone, alive = [], [p for p in children if p.is_running()]
-
-    # If any processes remain, force kill them
-    for process in alive:
-        try:
-            process.kill()
-        except (psutil.NoSuchProcess, psutil.ZombieProcess, psutil.AccessDenied):
-            continue
-
-    # Additional cleanup: find any orphaned processes containing specific keywords
-    keywords = ["torch", "mp", "bfts", "experiment"]
-    for proc in psutil.process_iter(["name", "cmdline"]):
-        try:
-            # Check both process name and command line arguments
-            cmdline = " ".join(proc.cmdline()).lower()
-            if any(keyword in cmdline for keyword in keywords):
-                try:
-                    if proc.is_running():
-                        proc.terminate()
-                        proc.wait(timeout=3)
-                except (
-                    psutil.TimeoutExpired,
-                    psutil.NoSuchProcess,
-                    psutil.ZombieProcess,
-                    psutil.AccessDenied,
-                ):
-                    # Try a hard kill if graceful termination failed or raced
-                    try:
-                        proc.kill()
-                    except (psutil.NoSuchProcess, psutil.ZombieProcess, psutil.AccessDenied):
-                        pass
-        except (psutil.NoSuchProcess, psutil.ZombieProcess, psutil.AccessDenied, psutil.Error):
-            continue
-    sys.exit(0)
+    logger.info("Finished running the experiment.")
