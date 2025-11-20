@@ -125,8 +125,8 @@ async def exec_code(cwd: str | Path, filename: str, code: str, deps: list[str]) 
     stderr = await stderr_task
 
     logger.debug(f"returncode: {proc.returncode}")
-    logger.debug(f"stdout: {stdout[:96]}")
-    logger.debug(f"stderr: {stderr[:96]}")
+    logger.debug(f"stdout: {stdout[:96]!r}")
+    logger.debug(f"stderr: {stderr[:96]!r}")
 
     # ternary because 0 is a valid return code and falsy... so, using:
     # `returncode = proc.returncode or -1` would be incorrectly mapped to -1
