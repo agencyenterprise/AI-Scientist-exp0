@@ -9,7 +9,7 @@ from langfuse.langchain import CallbackHandler
 from langgraph.graph.state import RunnableConfig
 
 from aigraph import utils
-from aigraph.agents import baseline, tuning
+from aigraph.agents import baseline, plotting, tuning
 
 task = utils.Task.model_validate(
     {
@@ -52,14 +52,27 @@ async def run_tuning(code: str) -> dict:
     return await graph.ainvoke(input=state, config=config, context=context)
 
 
+async def run_plotting(code: str) -> dict:
+    config = RunnableConfig(callbacks=[CallbackHandler()])
+    state = plotting.State(cwd=Path("./tst"), task=task, code=code)
+    # context = plotting.Context(model="gpt-4o-mini", temperature=0.0)
+    context = plotting.Context(model="gpt-5-mini", temperature=0.0)
+    graph = plotting.build()
+    return await graph.ainvoke(input=state, config=config, context=context)
+
+
 async def main() -> None:
     r_baseline = await run_baseline()
     pp(r_baseline)
-
     print("=" * 80)
 
-    r_tuning = await run_tuning(r_baseline["code"])
+    r_tuning = await run_tuning(r_baseline["experiment_code"])
     pp(r_tuning)
+    print("=" * 80)
+
+    r_plotting = await run_plotting(r_tuning["tuning_code"])
+    pp(r_plotting)
+    print("=" * 80)
 
 
 if __name__ == "__main__":
