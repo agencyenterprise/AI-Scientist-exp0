@@ -68,8 +68,8 @@ class Context(BaseModel):
         return init_chat_model(model=self.model, temperature=self.temperature)
 
 
-async def node_propose_hyperparam(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_propose_hyperparam")
+async def node_tuning_propose_hyperparam(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_tuning_propose_hyperparam")
 
     class Schema(BaseModel):
         name: str
@@ -90,12 +90,12 @@ async def node_propose_hyperparam(state: State, runtime: Runtime[Context]) -> St
     state.last_hyperparam = hp
     state.hyperparams = set([hp])
 
-    logger.info("node_propose_hyperparam completed")
+    logger.info("Finished node_tuning_propose_hyperparam")
     return state
 
 
-async def node_code_tuning(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_code_tuning")
+async def node_tuning_code_tuning(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_tuning_code_tuning")
 
     class Schema(BaseModel):
         code: str
@@ -138,12 +138,17 @@ async def node_code_tuning(state: State, runtime: Runtime[Context]) -> State:
     state.tuning_deps = response.dependencies
     state.tuning_retry_count += 1
 
-    logger.info("node_code_tuning completed")
+    logger.debug(f"tuning_plan: {state.tuning_plan[:32]!r}")
+    logger.debug(f"tuning_code: {state.tuning_code[:32]!r}")
+    logger.debug(f"tuning_deps: {state.tuning_deps}")
+    logger.debug(f"tuning_retry_count: {state.tuning_retry_count}")
+
+    logger.info("Finished node_tuning_code_tuning")
     return state
 
 
-async def node_exec_tuning(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_exec_tuning")
+async def node_tuning_exec_tuning(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_tuning_exec_tuning")
     assert state.tuning_code, "tuning_code is required"
 
     result = await utils.exec_code(
@@ -158,12 +163,17 @@ async def node_exec_tuning(state: State, runtime: Runtime[Context]) -> State:
     state.tuning_returncode = result.returncode
     state.tuning_filename = result.filename
 
-    logger.info("node_exec_tuning completed")
+    logger.debug(f"tuning_stdout: {state.tuning_stdout[:32]!r}")
+    logger.debug(f"tuning_stderr: {state.tuning_stderr[:32]!r}")
+    logger.debug(f"tuning_returncode: {state.tuning_returncode}")
+    logger.debug(f"tuning_filename: {state.tuning_filename}")
+
+    logger.info("Finished node_tuning_exec_tuning")
     return state
 
 
-async def node_parse_tuning_output(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_parse_tuning_output")
+async def node_tuning_parse_tuning_output(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_tuning_parse_tuning_output")
     assert state.tuning_code, "tuning_code is required"
 
     class Schema(BaseModel):
@@ -182,32 +192,35 @@ async def node_parse_tuning_output(state: State, runtime: Runtime[Context]) -> S
     state.tuning_is_bug = response.is_bug
     state.tuning_summary = response.summary
 
-    logger.info(f"node_parse_tuning_output completed. Is bug: {response.is_bug}")
+    logger.debug(f"tuning_is_bug: {state.tuning_is_bug}")
+    logger.debug(f"tuning_summary: {state.tuning_summary[:32]!r}")
+
+    logger.info(f"Finished node_tuning_parse_tuning_output. Is bug: {response.is_bug}")
     return state
 
 
-async def node_should_retry_code_from_tuning(
+async def node_tuning_should_retry_code_from_tuning(
     state: State, runtime: Runtime[Context]
-) -> Literal["code_tuning", "parse_tuning_output"]:
-    logger.info("Starting node_should_retry_code_from_tuning")
+) -> Literal["node_tuning_code_tuning", "node_tuning_parse_tuning_output"]:
+    logger.info("Starting node_tuning_should_retry_code_from_tuning")
 
     if state.tuning_returncode == 0:
-        return "parse_tuning_output"
-    return "code_tuning"
+        return "node_tuning_parse_tuning_output"
+    return "node_tuning_code_tuning"
 
 
-async def node_should_retry_code_from_tuning_output(
+async def node_tuning_should_retry_code_from_tuning_output(
     state: State, runtime: Runtime[Context]
-) -> Literal["code_tuning", "code_metrics_parser"]:
-    logger.info("Starting node_should_retry_code_from_tuning_output")
+) -> Literal["node_tuning_code_tuning", "node_tuning_code_metrics_parser"]:
+    logger.info("Starting node_tuning_should_retry_code_from_tuning_output")
 
     if state.tuning_is_bug:
-        return "code_tuning"
-    return "code_metrics_parser"
+        return "node_tuning_code_tuning"
+    return "node_tuning_code_metrics_parser"
 
 
-async def node_code_metrics_parser(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_code_metrics_parser")
+async def node_tuning_code_metrics_parser(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_tuning_code_metrics_parser")
     assert state.tuning_code, "tuning_code is required"
 
     class Schema(BaseModel):
@@ -223,12 +236,16 @@ async def node_code_metrics_parser(state: State, runtime: Runtime[Context]) -> S
     state.parser_plan = response.plan
     state.parser_deps = response.dependencies
 
-    logger.info("node_code_metrics_parser completed")
+    logger.debug(f"parser_code: {state.parser_code[:32]!r}")
+    logger.debug(f"parser_plan: {state.parser_plan[:32]!r}")
+    logger.debug(f"parser_deps: {state.parser_deps}")
+
+    logger.info("Finished node_tuning_code_metrics_parser")
     return state
 
 
-async def node_exec_metrics_parser(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_exec_metrics_parser")
+async def node_tuning_exec_metrics_parser(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_tuning_exec_metrics_parser")
     assert state.parser_code, "parser_code is required"
 
     result = await utils.exec_code(
@@ -243,12 +260,17 @@ async def node_exec_metrics_parser(state: State, runtime: Runtime[Context]) -> S
     state.parser_returncode = result.returncode
     state.parser_filename = result.filename
 
-    logger.info("node_exec_metrics_parser completed")
+    logger.debug(f"parser_stdout: {state.parser_stdout[:32]!r}")
+    logger.debug(f"parser_stderr: {state.parser_stderr[:32]!r}")
+    logger.debug(f"parser_returncode: {state.parser_returncode}")
+    logger.debug(f"parser_filename: {state.parser_filename}")
+
+    logger.info("Finished node_tuning_exec_metrics_parser")
     return state
 
 
-async def node_parse_metrics_output(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_parse_metrics_output")
+async def node_tuning_parse_metrics_output(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_tuning_parse_metrics_output")
     assert state.parser_stdout, "parser_stdout is required"
 
     class Schema(BaseModel):
@@ -266,7 +288,7 @@ async def node_parse_metrics_output(state: State, runtime: Runtime[Context]) -> 
     state.parse_valid_metrics_received = response.valid_metrics_received
     state.parse_metric_names = response.metric_names
 
-    logger.info("node_parse_metrics_output completed")
+    logger.info("Finished node_tuning_parse_metrics_output")
     return state
 
 
@@ -275,29 +297,29 @@ def build() -> CompiledStateGraph[State, Context, State, State]:
     builder = StateGraph(state_schema=State, context_schema=Context)
 
     # Add nodes
-    builder.add_node("propose_hyperparam", node_propose_hyperparam)
-    builder.add_node("code_tuning", node_code_tuning)
-    builder.add_node("exec_tuning", node_exec_tuning)
-    builder.add_node("parse_tuning_output", node_parse_tuning_output)
-    builder.add_node("code_metrics_parser", node_code_metrics_parser)
-    builder.add_node("exec_metrics_parser", node_exec_metrics_parser)
-    builder.add_node("parse_metrics_output", node_parse_metrics_output)
+    builder.add_node("node_tuning_propose_hyperparam", node_tuning_propose_hyperparam)
+    builder.add_node("node_tuning_code_tuning", node_tuning_code_tuning)
+    builder.add_node("node_tuning_exec_tuning", node_tuning_exec_tuning)
+    builder.add_node("node_tuning_parse_tuning_output", node_tuning_parse_tuning_output)
+    builder.add_node("node_tuning_code_metrics_parser", node_tuning_code_metrics_parser)
+    builder.add_node("node_tuning_exec_metrics_parser", node_tuning_exec_metrics_parser)
+    builder.add_node("node_tuning_parse_metrics_output", node_tuning_parse_metrics_output)
 
     # Add edges
-    builder.add_edge(START, "propose_hyperparam")
-    builder.add_edge("propose_hyperparam", "code_tuning")
-    builder.add_edge("code_tuning", "exec_tuning")
+    builder.add_edge(START, "node_tuning_propose_hyperparam")
+    builder.add_edge("node_tuning_propose_hyperparam", "node_tuning_code_tuning")
+    builder.add_edge("node_tuning_code_tuning", "node_tuning_exec_tuning")
     builder.add_conditional_edges(
-        "exec_tuning",
-        node_should_retry_code_from_tuning,
+        "node_tuning_exec_tuning",
+        node_tuning_should_retry_code_from_tuning,
     )
     builder.add_conditional_edges(
-        "parse_tuning_output",
-        node_should_retry_code_from_tuning_output,
+        "node_tuning_parse_tuning_output",
+        node_tuning_should_retry_code_from_tuning_output,
     )
-    builder.add_edge("code_metrics_parser", "exec_metrics_parser")
-    builder.add_edge("exec_metrics_parser", "parse_metrics_output")
-    builder.add_edge("parse_metrics_output", END)
+    builder.add_edge("node_tuning_code_metrics_parser", "node_tuning_exec_metrics_parser")
+    builder.add_edge("node_tuning_exec_metrics_parser", "node_tuning_parse_metrics_output")
+    builder.add_edge("node_tuning_parse_metrics_output", END)
 
-    return builder.compile()  # type: ignore
+    return builder.compile(name="graph_tuning")  # type: ignore
 

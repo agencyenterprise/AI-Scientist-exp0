@@ -44,8 +44,8 @@ class Context(BaseModel):
         return init_chat_model(model=self.model, temperature=self.temperature)
 
 
-async def node_setup_writeup(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_setup_writeup")
+async def node_writeup_setup_writeup(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_writeup_setup_writeup")
 
     src = utils.DATA_DIR / "latex"
     dst = state.cwd / "latex" 
@@ -54,12 +54,12 @@ async def node_setup_writeup(state: State, runtime: Runtime[Context]) -> State:
     shutil.copytree(src, dst, dirs_exist_ok=True)
     state.latex_dir = dst
 
-    logger.info(f"Finished node_setup_writeup")
+    logger.info("Finished node_writeup_setup_writeup")
     return state
 
 
-async def node_generate_writeup(state: State, runtime: Runtime[Context]) -> State:
-    logger.info("Starting node_generate_writeup")
+async def node_writeup_generate_writeup(state: State, runtime: Runtime[Context]) -> State:
+    logger.info("Starting node_writeup_generate_writeup")
 
     class Schema(BaseModel):
         content: str
@@ -89,5 +89,5 @@ async def node_generate_writeup(state: State, runtime: Runtime[Context]) -> Stat
     logger.debug(f"latex_content: {state.latex_content[:32]!r}")
     logger.debug(f"latex_bibtex: {state.latex_bibtex[:32]!r}")
     
-    logger.info("Finished node_generate_writeup")
+    logger.info("Finished node_writeup_generate_writeup")
     return state
