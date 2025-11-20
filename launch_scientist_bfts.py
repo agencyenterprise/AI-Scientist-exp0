@@ -519,15 +519,20 @@ if __name__ == "__main__":
 
     # (No mirroring) Use configured log_dir as the source of truth for summaries
 
-    # Determine if we should run aggregation/writeup based on presence of best solutions
+    # Determine if we should run aggregation/writeup based on presence of a full Stage 3 result
     should_run_reports = False
     if run_dir_path is not None:
         try:
-            has_best = any(run_dir_path.glob("stage_*/best_solution_*.py"))
-            if has_best:
+            # Only consider runs that reached Stage 3 (creative research) and produced
+            # a best_solution there. If Stage 3 never ran (e.g., no good nodes in
+            # earlier stages), we skip plot aggregation and writeup entirely.
+            has_stage3_best = any(run_dir_path.glob("stage_3_*/best_solution_*.py"))
+            if has_stage3_best:
                 should_run_reports = True
             else:
-                logger.info("No best_solution files found; skipping plot aggregation and writeup.")
+                logger.error(
+                    "No Stage 3 best_solution files found; skipping plot aggregation and writeup."
+                )
         except Exception:
             traceback.print_exc()
             logger.warning(
@@ -552,12 +557,14 @@ if __name__ == "__main__":
     # Remove the transient aggregated results folder (copied above)
     shutil.rmtree(osp.join(reports_base, "experiment_results"), ignore_errors=True)
 
-    # Persist token accounting information
-    save_token_tracker(run_dir_path.as_posix() if run_dir_path is not None else reports_base)
+    # Persist token accounting information after experiments / aggregation
+    save_token_tracker(
+        idea_dir=run_dir_path.as_posix() if run_dir_path is not None else reports_base
+    )
 
+    writeup_success = False
     if not args.skip_writeup and should_run_reports and agg_ok:
         # Generate paper writeup (normal or ICBINB)
-        writeup_success = False
         citations_text = gather_citations(
             base_folder=reports_base,
             num_cite_rounds=args.num_cite_rounds,
@@ -592,13 +599,19 @@ if __name__ == "__main__":
         if not writeup_success:
             logger.error("Writeup process did not complete successfully after all retries.")
 
-    # Record tokens after writeup stage as well
-    save_token_tracker(run_dir_path.as_posix() if run_dir_path is not None else reports_base)
+    can_review = (
+        not args.skip_review
+        and not args.skip_writeup
+        and should_run_reports
+        and agg_ok
+        and writeup_success
+    )
 
-    if not args.skip_review and not args.skip_writeup:
+    if can_review:
         # Perform paper review (if the generated PDF exists)
         pdf_path = find_pdf_path_for_review(
-            reports_base, run_dir_path.name if run_dir_path is not None else None
+            idea_dir=reports_base,
+            run_dir_name=run_dir_path.name if run_dir_path is not None else None,
         )
         if pdf_path and os.path.exists(pdf_path):
             logger.info(f"Paper found at: {pdf_path}")
