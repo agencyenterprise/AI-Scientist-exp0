@@ -1,13 +1,15 @@
 import asyncio
 import json
 import logging
+import logging.config
+from pathlib import Path
 from pprint import pp
 
 from langfuse.langchain import CallbackHandler
 from langgraph.graph.state import RunnableConfig
 
-from aigraph import agent_step_1
 from aigraph import utils
+from aigraph.agents import baseline
 
 task = utils.Task.model_validate(
     {
@@ -35,10 +37,12 @@ task = utils.Task.model_validate(
 
 async def main() -> None:
     config = RunnableConfig(callbacks=[CallbackHandler()])
-    state = agent_step_1.State(task=task)
-    context = agent_step_1.Context(model="gpt-4o-mini", temperature=0.0)
+    state = baseline.State(cwd=Path("./tst"), task=task)
+    # context = baseline.Context(model="gpt-4o-mini", temperature=0.0)
+    context = baseline.Context(model="gpt-5-mini", temperature=0.0)
 
-    graph = agent_step_1.build()
+    graph = baseline.build()
+
     result = await graph.ainvoke(
         input=state,
         config=config,
@@ -49,5 +53,28 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.config.dictConfig(
+      {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "standard": {
+                    "format": "%(levelname)s [%(asctime)s] %(name)s - %(message)s",
+                },
+            },
+            "handlers": {
+                "stderr": {
+                    "class": logging.StreamHandler,
+                    "formatter": "standard",
+                    "stream": "ext://sys.stderr",
+                },
+            },
+            "loggers": {
+                "aigraph": {
+                    "handlers": ["stderr"],
+                    "level": logging.DEBUG,
+                },
+            },
+        }
+    )
     asyncio.run(main())

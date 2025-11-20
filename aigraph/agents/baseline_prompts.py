@@ -7,10 +7,10 @@ def _task_to_prompt(task: Task) -> str:
     prompt = f"""
     You are an ambitious AI researcher who is looking to publish a paper that
     will contribute significantly to the field.
-    
+
     You have an idea and you want to conduct creative experiments to gain
     scientific insights.
-    
+
     Your aim is to run experiments to gather sufficient results for a top
     conference paper.
 
@@ -43,7 +43,7 @@ def _task_to_prompt(task: Task) -> str:
 def build_prompt_baseline_metrics(task: Task) -> str:
     return f"""
     ## Introduction
-    
+
     You are an AI researcher setting up experiments. Please propose meaningful
     evaluation metrics that will help analyze the performance and
     characteristics of solutions for this research task.
@@ -51,9 +51,9 @@ def build_prompt_baseline_metrics(task: Task) -> str:
     ## Research idea
 
     {_task_to_prompt(task)}
-    
-    ## Goals 
-    
+
+    ## Goals
+
     - Focus on getting basic working implementation
     - Use a dataset appropriate to the experiment
     - Aim for basic functional correctness
@@ -61,7 +61,7 @@ def build_prompt_baseline_metrics(task: Task) -> str:
       point.
 
     ## Instructions
-    
+
     Propose a single evaluation metric that would be useful for analyzing the
     performance of solutions for this research task.
 
@@ -99,7 +99,7 @@ def build_prompt_baseline_code(task: Task, metrics: list[Metric], memory: str) -
     - code: A python script in plain python. DO NOT USE FENCES. EG:
       \\`\\`\\`python ... \\`\\`\\`
     - dependencies: A list of dependencies required for the code to run. EG:
-      ["torch", "torchvision", "numpy", "pandas", "scikit-learn"]. Do not 
+      ["torch", "torchvision", "numpy", "pandas", "scikit-learn"]. Do not
       include standard library dependencies. Only third party dependencies.
 
     ### Baseline experiment guidelines
@@ -115,8 +115,8 @@ def build_prompt_baseline_code(task: Task, metrics: list[Metric], memory: str) -
 
     ## Implementation guidelines
 
-    ### CRITICAL GPU REQUIREMENTS 
-    
+    ### CRITICAL GPU REQUIREMENTS
+
     Your code MUST include ALL of these:
 
     - At the start of your code, add these lines to handle GPU/CPU:
@@ -128,11 +128,11 @@ def build_prompt_baseline_code(task: Task, metrics: list[Metric], memory: str) -
     - ALWAYS move input tensors to device using the `.to(device)` method
     - ALWAYS move model related tensors to device using the `.to(device)` method
     - For optimizers, create them AFTER moving model to device
-    - When using DataLoader, move batch tensors to device in training loop: 
+    - When using DataLoader, move batch tensors to device in training loop:
       ```python
       batch = {{k: v.to(device) for k, v in batch.items() if isinstance(v, torch.Tensor)}}
       ```
-    
+
     ### CRITICAL MODEL INPUT GUIDELINES
 
     - Always pay extra attention to the input to the model being properly
@@ -160,51 +160,80 @@ def build_prompt_baseline_code(task: Task, metrics: list[Metric], memory: str) -
 
     Data saving requirements:
 
-    - Save all data (metrics, losses, predictions, etc.) as numpy arrays using 
-      `np.save()`.
-    - Use the following naming convention for saved files:
-       ```python
-       # At the start of your code
-       experiment_data = {{
-           'dataset_name_1': {{
-               'metrics': {{'train': [], 'val': []}},
-               'losses': {{'train': [], 'val': []}},
-               'predictions': [],
-               'ground_truth': [],
-               # Add other relevant data
-           }},
-           # Add additional datasets as needed:
-           'dataset_name_2': {{
-               'metrics': {{'train': [], 'val': []}},
-               'losses': {{'train': [], 'val': []}},
-               'predictions': [],
-               'ground_truth': [],
-               # Add other relevant data
-           }},
-       }}
+    Save all data (metrics, losses, predictions, etc.) as JSON following
+    the following structure:
 
-       # During training/evaluation:
-       experiment_data['dataset_name_1']['metrics']['train'].append(train_metric)
-       ```
-    - Include timestamps or epochs with the saved metrics
-      
-    ### CRITICAL EVALUATION REQUIREMENTS 
-      
+    ```python
+    # At the start of your code
+    experiment_data = {{
+        'dataset_name_1': {{
+            'metrics': {{'train': [], 'val': []}},
+            'losses': {{'train': [], 'val': []}},
+            'predictions': [],
+            'ground_truth': [],
+            # Add other relevant data
+        }},
+        # Add additional datasets as needed:
+        'dataset_name_2': {{
+            'metrics': {{'train': [], 'val': []}},
+            'losses': {{'train': [], 'val': []}},
+            'predictions': [],
+            'ground_truth': [],
+            # Add other relevant data
+        }},
+    }}
+    ```
+
+    CRITICAL: Your experiment_data dictionary MUST ALWAYS include these four required keys for each dataset:
+    - 'metrics': Dictionary with 'train' and 'val' lists
+    - 'losses': Dictionary with 'train' and 'val' lists  
+    - 'predictions': List of model predictions
+    - 'ground_truth': List of ground truth values
+
+    These keys are MANDATORY and must be present even if some remain empty lists.
+
+    YOU MUST APPEND THE DATA TO THE STRUCTURE ABOVE FOR EACH EPOCH. Like so 
+    (update the code to your specific logic):
+
+    ```python
+    for epoch in range(num_epochs):
+        # logic
+        train_metric = ...
+        val_metric = ...
+        train_loss = ...
+        val_loss = ...
+        
+        # REQUIRED: Always append to these four mandatory keys
+        experiment_data['dataset_name_1']['metrics']['train'].append(train_metric)
+        experiment_data['dataset_name_1']['metrics']['val'].append(val_metric)
+        experiment_data['dataset_name_1']['losses']['train'].append(train_loss)
+        experiment_data['dataset_name_1']['losses']['val'].append(val_loss)
+        
+        # Update predictions and ground_truth as appropriate for your experiment
+        if predictions_available:
+            experiment_data['dataset_name_1']['predictions'].extend(batch_predictions)
+        if ground_truth_available:
+            experiment_data['dataset_name_1']['ground_truth'].extend(batch_ground_truth)
+    ```
+
+    ### CRITICAL EVALUATION REQUIREMENTS
+
     Your code MUST include ALL of these:
 
-    1. Track and print to stdout the validation loss at each epoch or at suitable 
+    1. Track and print to stdout the validation loss at each epoch or at suitable
        intervals:
        ```python
        print(f'Epoch {{epoch}}: validation_loss = {{val_loss:.4f}}')
        ```
     2. Track and update ALL metrics passed below
     3. Update metrics at EACH epoch
-    4. Save ALL metrics at the end
+    4. Save ALL metrics at the end. You must use the filename `experiment_data.json`:
        ```python
-       np.save(os.path.join(os.getcwd(), 'experiment_data.npy'), experiment_data)
+       with open(os.path.join(os.getcwd(), 'experiment_data.json'), 'w') as f:
+           json.dump(experiment_data, f)
        ```
 
-    YOUR CODE MUST SAVE THE DATA IN THE `experiment_data.npy` FILE.
+    YOUR CODE MUST SAVE THE DATA IN THE `experiment_data.json` FILE.
 
     ## Research idea
 
@@ -215,7 +244,7 @@ def build_prompt_baseline_code(task: Task, metrics: list[Metric], memory: str) -
     ## Evaluation metrics
 
     <EVALUATION METRICS>
-    ```json 
+    ```json
     {json.dumps([i.model_dump(mode='json') for i in metrics], indent=2)}
     ```
     </EVALUATION METRICS>
@@ -232,7 +261,7 @@ def build_prompt_baseline_code(task: Task, metrics: list[Metric], memory: str) -
 def build_prompt_baseline_code_output(task: Task, code: str, stdout: str, stderr: str) -> str:
     return f"""
     ## Introduction
-    
+
     You are an experienced AI researcher. You have written code for your
     research experiment and now need to evaluate the output of the code
     execution. Analyze the execution output, determine if there were any bugs,
@@ -270,40 +299,29 @@ def build_prompt_baseline_code_output(task: Task, code: str, stdout: str, stderr
     """
 
 
-def build_prompt_baseline_parser_code(code: str) -> str:
+def build_prompt_baseline_parser_code(code: str, memory: str = "") -> str:
     return f"""
     ## Introduction
-    
-    You are an AI researcher analyzing experimental results stored in numpy
-    files. Write code to load and analyze the metrics from
-    `experiment_data.npy`. The data in the `experiment_data.npy` file is nested
-    has been saved with the following structure:
 
-    ```python
-    # At the start of your code
-    experiment_data = {{
-        'dataset_name_1': {{
-            'metrics': {{'train': [], 'val': []}},
-            'losses': {{'train': [], 'val': []}},
-            'predictions': [],
-            'ground_truth': [],
-            # Add other relevant data
+    You are an AI researcher analyzing experimental results stored in a JSON
+    file. Write code to load and analyze the metrics from a file named
+    'experiment_data.json'. It has the following structure:
+
+    ```json
+    {{
+        "dataset_name_1": {{
+            "metrics": {{ "train": [], "val": [] }},
+            "losses": {{ "train": [], "val": [] }},
+            "predictions": [],
+            "ground_truth": [],
         }},
-        # Add additional datasets as needed:
-        'dataset_name_2': {{
-            'metrics': {{'train': [], 'val': []}},
-            'losses': {{'train': [], 'val': []}},
-            'predictions': [],
-            'ground_truth': [],
-            # Add other relevant data
+        "dataset_name_2": {{
+            "metrics": {{ "train": [], "val": [] }},
+            "losses": {{ "train": [], "val": [] }},
+            "predictions": [],
+            "ground_truth": [],
         }},
     }}
-
-    # During training/evaluation:
-    experiment_data['dataset_name_1']['metrics']['train'].append(train_metric)
-
-    # saved        
-    np.save(os.path.join(os.getcwd(), 'experiment_data.npy'), experiment_data)
     ```
 
     ### Response format
@@ -315,11 +333,12 @@ def build_prompt_baseline_parser_code(code: str) -> str:
     - code: A python script in plain python. DO NOT USE FENCES. EG:
       \\`\\`\\`python ... \\`\\`\\`
     - dependencies: A list of dependencies required for the code to run. EG:
-      ["torch", "torchvision", "numpy", "pandas", "scikit-learn"]
-    
+      ["torch", "torchvision", "numpy", "pandas", "scikit-learn"]. Do not
+      include standard library dependencies. Only third party dependencies.
+
     ## Instructions
-    
-    - Load the `experiment_data.npy` file, which is located in the current
+
+    - Load the `experiment_data.json` file, which is located in the current
       working directory
     - Extract metrics for each dataset. Refer to the original code to understand
       the data structure.
@@ -327,8 +346,8 @@ def build_prompt_baseline_parser_code(code: str) -> str:
     - Always print the name of the metric before printing the value with precise
       labels (e.g., 'train accuracy', 'validation loss', 'test F1 score').
     - Only print the best or final value for each metric for each dataset
-    - DO NOT CREATE ANY PLOTS
-    
+    - DO NOT CREATE ANY PLOTS. PLOTS ARE NOT ALLOWED.
+
     ### CODING GUIDELINES
 
     - Do NOT put any execution code inside 'if __name__ == "__main__":' block
@@ -340,22 +359,30 @@ def build_prompt_baseline_parser_code(code: str) -> str:
     - Store any extra files and outputs in the current working directory.
 
     ## Example data loading code
-    
+
     ```python
     import os
-    import numpy as np
-    experiment_data = np.load(os.path.join(os.getcwd(), 'experiment_data.npy'), allow_pickle=True).item()
+    import json
+    with open(os.path.join(os.getcwd(), 'experiment_data.json')) as f:
+        experiment_data = json.load(f)
     ```
 
     ## Context
 
-    Here is the original code that was used to generate the `experiment_data.npy` file:
-    
+    Here is the original code that was used to generate the `experiment_data.json`
+    file:
+
     <ORIGINAL_CODE>
     ```python
     {code}
     ```
     </ORIGINAL_CODE>
+
+    ## Memory
+
+    <MEMORY>
+    {memory or 'NA'}
+    </MEMORY>
     """
 
 
