@@ -5,7 +5,12 @@ from .llm import (
     get_response_from_llm,
 )
 from .token_tracker import token_tracker
-from .vlm import create_vlm_client, extract_json_between_markers_vlm, get_response_from_vlm
+from .vlm import (
+    create_vlm_client,
+    extract_json_between_markers_vlm,
+    get_response_from_vlm,
+    vlm_query,
+)
 
 AVAILABLE_LLMS = [
     # Newer generic aliases (ensure OpenAI supports them in your account)
@@ -66,5 +71,6 @@ __all__ = [
     "create_vlm_client",
     "get_response_from_vlm",
     "extract_json_between_markers_vlm",
+    "vlm_query",
     "token_tracker",
 ]

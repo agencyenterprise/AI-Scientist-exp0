@@ -5,6 +5,7 @@ import logging
 import os
 from typing import List, Protocol, Tuple
 
+from ai_scientist.llm import vlm_query
 from ai_scientist.llm.query import query
 
 from .journal import Node
@@ -295,7 +296,7 @@ def analyze_plots_with_vlm(*, agent: SupportsPlottingAgent, node: Node) -> None:
 
     user_message = [text_part] + image_parts
 
-    response = query(
+    response = vlm_query(
         system_message=None,
         user_message=user_message,
         func_spec=vlm_feedback_spec,
