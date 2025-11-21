@@ -30,13 +30,13 @@ def build_prompt_plotting_code(task: Task, code: str, memory: str = "") -> str:
     ## Introduction
 
     You are an AI researcher. You have run an experiment and generated results
-    in `experiment_data.json`. Your task is to write a Python script to
+    in `data_ablation.json`. Your task is to write a Python script to
     visualize these results using matplotlib or seaborn.
 
     ## Instructions
 
-    - Write a Python script to load `experiment_data.json` and generate plots.
-    - The `experiment_data.json` file has the following structure:
+    - Write a Python script to load `data_ablation.json` and generate plots.
+    - The `data_ablation.json` file has the following structure:
 
     ```json
     {{
@@ -76,7 +76,7 @@ def build_prompt_plotting_code(task: Task, code: str, memory: str = "") -> str:
     ### Coding Guidelines
 
     - Import necessary libraries (matplotlib.pyplot, json, os, etc.).
-    - Load data: `with open('experiment_data.json', 'r') as f: data =
+    - Load data: `with open('data_ablation.json', 'r') as f: data =
       json.load(f)`
     - Iterate through datasets/metrics in the JSON to create relevant plots.
     - Save figures with descriptive names, e.g., `loss_curves.png`,
