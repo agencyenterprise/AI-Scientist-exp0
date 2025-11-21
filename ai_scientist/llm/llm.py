@@ -8,8 +8,8 @@ import jsonschema
 from dataclasses_json import DataClassJsonMixin
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_openai import ChatOpenAI
 
+from .providers import create_chat_model
 from .token_tracker import track_token_usage
 
 logger = logging.getLogger("ai-scientist")
@@ -69,10 +69,7 @@ def make_llm_call(
             getattr(message, "type", type(message).__name__),
             getattr(message, "content", ""),
         )
-    chat = ChatOpenAI(
-        model=model,
-        temperature=temperature,
-    )
+    chat = create_chat_model(model=model, temperature=temperature)
     retrying_chat = chat.with_retry(
         retry_if_exception_type=(Exception,),
         stop_after_attempt=3,
@@ -262,10 +259,7 @@ def _invoke_langchain_query(
             getattr(message, "type", type(message).__name__),
             getattr(message, "content", ""),
         )
-    chat = ChatOpenAI(
-        model=model,
-        temperature=temperature,
-    )
+    chat = create_chat_model(model=model, temperature=temperature)
     ai_message = chat.invoke(messages)
     logger.debug(
         "LLM _invoke_langchain_query - response: %s - %s",
@@ -299,10 +293,7 @@ def _invoke_structured_langchain_query(
             getattr(message, "type", type(message).__name__),
             getattr(message, "content", ""),
         )
-    chat = ChatOpenAI(
-        model=model,
-        temperature=temperature,
-    )
+    chat = create_chat_model(model=model, temperature=temperature)
     retrying_chat = chat.with_retry(
         retry_if_exception_type=(Exception,),
         stop_after_attempt=3,

@@ -6,9 +6,9 @@ import re
 from typing import Any, Tuple
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 from PIL import Image
 
+from .providers import create_chat_model
 from .token_tracker import track_token_usage
 
 logger = logging.getLogger("ai-scientist")
@@ -89,10 +89,7 @@ def make_vlm_call(
             getattr(message, "type", type(message).__name__),
             getattr(message, "content", ""),
         )
-    chat = ChatOpenAI(
-        model=model,
-        temperature=temperature,
-    )
+    chat = create_chat_model(model=model, temperature=temperature)
     retrying_chat = chat.with_retry(
         retry_if_exception_type=(Exception,),
         stop_after_attempt=3,
