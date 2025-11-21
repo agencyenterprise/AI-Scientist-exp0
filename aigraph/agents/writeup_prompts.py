@@ -1,5 +1,6 @@
-
+from typing import Iterable
 from aigraph import utils
+
 
 def _task_to_prompt(task: utils.Task) -> str:
     return f"""
@@ -25,16 +26,8 @@ def _task_to_prompt(task: utils.Task) -> str:
     """
 
 
-def build_writeup_system_message(task: utils.Task, pages: int = 8) -> str:
-    files = utils.DATA_DIR / "latex"
-    data = {f.name: f.read_text() for f in files.glob("*")}
-
-    template = ''
-    for name, content in data.items():
-        template += f'Filename: {name}\n\n'
-        template += 'Content:\n\n'
-        template += f'```latex\n{content}\n```\n\n'
-        template += '=' * 80 + '\n\n'
+def build_writeup_system_message(task: utils.Task, pages: int = 5) -> str:
+    template = utils.DATA_DIR / "template.tex"
 
     return f"""
     You are an ambitious AI researcher who is looking to publish a paper that
@@ -58,20 +51,20 @@ def build_writeup_system_message(task: utils.Task, pages: int = 8) -> str:
 
     Here are some tips for each section of the paper:
 
-    - **Title**:
+    ## Title
 
     - Title should be catchy and informative. It should give a good idea of what
       the paper is about.
     - Try to keep it under 2 lines.
 
-    - **Abstract**:
+    ## Abstract
 
     - TL;DR of the paper.
     - What are we trying to do and why is it relevant?
     - Make sure the abstract reads smoothly and is well-motivated. This should
       be one continuous paragraph.
 
-    - **Introduction**:
+    ## Introduction
 
     - Longer version of the Abstract, i.e., an overview of the entire paper.
     - Provide context to the study and explain its relevance.
@@ -81,7 +74,7 @@ def build_writeup_system_message(task: utils.Task, pages: int = 8) -> str:
     - Summarize your contributions, highlighting pertinent findings, insights,
       or proposed methods.
 
-    - **Related Work**:
+    ## Related Work
 
     - Academic siblings of our work, i.e., alternative attempts in literature at
       trying to address the same or similar problems.
@@ -89,14 +82,14 @@ def build_writeup_system_message(task: utils.Task, pages: int = 8) -> str:
       similarities.
     - Ensure proper citations are provided.
 
-    - **Background**:
+    ## Background
 
     - Present foundational concepts or prior work needed to understand your
       method.
     - This should include necessary definitions, the problem setting, or
       relevant theoretical constructs.
 
-    - **Method**:
+    ## Method
 
     - Clearly detail what you propose to do and why. If your study aims to
       address certain hypotheses, describe them and how your method is
@@ -104,13 +97,13 @@ def build_writeup_system_message(task: utils.Task, pages: int = 8) -> str:
     - If results are negative or inconclusive, you may suggest improvements or
       discuss possible causes.
 
-    - **Experimental Setup**:
+    ## Experimental Setup
 
     - Explain how you tested your method or hypothesis.
     - Describe necessary details such as data, environment, and baselines, but
       omit hardware details unless explicitly mentioned.
 
-    - **Experiments**:
+    ## Experiments
 
     - Present the results truthfully according to the data you have. If outcomes
       are not as expected, discuss it transparently.
@@ -119,7 +112,7 @@ def build_writeup_system_message(task: utils.Task, pages: int = 8) -> str:
     - Try to include all relevant plots and tables. Consider combining multiple
       plots into one figure if they are related.
 
-    - **Conclusion**:
+    ## Conclusion
 
     - Summarize the entire paper, including key strengths or findings.
     - If results are strong, highlight how they might address the research
@@ -127,7 +120,7 @@ def build_writeup_system_message(task: utils.Task, pages: int = 8) -> str:
     - If results are negative or inconclusive, highlight potential improvements
       or reasons and propose future directions.
 
-    - **Appendix**:
+    ## Appendix
 
     - Place for supplementary material that did not fit in the main paper.
 
@@ -151,12 +144,20 @@ def build_writeup_system_message(task: utils.Task, pages: int = 8) -> str:
 
     ## Latex template
 
+    Update the following LaTeX template to reflect the research idea:
+
     <TEMPLATE>
-    {template}
+    {template.read_text()}
     </TEMPLATE>
     """
 
-def build_writeup_prompt(code_experiment: str, code_parser: str, images: list[str]) -> str:
+
+def build_writeup_prompt(
+    code_experiment: str,
+    code_parser: str,
+    plots: Iterable[utils.Plot],
+    memory: str = "",
+) -> str:
     return f"""
     ## Introduction
 
@@ -167,22 +168,62 @@ def build_writeup_prompt(code_experiment: str, code_parser: str, images: list[st
     ## Experiment code
 
     <EXPERIMENT_CODE>
-    ```python
     {code_experiment}
-    ```
     </EXPERIMENT_CODE>
 
     ## Parser code
 
     <PARSER_CODE>
-    ```python
     {code_parser}
-    ```
     </PARSER_CODE>
 
     ## Images
 
     <IMAGES>
-    {"\n".join(f"- {i}" for i in images)}
+    {"\n".join(f"- {p.path.name}: {p.analysis}" for p in plots)}
     </IMAGES>
+
+    ## Memory (Previous Attempts)
+
+    <MEMORY>
+    {memory or "NA"}
+    </MEMORY>
+    """
+
+
+def build_prompt_compile_output(latex: str, stdout: str, stderr: str) -> str:
+    return f"""
+    Review LaTeX compilation output and identify compilation bugs.
+    
+    Determine if compilation succeeded or failed.
+
+    Common LaTeX errors:
+
+    - Undefined control sequences
+    - Missing $ errors
+    - Unmatched braces
+    - Missing figures/files
+    - Bibliography errors
+    - Label/reference issues
+    
+    Set is_bug=True if compilation failed.
+    Provide concise summary of issue.
+
+    ## LaTeX Code
+
+    <LATEX>
+    {latex}
+    </LATEX>
+    
+    ## Stdout
+    
+    <STDOUT>
+    {stdout}
+    </STDOUT>
+    
+    ## Stderr
+    
+    <STDERR>
+    {stderr}
+    </STDERR>
     """

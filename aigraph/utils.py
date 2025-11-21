@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Annotated
+from typing import Annotated, NamedTuple
 import logging
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -68,6 +68,8 @@ class Ablation(BaseModel):
 
 
 class Plot(BaseModel):
+    model_config = ConfigDict(frozen=True)  # so it becomes hashable
+
     path: Path
     analysis: str
 
@@ -79,6 +81,12 @@ class RunCodeResult:
     returncode: int
     directory: str
     filename: str
+
+
+class Exec(NamedTuple):
+    returncode: int
+    stdout: str
+    stderr: str
 
 
 def _to_script(code: str, deps: list[str] = []) -> str:
@@ -97,15 +105,9 @@ def _to_script(code: str, deps: list[str] = []) -> str:
     return script
 
 
-async def exec_code(cwd: str | Path, filename: str, code: str, deps: list[str]) -> RunCodeResult:
-    file = Path(cwd) / filename
-    file = file.absolute()
-    file.write_text(_to_script(code, deps))
-
+async def exec(*args: str, cwd: Path) -> Exec:
     proc = await asyncio.create_subprocess_exec(
-        "uv",
-        "run",
-        str(file),
+        *args,
         cwd=cwd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -113,7 +115,7 @@ async def exec_code(cwd: str | Path, filename: str, code: str, deps: list[str]) 
 
     async def _read(stream: asyncio.StreamReader | None, prefix: str) -> str:
         """
-        Utility to read and log the stdout/stderr of a subprocess while it is 
+        Utility to read and log the stdout/stderr of a subprocess while it is
         executing
         """
         if stream is None:
@@ -121,7 +123,7 @@ async def exec_code(cwd: str | Path, filename: str, code: str, deps: list[str]) 
 
         data = ""
         while line := await stream.readline():
-            logger.debug(f"{prefix}: {line!r}")
+            logger.debug(f"{prefix} (pid={proc.pid}): {line!r}")
             data += line.decode()
 
         return data
@@ -133,57 +135,46 @@ async def exec_code(cwd: str | Path, filename: str, code: str, deps: list[str]) 
 
     stdout = await stdout_task
     stderr = await stderr_task
-
-    logger.debug(f"returncode: {proc.returncode}")
-    logger.debug(f"stdout: {stdout[:96]!r}")
-    logger.debug(f"stderr: {stderr[:96]!r}")
-
-    # ternary because 0 is a valid return code and falsy... so, using:
-    # `returncode = proc.returncode or -1` would be incorrectly mapped to -1
     returncode = proc.returncode if proc.returncode is not None else -1
 
+    logger.debug(f"returncode: {returncode}")
+    logger.debug(f"stdout: {stdout[:32]!r}")
+    logger.debug(f"stderr: {stderr[:32]!r}")
+
+    return Exec(returncode=returncode, stdout=stdout, stderr=stderr)
+
+
+async def exec_code(cwd: str | Path, filename: str, code: str, deps: list[str]) -> RunCodeResult:
+    file = Path(cwd) / filename
+    file = file.absolute()
+    file.write_text(_to_script(code, deps))
+
+    result = await exec('uv', 'run', str(file), cwd=Path(cwd))
+
     return RunCodeResult(
-        stdout=stdout,
-        stderr=stderr,
-        returncode=returncode,
+        stdout=result.stdout,
+        stderr=result.stderr,
+        returncode=result.returncode,
         directory=str(cwd),
         filename=str(file),
     )
 
 
-async def exec_code_at(
-    cwd: str,
-    code: str,
-    deps: list[str] = [],
-) -> RunCodeResult:
-    file = NamedTemporaryFile(mode="wt", suffix=".py", dir=cwd, delete=False)
-    
-    script = _to_script(code, deps)
-    file.write(script)
-    file.flush()
+async def compile(cwd: Path, file: Path) -> Exec:
+    first = await exec('pdflatex', '-interaction=nonstopmode', file.name, cwd=cwd)
+    if first.returncode != 0:
+        return first
 
-    proc = await asyncio.create_subprocess_exec(
-        "uv",
-        "run",
-        file.name,
-        cwd=cwd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
+    second = await exec('bibtex', file.stem, cwd=cwd)
+    if second.returncode != 0:
+        return second
 
-    await proc.wait()
+    third = await exec('pdflatex', '-interaction=nonstopmode', file.name, cwd=cwd)
+    if third.returncode != 0:
+        return third
 
-    stdout = await proc.stdout.read() if proc.stdout else b""
-    stderr = await proc.stderr.read() if proc.stderr else b""
+    fourth = await exec('pdflatex', '-interaction=nonstopmode', file.name, cwd=cwd)
+    if fourth.returncode != 0:
+        return fourth
 
-    # ternary because 0 is a valid return code and falsy... so, using:
-    # `returncode = proc.returncode or -1` would be incorrectly mapped to -1
-    returncode = proc.returncode if proc.returncode is not None else -1
-
-    return RunCodeResult(
-        stdout=stdout.decode(),
-        stderr=stderr.decode(),
-        returncode=returncode,
-        directory=cwd,
-        filename=file.name,
-    )
+    return fourth
