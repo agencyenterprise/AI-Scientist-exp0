@@ -1,7 +1,7 @@
 import logging
 from typing import List, Protocol, Tuple
 
-from ai_scientist.llm.query import FunctionSpec, query
+from ai_scientist.llm import FunctionSpec, query
 
 from ..journal import Journal, Node
 from ..response_parsing import parse_keyword_prefix_response

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, cast
 
-from ai_scientist.llm.query import FunctionSpec, query
+from ai_scientist.llm import FunctionSpec, query
 from ai_scientist.treesearch.events import BaseEvent, RunLogEvent, RunStageProgressEvent
 
 from .journal import Journal, Node

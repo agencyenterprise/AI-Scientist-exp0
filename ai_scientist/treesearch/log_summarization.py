@@ -2,12 +2,9 @@ import logging
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import Any, cast
 
-import openai
 from tqdm import tqdm
-
-from ai_scientist.llm import create_client
 
 from .journal import Journal, Node
 
@@ -150,18 +147,20 @@ def get_summarizer_prompt(journal: Journal, stage_name: str) -> tuple[str, str]:
 
 
 def get_stage_summary(
-    journal: Journal, stage_name: str, model: str, client: openai.OpenAI, temperature: float
+    journal: Journal,
+    stage_name: str,
+    model: str,
+    temperature: float,
 ) -> dict[str, Any] | None:
     sys_msg, prompt = get_summarizer_prompt(journal=journal, stage_name=stage_name)
     response_text, _ = get_response_from_llm(
         prompt=prompt,
-        client=client,
         model=model,
         system_message=sys_msg,
         temperature=temperature,
     )
     summary_json = extract_json_between_markers(response_text)
-    return summary_json
+    return cast(dict[str, Any] | None, summary_json)
 
 
 def get_node_log(node: Node) -> dict[str, Any]:
@@ -214,7 +213,6 @@ def update_summary(
     cur_journal: Journal,
     cur_summary: dict[str, Any],
     model: str,
-    client: openai.OpenAI,
     temperature: float,
     max_retry: int = 5,
 ) -> dict[str, Any]:
@@ -226,7 +224,6 @@ def update_summary(
     try:
         response_text, _ = get_response_from_llm(
             prompt=prompt,
-            client=client,
             model=model,
             system_message="You are an expert machine learning researcher.",
             temperature=temperature,
@@ -242,14 +239,13 @@ def update_summary(
                 cur_journal=cur_journal,
                 cur_summary=cur_summary,
                 model=model,
-                client=client,
                 temperature=temperature,
                 max_retry=max_retry - 1,
             )
         else:
             logger.exception(f"Failed to update summary after multiple attempts. Error: {e}")
             raise
-    return summary_json
+    return cast(dict[str, Any], summary_json)
 
 
 overall_plan_summarizer_prompt = """You have been provided with the plans for both the parent node and the current node. Your task is to synthesize a comprehensive summary of the overall plan by integrating details from both the parent and current node plans.
@@ -283,7 +279,9 @@ Ensure the JSON is valid and properly formatted, as it will be automatically par
 
 
 def annotate_history(
-    journal: Journal, model: str, client: openai.OpenAI, temperature: float
+    journal: Journal,
+    model: str,
+    temperature: float,
 ) -> None:
     for node in journal.nodes:
         if node.parent:
@@ -296,7 +294,6 @@ def annotate_history(
                             prev_overall_plan=node.parent.overall_plan,
                             current_plan=node.plan,
                         ),
-                        client=client,
                         model=model,
                         system_message=report_summarizer_sys_msg,
                         temperature=temperature,
@@ -322,13 +319,11 @@ def annotate_history(
 def overall_summarize(
     journals: list[tuple[str, Journal]], model: str, temperature: float
 ) -> tuple[dict[str, Any] | list[dict[str, Any]] | None, ...]:
-    client, _ = create_client(model)
-
     def process_stage(
         idx: int, stage_tuple: tuple[str, Journal]
     ) -> dict[str, Any] | list[dict[str, Any]] | None:
         stage_name, journal = stage_tuple
-        annotate_history(journal, model=model, client=client, temperature=temperature)
+        annotate_history(journal, model=model, temperature=temperature)
         if idx in [1, 2]:
             best_node = journal.get_best_node()
             # get multi-seed results and aggregater node
@@ -384,7 +379,6 @@ def overall_summarize(
                 journal=journal,
                 stage_name=stage_name,
                 model=model,
-                client=client,
                 temperature=temperature,
             )
             return summary_json

@@ -3,12 +3,11 @@ import hashlib
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
-import openai
 import pymupdf  # type: ignore[import-untyped]
 
-from ai_scientist.llm import extract_json_between_markers_vlm, get_response_from_vlm
+from ai_scientist.llm.vlm import extract_json_between_markers_vlm, get_response_from_vlm
 from ai_scientist.perform_llm_review import load_paper
 
 logger = logging.getLogger(__name__)
@@ -349,7 +348,6 @@ def generate_vlm_img_cap_ref_review(
     img: Dict[str, Any],
     abstract: str,
     model: str,
-    client: openai.OpenAI,
     temperature: float,
 ) -> Dict[str, Any] | None:
     prompt = img_cap_ref_review_prompt.format(
@@ -360,34 +358,33 @@ def generate_vlm_img_cap_ref_review(
     content, _ = get_response_from_vlm(
         msg=prompt,
         image_paths=img["images"],
-        client=client,
         model=model,
         system_message=reviewer_system_prompt_base,
         temperature=temperature,
     )
     img_cap_ref_review_json = extract_json_between_markers_vlm(content)
-    return img_cap_ref_review_json
+    return cast(Dict[str, Any] | None, img_cap_ref_review_json)
 
 
 def generate_vlm_img_review(
-    img: Dict[str, Any], model: str, client: openai.OpenAI, temperature: float
+    img: Dict[str, Any],
+    model: str,
+    temperature: float,
 ) -> Dict[str, Any] | None:
     prompt = img_review_prompt
     content, _ = get_response_from_vlm(
         msg=prompt,
         image_paths=img["images"],
-        client=client,
         model=model,
         system_message=reviewer_system_prompt_base,
         temperature=temperature,
     )
     img_review_json = extract_json_between_markers_vlm(content)
-    return img_review_json
+    return cast(Dict[str, Any] | None, img_review_json)
 
 
 def perform_imgs_cap_ref_review(
-    client: openai.OpenAI,
-    client_model: str,
+    model: str,
     pdf_path: str,
     temperature: float,
 ) -> Dict[str, Any]:
@@ -405,8 +402,7 @@ def perform_imgs_cap_ref_review(
         review = generate_vlm_img_cap_ref_review(
             img=img,
             abstract=abstract,
-            model=client_model,
-            client=client,
+            model=model,
             temperature=temperature,
         )
         img_reviews[img["img_name"]] = review
@@ -414,8 +410,7 @@ def perform_imgs_cap_ref_review(
 
 
 def detect_duplicate_figures(
-    client: openai.OpenAI,
-    client_model: str,
+    model: str,
     pdf_path: str,
     temperature: float,
 ) -> str | Dict[str, str]:
@@ -445,8 +440,7 @@ def detect_duplicate_figures(
                 "which ones are similar and explain why. Focus on content similarity, not just visual style."
             ),
             image_paths=image_paths,
-            client=client,
-            model=client_model,
+            model=model,
             system_message=system_message,
             temperature=temperature,
         )
@@ -460,7 +454,6 @@ def generate_vlm_img_selection_review(
     img: Dict[str, Any],
     abstract: str,
     model: str,
-    client: openai.OpenAI,
     reflection_page_info: str,
     temperature: float,
 ) -> Dict[str, Any] | None:
@@ -473,18 +466,16 @@ def generate_vlm_img_selection_review(
     content, _ = get_response_from_vlm(
         msg=prompt,
         image_paths=img["images"],
-        client=client,
         model=model,
         system_message=reviewer_system_prompt_base,
         temperature=temperature,
     )
     img_cap_ref_review_json = extract_json_between_markers_vlm(content)
-    return img_cap_ref_review_json
+    return cast(Dict[str, Any] | None, img_cap_ref_review_json)
 
 
 def perform_imgs_cap_ref_review_selection(
-    client: openai.OpenAI,
-    client_model: str,
+    model: str,
     pdf_path: str,
     reflection_page_info: str,
     temperature: float,
@@ -503,8 +494,7 @@ def perform_imgs_cap_ref_review_selection(
         review = generate_vlm_img_selection_review(
             img=img,
             abstract=abstract,
-            model=client_model,
-            client=client,
+            model=model,
             reflection_page_info=reflection_page_info,
             temperature=temperature,
         )

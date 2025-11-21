@@ -5,8 +5,7 @@ import logging
 import os
 from typing import List, Protocol, Tuple
 
-from ai_scientist.llm import vlm_query
-from ai_scientist.llm.query import query
+from ai_scientist.llm import query
 
 from .journal import Node
 from .response_parsing import parse_keyword_prefix_response
@@ -291,7 +290,7 @@ def analyze_plots_with_vlm(*, agent: SupportsPlottingAgent, node: Node) -> None:
     for plot_path in selected_plots:
         encoded = _encode_image_to_base64(plot_path)
         if not encoded:
-            logger.warning(f"Skipping plot for VLM (failed to base64 encode): {plot_path}")
+            logger.warning("Skipping plot for VLM (failed to base64 encode): %s", plot_path)
             continue
         mime = _infer_image_mime_type(plot_path)
         image_parts.append(
@@ -306,7 +305,7 @@ def analyze_plots_with_vlm(*, agent: SupportsPlottingAgent, node: Node) -> None:
 
     user_message = [text_part] + image_parts
 
-    response = vlm_query(
+    response = query(
         system_message=None,
         user_message=user_message,
         func_spec=vlm_feedback_spec,

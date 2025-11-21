@@ -10,7 +10,7 @@ from typing import Any, Callable, List, Literal, Optional, cast
 
 from dataclasses_json import DataClassJsonMixin
 
-from ai_scientist.llm.query import FunctionSpec, query
+from ai_scientist.llm import FunctionSpec, query
 
 from .events import BaseEvent, RunLogEvent
 from .interpreter import ExecutionResult

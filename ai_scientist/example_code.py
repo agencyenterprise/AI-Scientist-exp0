@@ -6,8 +6,8 @@ import torch
 from datasets import Dataset, load_dataset  # type: ignore[import-untyped]
 from huggingface_hub import login
 from PIL import Image  # noqa: F401
-from torch.utils.data import DataLoader
-from torchvision import transforms  # type: ignore[import-untyped]  # noqa: F401
+from torch.utils.data import DataLoader  # noqa: F401
+from torchvision import transforms  # type: ignore[import-untyped] # noqa: F401
 from tqdm import tqdm
 from transformers import (  # type: ignore[import-untyped]
     AutoModelForCausalLM,
