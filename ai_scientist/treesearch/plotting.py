@@ -5,6 +5,7 @@ import logging
 import os
 from typing import List, Protocol, Tuple
 
+from ai_scientist.llm import vlm_query
 from ai_scientist.llm.query import query
 
 from .journal import Node
@@ -262,6 +263,16 @@ def analyze_plots_with_vlm(*, agent: SupportsPlottingAgent, node: Node) -> None:
         except Exception:
             selected_plots = node.plot_paths[:10]
 
+    # Log which plots will be sent to the VLM
+    try:
+        logger.debug(f"Selected {len(selected_plots)} plot(s) for VLM analysis: {selected_plots}")
+        logger.debug(
+            f"VLM feedback model: {agent.cfg.agent.vlm_feedback.model}, "
+            f"temperature: {agent.cfg.agent.vlm_feedback.temp}"
+        )
+    except Exception:
+        logger.debug("Failed to log selected plots for VLM analysis (non-fatal).")
+
     text_part = {
         "type": "text",
         "text": (
@@ -295,7 +306,7 @@ def analyze_plots_with_vlm(*, agent: SupportsPlottingAgent, node: Node) -> None:
 
     user_message = [text_part] + image_parts
 
-    response = query(
+    response = vlm_query(
         system_message=None,
         user_message=user_message,
         func_spec=vlm_feedback_spec,

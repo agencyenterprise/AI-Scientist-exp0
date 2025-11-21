@@ -10,7 +10,8 @@ import backoff
 import openai
 from PIL import Image
 
-from .query.utils import get_openai_base_url
+from .query import backend_openai
+from .query.utils import FunctionSpec, PromptType, compile_prompt_to_md, get_openai_base_url
 from .token_tracker import track_token_usage
 
 logger = logging.getLogger("ai-scientist")
@@ -161,6 +162,49 @@ def create_vlm_client(model: str) -> tuple[openai.OpenAI, str]:
         return openai.OpenAI(base_url=base_url), model
     else:
         raise ValueError(f"Model {model} not supported.")
+
+
+def vlm_query(
+    system_message: PromptType | None,
+    user_message: PromptType | None,
+    model: str,
+    temperature: float,
+    max_tokens: int | None = None,
+    func_spec: FunctionSpec | None = None,
+    **model_kwargs: object,
+) -> str | dict:
+    """
+    Vision-language query helper with the same external signature as `llm.query.query`,
+    but restricted to VLM-capable OpenAI models defined in `AVAILABLE_VLMS`.
+    """
+    if model not in AVAILABLE_VLMS:
+        raise ValueError(f"Model {model} is not a supported vision-language model.")
+
+    # Merge caller-provided kwargs with core generation parameters
+    merged_kwargs: dict[str, object] = {**model_kwargs, "model": model, "temperature": temperature}
+    # For non-o1 models, use max_tokens; o1-style models are not in AVAILABLE_VLMS.
+    merged_kwargs["max_tokens"] = max_tokens
+
+    compiled_system = compile_prompt_to_md(system_message) if system_message is not None else None
+    compiled_user = compile_prompt_to_md(user_message) if user_message is not None else None
+    logger.debug("*" * 20 + " VLM_QUERY CALL " + "*" * 20)
+    logger.debug(f"Model: {model}")
+    logger.debug(f"Temperature: {temperature}")
+    logger.debug(f"Max tokens: {max_tokens}")
+    logger.debug(f"Has func_spec: {func_spec.name if func_spec is not None else None}")
+    logger.debug(f"System message: {system_message}")
+    logger.debug(f"User message: {user_message}")
+    logger.debug("*" * 24 + " END VLM_QUERY CALL " + "*" * 24)
+    logger.debug(f"Compiled system: {compiled_system}")
+    logger.debug(f"Compiled user: {compiled_user}")
+
+    output, _req_time, _in_tok, _out_tok, _info = backend_openai.query(
+        system_message=compiled_system,
+        user_message=compiled_user,
+        func_spec=func_spec,
+        **merged_kwargs,
+    )
+    return output
 
 
 def extract_json_between_markers_vlm(llm_output: str) -> dict[Any, Any] | None:
