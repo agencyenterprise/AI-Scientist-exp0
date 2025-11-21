@@ -227,13 +227,13 @@ def build_prompt_tuning_code(task: Task, name: str, description: str, code: str,
        ```
     2. Track and update metrics as in the original code.
     3. Update metrics at EACH epoch
-    4. Save ALL metrics at the end. You must use the filename `experiment_data.json`:
+    4. Save ALL metrics at the end. You must use the filename `data_tuning.json`:
        ```python
-       with open(os.path.join(os.getcwd(), 'experiment_data.json'), 'w') as f:
+       with open(os.path.join(os.getcwd(), 'data_tuning.json'), 'w') as f:
            json.dump(experiment_data, f)
        ```
 
-    YOUR CODE MUST SAVE THE DATA IN THE `experiment_data.json` FILE.
+    YOUR CODE MUST SAVE THE DATA IN THE `data_tuning.json` FILE.
 
     ## Research idea
 
@@ -302,7 +302,7 @@ def build_prompt_tuning_parser_code(code: str, memory: str = "") -> str:
 
     You are an AI researcher analyzing experimental results stored in a JSON
     file. Write code to load and analyze the metrics from a file named
-    'experiment_data.json'. It has the following structure:
+    'data_tuning.json'. It has the following structure:
 
     ```json
     {{
@@ -335,7 +335,7 @@ def build_prompt_tuning_parser_code(code: str, memory: str = "") -> str:
 
     ## Instructions
 
-    - Load the `experiment_data.json` file, which is located in the current
+    - Load the `data_tuning.json` file, which is located in the current
       working directory
     - Extract metrics for each dataset. Refer to the original code to understand
       the data structure.
@@ -360,13 +360,13 @@ def build_prompt_tuning_parser_code(code: str, memory: str = "") -> str:
     ```python
     import os
     import json
-    with open(os.path.join(os.getcwd(), 'experiment_data.json')) as f:
+    with open(os.path.join(os.getcwd(), 'data_tuning.json')) as f:
         experiment_data = json.load(f)
     ```
 
     ## Context
 
-    Here is the original code that was used to generate the `experiment_data.json`
+    Here is the original code that was used to generate the `data_tuning.json`
     file:
 
     <ORIGINAL_CODE>
