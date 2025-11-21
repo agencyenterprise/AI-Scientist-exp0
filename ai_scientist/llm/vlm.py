@@ -187,6 +187,16 @@ def vlm_query(
 
     compiled_system = compile_prompt_to_md(system_message) if system_message is not None else None
     compiled_user = compile_prompt_to_md(user_message) if user_message is not None else None
+    logger.debug("*" * 20 + " VLM_QUERY CALL " + "*" * 20)
+    logger.debug(f"Model: {model}")
+    logger.debug(f"Temperature: {temperature}")
+    logger.debug(f"Max tokens: {max_tokens}")
+    logger.debug(f"Has func_spec: {func_spec.name if func_spec is not None else None}")
+    logger.debug(f"System message: {system_message}")
+    logger.debug(f"User message: {user_message}")
+    logger.debug("*" * 24 + " END VLM_QUERY CALL " + "*" * 24)
+    logger.debug(f"Compiled system: {compiled_system}")
+    logger.debug(f"Compiled user: {compiled_user}")
 
     output, _req_time, _in_tok, _out_tok, _info = backend_openai.query(
         system_message=compiled_system,
