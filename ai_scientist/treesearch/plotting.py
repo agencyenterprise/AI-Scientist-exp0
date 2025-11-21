@@ -262,6 +262,16 @@ def analyze_plots_with_vlm(*, agent: SupportsPlottingAgent, node: Node) -> None:
         except Exception:
             selected_plots = node.plot_paths[:10]
 
+    # Log which plots will be sent to the VLM
+    try:
+        logger.debug(f"Selected {len(selected_plots)} plot(s) for VLM analysis: {selected_plots}")
+        logger.debug(
+            f"VLM feedback model: {agent.cfg.agent.vlm_feedback.model}, "
+            f"temperature: {agent.cfg.agent.vlm_feedback.temp}"
+        )
+    except Exception:
+        logger.debug("Failed to log selected plots for VLM analysis (non-fatal).")
+
     text_part = {
         "type": "text",
         "text": (
@@ -280,7 +290,7 @@ def analyze_plots_with_vlm(*, agent: SupportsPlottingAgent, node: Node) -> None:
     for plot_path in selected_plots:
         encoded = _encode_image_to_base64(plot_path)
         if not encoded:
-            logger.warning(f"Skipping plot for VLM (failed to base64 encode): {plot_path}")
+            logger.warning("Skipping plot for VLM (failed to base64 encode): %s", plot_path)
             continue
         mime = _infer_image_mime_type(plot_path)
         image_parts.append(

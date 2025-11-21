@@ -138,13 +138,18 @@ def get_response_from_vlm(
     full_history = new_msg_history + [ai_message]
 
     if print_debug:
-        logger.debug("")
-        logger.debug("*" * 20 + " VLM START " + "*" * 20)
+        logger.debug("%s", "")
+        logger.debug("%s VLM START %s", "*" * 20, "*" * 20)
         for idx, message in enumerate(full_history):
-            logger.debug("%s, %s: %s", idx, message.type, getattr(message, "content", ""))
-        logger.debug(content_str)
-        logger.debug("*" * 21 + " VLM END " + "*" * 21)
-        logger.debug("")
+            logger.debug(
+                "%s, %s: %s",
+                idx,
+                getattr(message, "type", type(message).__name__),
+                getattr(message, "content", ""),
+            )
+        logger.debug("%s", content_str)
+        logger.debug("%s VLM END %s", "*" * 21, "*" * 21)
+        logger.debug("%s", "")
 
     return content_str, full_history
 

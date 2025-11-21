@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, cast
 
 import pymupdf  # type: ignore[import-untyped]
 
-from ai_scientist.llm import extract_json_between_markers_vlm, get_response_from_vlm
+from ai_scientist.llm.vlm import extract_json_between_markers_vlm, get_response_from_vlm
 from ai_scientist.perform_llm_review import load_paper
 
 logger = logging.getLogger(__name__)
