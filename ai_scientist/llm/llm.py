@@ -1,418 +1,123 @@
 import json
 import logging
-import os
 import re
-from typing import Any, cast
+from dataclasses import dataclass
+from typing import Any, Tuple
 
-import anthropic
-import backoff
-import openai
-import requests
+import jsonschema
+from dataclasses_json import DataClassJsonMixin
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_openai import ChatOpenAI
 
-from .query.utils import get_openai_base_url
 from .token_tracker import track_token_usage
 
 logger = logging.getLogger("ai-scientist")
 
-MAX_NUM_TOKENS = 4096
+
+PromptType = str | dict[str, Any] | list[Any]
+FunctionCallType = dict[str, Any]
+OutputType = str | FunctionCallType
 
 
-# Get N responses from a single message, used for ensembling.
-@backoff.on_exception(
-    backoff.expo,
-    (
-        openai.RateLimitError,
-        openai.APITimeoutError,
-        openai.InternalServerError,
-        anthropic.RateLimitError,
-    ),
-)
-@track_token_usage
 def get_batch_responses_from_llm(
     prompt: str,
-    client: openai.OpenAI | anthropic.Anthropic,
     model: str,
     system_message: str,
     temperature: float,
     print_debug: bool = True,
-    msg_history: list[dict[str, Any]] | None = None,
+    msg_history: list[BaseMessage] | None = None,
     n_responses: int = 1,
-) -> tuple[list[str], list[list[dict[str, Any]]]]:
-    msg = prompt
+) -> tuple[list[str], list[list[BaseMessage]]]:
     if msg_history is None:
         msg_history = []
 
-    # Predeclare for consistent typing across branches
-    content: list[str] = []
-    histories: list[list[dict[str, Any]]] = []
-
-    if model == "gpt-5":
-        # gpt-5 uses max_completion_tokens instead of max_tokens
-        base_history: list[dict[str, Any]] = msg_history + [{"role": "user", "content": msg}]
-        assert isinstance(client, openai.OpenAI)
-        response: Any = client.chat.completions.create(  # noqa: ANN401
+    contents: list[str] = []
+    histories: list[list[BaseMessage]] = []
+    for _ in range(n_responses):
+        content, history = get_response_from_llm(
+            prompt=prompt,
             model=model,
-            messages=cast(Any, [{"role": "system", "content": system_message}] + base_history),
+            system_message=system_message,
             temperature=temperature,
-            max_completion_tokens=MAX_NUM_TOKENS,
-            n=n_responses,
-            stop=None,
-            seed=0,
+            print_debug=print_debug,
+            msg_history=msg_history,
         )
-        content = [r.message.content for r in response.choices]
-        histories = [base_history + [{"role": "assistant", "content": c}] for c in content]
-    elif "gpt" in model:
-        base_history = msg_history + [{"role": "user", "content": msg}]
-        assert isinstance(client, openai.OpenAI)
-        response = client.chat.completions.create(
-            model=model,
-            messages=cast(Any, [{"role": "system", "content": system_message}] + base_history),
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=n_responses,
-            stop=None,
-            seed=0,
-        )
-        content = [r.message.content for r in response.choices]
-        histories = [base_history + [{"role": "assistant", "content": c}] for c in content]
-    elif model == "deepseek-coder-v2-0724":
-        base_history = msg_history + [{"role": "user", "content": msg}]
-        assert isinstance(client, openai.OpenAI)
-        response = client.chat.completions.create(
-            model="deepseek-coder",
-            messages=cast(Any, [{"role": "system", "content": system_message}] + base_history),
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=n_responses,
-            stop=None,
-        )
-        content = [r.message.content for r in response.choices]
-        histories = [msg_history + [{"role": "assistant", "content": c}] for c in content]
-    elif model == "llama-3-1-405b-instruct":
-        base_history = msg_history + [{"role": "user", "content": msg}]
-        assert isinstance(client, openai.OpenAI)
-        response = client.chat.completions.create(
-            model="meta-llama/llama-3.1-405b-instruct",
-            messages=cast(Any, [{"role": "system", "content": system_message}] + base_history),
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=n_responses,
-            stop=None,
-        )
-        content = [r.message.content for r in response.choices]
-        histories = [msg_history + [{"role": "assistant", "content": c}] for c in content]
-    elif "gemini" in model:
-        base_history = msg_history + [{"role": "user", "content": msg}]
-        assert isinstance(client, openai.OpenAI)
-        response = client.chat.completions.create(
-            model=model,
-            messages=cast(Any, [{"role": "system", "content": system_message}] + base_history),
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=n_responses,
-            stop=None,
-        )
-        content = [r.message.content for r in response.choices]
-        histories = [msg_history + [{"role": "assistant", "content": c}] for c in content]
-    else:
-        content = []
-        histories = []
-        for _ in range(n_responses):
-            c, hist = get_response_from_llm(
-                msg,
-                client,
-                model,
-                system_message,
-                print_debug=False,
-                msg_history=None,
-                temperature=temperature,
-            )
-            content.append(c)
-            histories.append(hist)
+        contents.append(content)
+        histories.append(history)
 
-    if print_debug:
-        # Just log the first one.
-        logger.debug("")
-        logger.debug("*" * 20 + " LLM START " + "*" * 20)
-        for j, msg_item in enumerate(msg_history + [{"role": "user", "content": msg}]):
-            logger.debug(f'{j}, {msg_item["role"]}: {msg_item["content"]}')
-        logger.debug(content)
-        logger.debug("*" * 21 + " LLM END " + "*" * 21)
-        logger.debug("")
-
-    return content, histories
+    return contents, histories
 
 
 @track_token_usage
 def make_llm_call(
-    client: openai.OpenAI | anthropic.Anthropic,
     model: str,
     temperature: float,
     system_message: str,
-    prompt: list[dict[str, Any]],
-) -> Any:  # noqa: ANN401
-    # Log full request payload when in DEBUG mode
-    if logger.isEnabledFor(logging.DEBUG):
-        try:
-            logger.debug("*" * 20 + " LLM REQUEST " + "*" * 20)
-            logger.debug(f"Model: {model}")
-            logger.debug(f"System message:\n{system_message}")
-            logger.debug(f"Messages payload:\n{json.dumps(prompt, indent=2)}")
-            logger.debug("*" * 22 + " END REQUEST " + "*" * 22)
-        except Exception:
-            # Never fail the call due to logging
-            logger.debug("Failed to log LLM request payload (non-fatal).")
-
-    response: Any
-    if "gpt-5" in model:
-        # gpt-5 models only support temperature=1 and use max_completion_tokens
-        # Use 16K tokens for long-form generation (papers, writeups)
-        logger.debug(f"Calling gpt-5 with {len(prompt)} messages")
-        logger.debug(f"System message length: {len(system_message)} chars")
-        logger.debug(f"User message length: {len(prompt[-1]['content']) if prompt else 0} chars")
-        try:
-            assert isinstance(client, openai.OpenAI)
-            response = client.chat.completions.create(
-                model=model,
-                messages=cast(Any, [{"role": "system", "content": system_message}] + prompt),
-                temperature=1.0,
-                max_completion_tokens=16000,  # Increased from 4096 for long-form output
-                n=1,
-                stop=None,
-                seed=0,
-            )
-            logger.debug("gpt-5 response received")
-            logger.debug(f"Response finish_reason: {response.choices[0].finish_reason}")
-            logger.debug(
-                f"Response content length: {len(response.choices[0].message.content) if response.choices[0].message.content else 0}"
-            )
-            if response.choices[0].finish_reason == "length":
-                logger.warning(
-                    "gpt-5 hit token limit! Consider increasing max_completion_tokens further"
-                )
-        except Exception as e:
-            logger.debug(f"Exception in gpt-5 API call: {e}")
-            logger.debug(f"Exception type: {type(e)}")
-            raise
-    elif "gpt" in model:
-        assert isinstance(client, openai.OpenAI)
-        response = client.chat.completions.create(
-            model=model,
-            messages=cast(Any, [{"role": "system", "content": system_message}] + prompt),
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=1,
-            stop=None,
-            seed=0,
+    prompt: list[BaseMessage],
+) -> AIMessage:
+    messages: list[BaseMessage] = []
+    if system_message:
+        messages.append(SystemMessage(content=system_message))
+    messages.extend(prompt)
+    logger.debug("LLM make_llm_call - model=%s, temperature=%s", model, temperature)
+    logger.debug("LLM make_llm_call - system_message: %s", system_message)
+    for idx, message in enumerate(messages):
+        logger.debug(
+            "LLM make_llm_call - request message %s: %s - %s",
+            idx,
+            getattr(message, "type", type(message).__name__),
+            getattr(message, "content", ""),
         )
-    elif "o1" in model or "o3" in model:
-        assert isinstance(client, openai.OpenAI)
-        response = client.chat.completions.create(
-            model=model,
-            messages=cast(Any, [{"role": "user", "content": system_message}] + prompt),
-            temperature=1,
-            n=1,
-            seed=0,
-        )
-    else:
-        raise ValueError(f"Model {model} not supported.")
-
-    # Log full response payload when in DEBUG mode
-    if logger.isEnabledFor(logging.DEBUG):
-        try:
-            logger.debug("*" * 20 + " LLM RESPONSE " + "*" * 20)
-            # OpenAI-style chat.completions.create response
-            try:
-                content = response.choices[0].message.content
-            except Exception:
-                content = str(response)
-            logger.debug(f"Raw response content:\n{content}")
-            logger.debug("*" * 22 + " END RESPONSE " + "*" * 22)
-        except Exception:
-            logger.debug("Failed to log LLM response payload (non-fatal).")
-
-    return response
+    chat = ChatOpenAI(
+        model=model,
+        temperature=temperature,
+    )
+    retrying_chat = chat.with_retry(
+        retry_if_exception_type=(Exception,),
+        stop_after_attempt=3,
+    )
+    ai_message = retrying_chat.invoke(messages)
+    logger.debug(
+        "LLM make_llm_call - response: %s - %s",
+        getattr(ai_message, "type", type(ai_message).__name__),
+        getattr(ai_message, "content", ""),
+    )
+    return ai_message
 
 
-@backoff.on_exception(
-    backoff.expo,
-    (
-        openai.RateLimitError,
-        openai.APITimeoutError,
-        openai.InternalServerError,
-        anthropic.RateLimitError,
-    ),
-)
 def get_response_from_llm(
     prompt: str,
-    client: openai.OpenAI | anthropic.Anthropic,
     model: str,
     system_message: str,
     temperature: float,
     print_debug: bool = True,
-    msg_history: list[dict[str, Any]] | None = None,
-) -> tuple[str, list[dict[str, Any]]]:
-    msg = prompt
+    msg_history: list[BaseMessage] | None = None,
+) -> Tuple[str, list[BaseMessage]]:
     if msg_history is None:
         msg_history = []
 
-    response: Any
-    content: str
-
-    if "claude" in model:
-        new_msg_history = msg_history + [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": msg,
-                    }
-                ],
-            }
-        ]
-        assert isinstance(client, anthropic.Anthropic)
-        response = client.messages.create(
-            model=model,
-            max_tokens=MAX_NUM_TOKENS,
-            temperature=temperature,
-            system=system_message,
-            messages=cast(Any, new_msg_history),
-        )
-        content = response.content[0].text
-        new_msg_history = new_msg_history + [
-            {
-                "role": "assistant",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": content,
-                    }
-                ],
-            }
-        ]
-    elif "gpt" in model:
-        new_msg_history = msg_history + [{"role": "user", "content": msg}]
-        # gpt-5 models only support temperature=1 (like o1/o3)
-        if "gpt-5" in model:
-            temperature = 1.0
-        response = make_llm_call(  # noqa: ANN401
-            client,
-            model,
-            temperature,
-            system_message=system_message,
-            prompt=new_msg_history,
-        )
-        content = response.choices[0].message.content
-        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
-    elif "o1" in model or "o3" in model:
-        new_msg_history = msg_history + [{"role": "user", "content": msg}]
-        response = make_llm_call(  # noqa: ANN401
-            client,
-            model,
-            temperature,
-            system_message=system_message,
-            prompt=new_msg_history,
-        )
-        content = response.choices[0].message.content
-        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
-    elif model == "deepseek-coder-v2-0724":
-        new_msg_history = msg_history + [{"role": "user", "content": msg}]
-        assert isinstance(client, openai.OpenAI)
-        response = client.chat.completions.create(
-            model="deepseek-coder",
-            messages=cast(Any, [{"role": "system", "content": system_message}] + new_msg_history),
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=1,
-            stop=None,
-        )
-        content = response.choices[0].message.content
-        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
-    elif model == "deepcoder-14b":
-        new_msg_history = msg_history + [{"role": "user", "content": msg}]
-        assert isinstance(client, openai.OpenAI)
-        try:
-            response = client.chat.completions.create(
-                model="agentica-org/DeepCoder-14B-Preview",
-                messages=cast(
-                    Any, [{"role": "system", "content": system_message}] + new_msg_history
-                ),
-                temperature=temperature,
-                max_tokens=MAX_NUM_TOKENS,
-                n=1,
-                stop=None,
-            )
-            content = response.choices[0].message.content
-        except Exception:
-            # Fallback to direct API call if OpenAI client doesn't work with HuggingFace
-
-            headers = {
-                "Authorization": f"Bearer {os.environ['HUGGINGFACE_API_KEY']}",
-                "Content-Type": "application/json",
-            }
-            payload = {
-                "inputs": {
-                    "system": system_message,
-                    "messages": [
-                        {"role": m["role"], "content": m["content"]} for m in new_msg_history
-                    ],
-                },
-                "parameters": {
-                    "temperature": temperature,
-                    "max_new_tokens": MAX_NUM_TOKENS,
-                    "return_full_text": False,
-                },
-            }
-            response = requests.post(
-                "https://api-inference.huggingface.co/models/agentica-org/DeepCoder-14B-Preview",
-                headers=headers,
-                json=payload,
-            )
-            if response.status_code == 200:
-                content = response.json()["generated_text"]
-            else:
-                raise ValueError(f"Error from HuggingFace API: {response.text}")
-
-        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
-    elif model in ["meta-llama/llama-3.1-405b-instruct", "llama-3-1-405b-instruct"]:
-        new_msg_history = msg_history + [{"role": "user", "content": msg}]
-        assert isinstance(client, openai.OpenAI)
-        response = client.chat.completions.create(
-            model="meta-llama/llama-3.1-405b-instruct",
-            messages=cast(Any, [{"role": "system", "content": system_message}] + new_msg_history),
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=1,
-            stop=None,
-        )
-        content = response.choices[0].message.content
-        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
-    elif "gemini" in model:
-        new_msg_history = msg_history + [{"role": "user", "content": msg}]
-        assert isinstance(client, openai.OpenAI)
-        response = client.chat.completions.create(
-            model=model,
-            messages=cast(Any, [{"role": "system", "content": system_message}] + new_msg_history),
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=1,
-        )
-        content = response.choices[0].message.content
-        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
-    else:
-        raise ValueError(f"Model {model} not supported.")
+    # Append the latest user message to history using LangChain message types.
+    new_msg_history = msg_history + [HumanMessage(content=prompt)]
+    ai_message = make_llm_call(
+        model=model,
+        temperature=temperature,
+        system_message=system_message,
+        prompt=new_msg_history,
+    )
+    content = str(ai_message.content)
+    full_history = new_msg_history + [ai_message]
 
     if print_debug:
         logger.debug("")
         logger.debug("*" * 20 + " LLM START " + "*" * 20)
-        for j, msg_item in enumerate(new_msg_history):
-            logger.debug(f'{j}, {msg_item["role"]}: {msg_item["content"]}')
+        for idx, message in enumerate(full_history):
+            logger.debug("%s, %s: %s", idx, message.type, getattr(message, "content", ""))
         logger.debug(content)
         logger.debug("*" * 21 + " LLM END " + "*" * 21)
         logger.debug("")
 
-    return content, new_msg_history
+    return content, full_history
 
 
 def extract_json_between_markers(llm_output: str) -> dict | None:
@@ -445,62 +150,217 @@ def extract_json_between_markers(llm_output: str) -> dict | None:
     return None  # No valid JSON found
 
 
-def create_client(model: str) -> tuple[Any, str]:
-    if model.startswith("claude-"):
-        logger.info(f"Using Anthropic API with model {model}.")
-        return anthropic.Anthropic(), model
-    elif model.startswith("bedrock") and "claude" in model:
-        client_model = model.split("/")[-1]
-        logger.info(f"Using Amazon Bedrock with model {client_model}.")
-        return anthropic.AnthropicBedrock(), client_model
-    elif model.startswith("vertex_ai") and "claude" in model:
-        client_model = model.split("/")[-1]
-        logger.info(f"Using Vertex AI with model {client_model}.")
-        return anthropic.AnthropicVertex(), client_model
-    elif "o1" in model or "o3" in model or "gpt" in model:
-        logger.info(f"Using OpenAI API with model {model}.")
-        base_url = get_openai_base_url()
-        if base_url:
-            logger.info(f"Using custom OpenAI base_url: {base_url}")
-        return openai.OpenAI(base_url=base_url), model
-    elif model == "deepseek-coder-v2-0724":
-        logger.info(f"Using OpenAI API with {model}.")
-        return (
-            openai.OpenAI(
-                api_key=os.environ["DEEPSEEK_API_KEY"],
-                base_url="https://api.deepseek.com",
-            ),
-            model,
+def compile_prompt_to_md(
+    prompt: PromptType,
+    _header_depth: int = 1,
+) -> str | list[Any] | dict[str, Any]:
+    try:
+        if isinstance(prompt, str):
+            return prompt.strip() + "\n"
+
+        if isinstance(prompt, list):
+            if not prompt:
+                return ""
+            if all(isinstance(item, dict) and "type" in item for item in prompt):
+                return prompt
+
+            try:
+                result = "\n".join([f"- {str(s).strip()}" for s in prompt] + ["\n"])
+                return result
+            except Exception:
+                logger.exception("Error processing list items")
+                logger.error("List contents:")
+                for i, item in enumerate(prompt):
+                    logger.error("  Item %s: type=%s, value=%s", i, type(item), item)
+                raise
+
+        if isinstance(prompt, dict):
+            if "type" in prompt:
+                return prompt
+
+            try:
+                out: list[str] = []
+                header_prefix = "#" * _header_depth
+                for k, v in prompt.items():
+                    out.append(f"{header_prefix} {k}\n")
+                    compiled_v = compile_prompt_to_md(prompt=v, _header_depth=_header_depth + 1)
+                    if isinstance(compiled_v, str):
+                        out.append(compiled_v)
+                    else:
+                        out.append(str(compiled_v))
+                return "\n".join(out)
+            except Exception:
+                logger.exception("Error processing dict")
+                logger.error("Dict contents: %s", prompt)
+                raise
+
+        raise ValueError(f"Unsupported prompt type: {type(prompt)}")
+
+    except Exception as exc:
+        logger.error("Error in compile_prompt_to_md:")
+        logger.error("Input type: %s", type(prompt))
+        logger.error("Input content: %s", prompt)
+        logger.error("Error: %s", str(exc))
+        raise
+
+
+@dataclass
+class FunctionSpec(DataClassJsonMixin):
+    name: str
+    json_schema: dict[str, Any]
+    description: str
+
+    def __post_init__(self) -> None:
+        jsonschema.Draft7Validator.check_schema(self.json_schema)
+
+
+def _build_messages_for_query(
+    *,
+    system_message: PromptType | None,
+    user_message: PromptType | None,
+) -> list[BaseMessage]:
+    messages: list[BaseMessage] = []
+    if system_message is not None:
+        compiled_system = compile_prompt_to_md(prompt=system_message)
+        messages.append(SystemMessage(content=str(compiled_system)))
+    if user_message is not None:
+        compiled_user = compile_prompt_to_md(prompt=user_message)
+        # Normalize compiled_user to types accepted by HumanMessage:
+        # str or list[str | dict[Any, Any]].
+        if isinstance(compiled_user, str):
+            messages.append(HumanMessage(content=compiled_user))
+        elif isinstance(compiled_user, list):
+            normalized_blocks: list[str | dict[Any, Any]] = []
+            for item in compiled_user:
+                if isinstance(item, (str, dict)):
+                    normalized_blocks.append(item)
+                else:
+                    normalized_blocks.append(str(item))
+            messages.append(HumanMessage(content=normalized_blocks))
+        elif isinstance(compiled_user, dict):
+            messages.append(HumanMessage(content=[compiled_user]))
+    return messages
+
+
+def _invoke_langchain_query(
+    *,
+    system_message: PromptType | None,
+    user_message: PromptType | None,
+    model: str,
+    temperature: float,
+) -> str:
+    messages = _build_messages_for_query(
+        system_message=system_message,
+        user_message=user_message,
+    )
+    logger.debug("LLM _invoke_langchain_query - model=%s, temperature=%s", model, temperature)
+    logger.debug("LLM _invoke_langchain_query - compiled messages:")
+    for idx, message in enumerate(messages):
+        logger.debug(
+            "LLM _invoke_langchain_query - message %s: %s - %s",
+            idx,
+            getattr(message, "type", type(message).__name__),
+            getattr(message, "content", ""),
         )
-    elif model == "deepcoder-14b":
-        logger.info(f"Using HuggingFace API with {model}.")
-        # Using OpenAI client with HuggingFace API
-        if "HUGGINGFACE_API_KEY" not in os.environ:
-            raise ValueError("HUGGINGFACE_API_KEY environment variable not set")
-        return (
-            openai.OpenAI(
-                api_key=os.environ["HUGGINGFACE_API_KEY"],
-                base_url="https://api-inference.huggingface.co/models/agentica-org/DeepCoder-14B-Preview",
-            ),
-            model,
+    chat = ChatOpenAI(
+        model=model,
+        temperature=temperature,
+    )
+    ai_message = chat.invoke(messages)
+    logger.debug(
+        "LLM _invoke_langchain_query - response: %s - %s",
+        getattr(ai_message, "type", type(ai_message).__name__),
+        getattr(ai_message, "content", ""),
+    )
+    return str(ai_message.content)
+
+
+def _invoke_structured_langchain_query(
+    *,
+    system_message: PromptType | None,
+    user_message: PromptType | None,
+    model: str,
+    temperature: float,
+) -> dict[str, Any]:
+    messages = _build_messages_for_query(
+        system_message=system_message,
+        user_message=user_message,
+    )
+    logger.debug(
+        "LLM _invoke_structured_langchain_query - model=%s, temperature=%s",
+        model,
+        temperature,
+    )
+    logger.debug("LLM _invoke_structured_langchain_query - compiled messages:")
+    for idx, message in enumerate(messages):
+        logger.debug(
+            "LLM _invoke_structured_langchain_query - message %s: %s - %s",
+            idx,
+            getattr(message, "type", type(message).__name__),
+            getattr(message, "content", ""),
         )
-    elif model == "llama3.1-405b":
-        logger.info(f"Using OpenAI API with {model}.")
-        return (
-            openai.OpenAI(
-                api_key=os.environ["OPENROUTER_API_KEY"],
-                base_url="https://openrouter.ai/api/v1",
-            ),
-            "meta-llama/llama-3.1-405b-instruct",
+    chat = ChatOpenAI(
+        model=model,
+        temperature=temperature,
+    )
+    retrying_chat = chat.with_retry(
+        retry_if_exception_type=(Exception,),
+        stop_after_attempt=3,
+    )
+    parser = JsonOutputParser()
+    structured_chain = retrying_chat | parser
+    parsed: dict[str, Any] = structured_chain.invoke(messages)
+    logger.debug("LLM _invoke_structured_langchain_query - parsed JSON: %s", parsed)
+    return parsed
+
+
+def query(
+    system_message: PromptType | None,
+    user_message: PromptType | None,
+    model: str,
+    temperature: float,
+    func_spec: FunctionSpec | None = None,
+    **model_kwargs: object,
+) -> OutputType:
+    """
+    Unified LangChain-backed query interface for the tree search code.
+
+    When func_spec is provided, the model is instructed (via the system message)
+    to return a JSON object matching the given schema, and the result is parsed
+    into a Python dict.
+    """
+    del model_kwargs  # Unused for now; kept for call-site compatibility.
+
+    if func_spec is None:
+        return _invoke_langchain_query(
+            system_message=system_message,
+            user_message=user_message,
+            model=model,
+            temperature=temperature,
         )
-    elif "gemini" in model:
-        logger.info(f"Using OpenAI API with {model}.")
-        return (
-            openai.OpenAI(
-                api_key=os.environ["GEMINI_API_KEY"],
-                base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-            ),
-            model,
-        )
+
+    # Function-style JSON output: augment system message with schema instructions.
+    schema_text = json.dumps(func_spec.json_schema, indent=2)
+    schema_instruction = (
+        "You must respond ONLY with a JSON object that strictly follows this JSON schema:\n"
+        f"{schema_text}\n"
+        "Do not include any extra commentary or code fences; output raw JSON only."
+    )
+    if system_message is None:
+        combined_system: PromptType = schema_instruction
     else:
-        raise ValueError(f"Model {model} not supported.")
+        combined_system = {
+            "Instructions": system_message,
+            "Output JSON schema": schema_instruction,
+        }
+
+    try:
+        parsed: dict[str, Any] = _invoke_structured_langchain_query(
+            system_message=combined_system,
+            user_message=user_message,
+            model=model,
+            temperature=temperature,
+        )
+        return parsed
+    except Exception as exc:
+        raise ValueError(f"Model did not return valid JSON for FunctionSpec query: {exc}") from exc

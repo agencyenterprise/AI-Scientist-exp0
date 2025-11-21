@@ -5,7 +5,7 @@ import logging
 import os
 from typing import List, Protocol, Tuple
 
-from ai_scientist.llm.query import query
+from ai_scientist.llm import query
 
 from .journal import Node
 from .response_parsing import parse_keyword_prefix_response

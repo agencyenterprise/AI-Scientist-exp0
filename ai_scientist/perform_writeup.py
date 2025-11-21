@@ -12,18 +12,11 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-import anthropic
-import openai
+from langchain_core.messages import BaseMessage
 
 from ai_scientist.ideation.semantic_scholar import search_for_papers
 from ai_scientist.latest_run_finder import find_latest_run_dir_name
-from ai_scientist.llm import (
-    AVAILABLE_LLMS,
-    create_client,
-    create_vlm_client,
-    extract_json_between_markers,
-    get_response_from_llm,
-)
+from ai_scientist.llm import extract_json_between_markers, get_response_from_llm
 from ai_scientist.perform_vlm_review import generate_vlm_img_review
 
 logger = logging.getLogger(__name__)
@@ -294,7 +287,6 @@ def detect_pages_before_impact(latex_folder: str, timeout: int = 30) -> tuple[in
 
 
 def get_citation_addition(
-    client: openai.OpenAI | anthropic.Anthropic,
     model: str,
     context: tuple,
     current_round: int,
@@ -303,7 +295,7 @@ def get_citation_addition(
     temperature: float,
 ) -> str | None:
     report, citations = context
-    msg_history: list[dict[str, str]] = []
+    msg_history: list[BaseMessage] = []
     citation_system_msg_template = """You are an ambitious AI researcher who is looking to publish a paper to a top-tier ML conference that will contribute significantly to the field.
 You have already completed the experiments and now you are looking to collect citations to related papers.
 This phase focuses on collecting references and annotating them to be integrated later.
@@ -396,7 +388,6 @@ This JSON will be automatically parsed, so ensure the format is precise."""
                 report=report,
                 citations=citations,
             ),
-            client=client,
             model=model,
             system_message=citation_system_msg_template.format(total_rounds=total_rounds),
             temperature=temperature,
@@ -442,7 +433,6 @@ This JSON will be automatically parsed, so ensure the format is precise."""
                 current_round=current_round + 1,
                 total_rounds=total_rounds,
             ),
-            client=client,
             model=model,
             system_message=citation_system_msg_template.format(total_rounds=total_rounds),
             temperature=temperature,
@@ -773,8 +763,8 @@ def perform_writeup(
             compile_latex(latex_folder, base_pdf_file + ".pdf")
             return osp.exists(base_pdf_file + ".pdf")
 
-        # Run small model for citation additions
-        client, client_model = create_client(model)
+        # Run model for citation additions
+        citation_model = model
         for round_idx in range(num_cite_rounds):
             with open(writeup_file, "r") as f:
                 writeup_text = f.read()
@@ -790,8 +780,7 @@ def perform_writeup(
                 context_for_citation = (combined_summaries_str, citations_text)
 
                 addition = get_citation_addition(
-                    client=client,
-                    model=client_model,
+                    model=citation_model,
                     context=context_for_citation,
                     current_round=round_idx,
                     total_rounds=num_cite_rounds,
@@ -866,7 +855,6 @@ def perform_writeup(
 
         # Generate VLM-based descriptions but do not overwrite plot_names
         try:
-            vlm_client, vlm_model = create_vlm_client(model)
             desc_map = {}
             for pf in plot_names:
                 ppath = osp.join(figures_dir, pf)
@@ -878,8 +866,7 @@ def perform_writeup(
                 }
                 review_data = generate_vlm_img_review(
                     img=img_dict,
-                    model=vlm_model,
-                    client=vlm_client,
+                    model=model,
                     temperature=temperature,
                 )
                 if review_data:
@@ -899,7 +886,7 @@ def perform_writeup(
 
         # Construct final prompt for big model, placing the figure descriptions alongside the plot list
         big_model_system_message = writeup_system_message_template.format(page_limit=page_limit)
-        big_client, big_client_model = create_client(model)
+        big_client_model = model
         with open(writeup_file, "r") as f:
             writeup_text = f.read()
 
@@ -920,7 +907,6 @@ def perform_writeup(
 
         response, msg_history = get_response_from_llm(
             prompt=combined_prompt,
-            client=big_client,
             model=big_client_model,
             system_message=big_model_system_message,
             temperature=temperature,
@@ -1013,7 +999,6 @@ If you believe you are done, simply say: "I am done".
 
             reflection_response, msg_history = get_response_from_llm(
                 prompt=reflection_prompt,
-                client=big_client,
                 model=big_client_model,
                 system_message=big_model_system_message,
                 temperature=temperature,
@@ -1078,8 +1063,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         default="gpt-5",
-        choices=AVAILABLE_LLMS,
-        help="Model to use for writeup.",
+        help="LLM model to use for writeup.",
     )
     parser.add_argument(
         "--writeup-reflections",

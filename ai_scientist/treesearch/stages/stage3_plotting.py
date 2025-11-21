@@ -1,6 +1,6 @@
 import logging
 
-from ai_scientist.llm.query import FunctionSpec, query
+from ai_scientist.llm import FunctionSpec, query
 
 from ..journal import Journal, Node
 from ..utils.config import Config as AppConfig

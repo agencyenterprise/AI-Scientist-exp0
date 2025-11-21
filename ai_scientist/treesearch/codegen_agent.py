@@ -18,7 +18,7 @@ from typing import cast
 
 import humanize
 
-from ai_scientist.llm.query import query
+from ai_scientist.llm import query
 
 from .gpu_manager import GPUSpec
 from .interpreter import ExecutionResult

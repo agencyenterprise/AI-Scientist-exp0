@@ -3,164 +3,153 @@ import io
 import json
 import logging
 import re
-from typing import Any, cast
+from typing import Any, Tuple
 
-import anthropic
-import backoff
-import openai
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 from PIL import Image
 
-from .query.utils import get_openai_base_url
 from .token_tracker import track_token_usage
 
 logger = logging.getLogger("ai-scientist")
-
-MAX_NUM_TOKENS = 4096
-
-AVAILABLE_VLMS = [
-    "gpt-4o-2024-05-13",
-    "gpt-4o-2024-08-06",
-    "gpt-4o-2024-11-20",
-    "gpt-4o-mini-2024-07-18",
-    "o3-mini",
-    "gpt-5",
-]
 
 
 def encode_image_to_base64(image_path: str) -> str:
     """Convert an image to base64 string."""
     with Image.open(image_path) as img:
-        # Convert RGBA to RGB if necessary
         if img.mode == "RGBA":
             img = img.convert("RGB")
-
-        # Save to bytes
-
         buffer = io.BytesIO()
         img.save(buffer, format="JPEG")
         image_bytes = buffer.getvalue()
-
     return base64.b64encode(image_bytes).decode("utf-8")
+
+
+def _build_vlm_messages(
+    *,
+    system_message: str,
+    history: list[BaseMessage],
+    msg: str,
+    image_paths: list[str],
+    max_images: int,
+) -> list[BaseMessage]:
+    messages: list[BaseMessage] = []
+    if system_message:
+        messages.append(SystemMessage(content=system_message))
+
+    messages.extend(history)
+
+    content_blocks: list[dict[str, Any]] = [{"type": "text", "text": msg}]
+    for image_path in image_paths[:max_images]:
+        base64_image = encode_image_to_base64(image_path=image_path)
+        content_blocks.append(
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{base64_image}",
+                    "detail": "low",
+                },
+            }
+        )
+    # LangChain HumanMessage content supports multi-part content as a list
+    messages.append(HumanMessage(content=content_blocks))  # type: ignore[arg-type]
+    return messages
 
 
 @track_token_usage
 def make_vlm_call(
-    client: openai.OpenAI | anthropic.Anthropic,
     model: str,
     temperature: float,
     system_message: str,
-    prompt: list[dict[str, Any]],
-) -> Any:  # noqa: ANN401
-    if "gpt" in model or model == "gpt-5":
-        # GPT-5 uses max_completion_tokens instead of max_tokens
-        # and only supports temperature=1
-        if model == "gpt-5":
-            assert isinstance(client, openai.OpenAI)
-            return client.chat.completions.create(
-                model=model,
-                messages=cast(Any, [{"role": "system", "content": system_message}] + prompt),
-                temperature=1,  # GPT-5 only supports temperature=1
-                max_completion_tokens=MAX_NUM_TOKENS,
-            )
-        else:
-            assert isinstance(client, openai.OpenAI)
-            return client.chat.completions.create(
-                model=model,
-                messages=cast(Any, [{"role": "system", "content": system_message}] + prompt),
-                temperature=temperature,
-                max_tokens=MAX_NUM_TOKENS,
-            )
+    prompt: list[BaseMessage],
+) -> AIMessage:
+    # In the VLM path, prompt already includes the image-bearing user message.
+    # We rebuild LangChain messages from that history.
+    history = prompt[:-1]
+    last = prompt[-1] if prompt else HumanMessage(content="")
+    user_content = getattr(last, "content", "")
+    # user_content may already be a list of content blocks (text + image_url)
+    if isinstance(user_content, list):
+        messages: list[BaseMessage] = []
+        if system_message:
+            messages.append(SystemMessage(content=system_message))
+        messages.extend(history)
+        messages.append(HumanMessage(content=user_content))  # multi-part content
     else:
-        raise ValueError(f"Model {model} not supported.")
+        messages = [
+            SystemMessage(content=system_message),
+            HumanMessage(content=str(user_content)),
+        ]
+    logger.debug("VLM make_vlm_call - model=%s, temperature=%s", model, temperature)
+    logger.debug("VLM make_vlm_call - system_message: %s", system_message)
+    for idx, message in enumerate(messages):
+        logger.debug(
+            "VLM make_vlm_call - request message %s: %s - %s",
+            idx,
+            getattr(message, "type", type(message).__name__),
+            getattr(message, "content", ""),
+        )
+    chat = ChatOpenAI(
+        model=model,
+        temperature=temperature,
+    )
+    retrying_chat = chat.with_retry(
+        retry_if_exception_type=(Exception,),
+        stop_after_attempt=3,
+    )
+    ai_message = retrying_chat.invoke(messages)
+    logger.debug(
+        "VLM make_vlm_call - response: %s - %s",
+        getattr(ai_message, "type", type(ai_message).__name__),
+        getattr(ai_message, "content", ""),
+    )
+    return ai_message
 
 
-@backoff.on_exception(
-    backoff.expo,
-    (
-        openai.RateLimitError,
-        openai.APITimeoutError,
-    ),
-)
 def get_response_from_vlm(
     msg: str,
     image_paths: str | list[str],
-    client: openai.OpenAI,
     model: str,
     system_message: str,
     temperature: float,
     print_debug: bool = False,
-    msg_history: list[dict[str, Any]] | None = None,
+    msg_history: list[BaseMessage] | None = None,
     max_images: int = 25,
-) -> tuple[str, list[dict[str, Any]]]:
+) -> Tuple[str, list[BaseMessage]]:
     """Get response from vision-language model."""
     if msg_history is None:
         msg_history = []
 
-    if model in AVAILABLE_VLMS:
-        # Convert single image path to list for consistent handling
-        if isinstance(image_paths, str):
-            image_paths = [image_paths]
+    paths_list = [image_paths] if isinstance(image_paths, str) else list(image_paths)
+    messages = _build_vlm_messages(
+        system_message=system_message,
+        history=msg_history,
+        msg=msg,
+        image_paths=paths_list,
+        max_images=max_images,
+    )
 
-        # Create content list starting with the text message
-        content: list[dict[str, Any]] = [{"type": "text", "text": msg}]
-
-        # Add each image to the content list
-        for image_path in image_paths[:max_images]:
-            base64_image = encode_image_to_base64(image_path)
-            content.append(
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{base64_image}",
-                        "detail": "low",
-                    },
-                }
-            )
-        # Construct message with all images
-        new_msg_history = msg_history + [{"role": "user", "content": content}]
-
-        response = make_vlm_call(
-            client=client,
-            model=model,
-            temperature=temperature,
-            system_message=system_message,
-            prompt=new_msg_history,
-        )
-
-        content_str = response.choices[0].message.content or ""
-        new_msg_history = new_msg_history + [{"role": "assistant", "content": content_str}]
-    else:
-        raise ValueError(f"Model {model} not supported.")
+    # For LangChain-native history, we store the last user message as a HumanMessage.
+    new_msg_history = msg_history + [messages[-1]]
+    ai_message = make_vlm_call(
+        model=model,
+        temperature=temperature,
+        system_message=system_message,
+        prompt=new_msg_history,
+    )
+    content_str = str(ai_message.content)
+    full_history = new_msg_history + [ai_message]
 
     if print_debug:
         logger.debug("")
         logger.debug("*" * 20 + " VLM START " + "*" * 20)
-        for j, message in enumerate(new_msg_history):
-            logger.debug(f'{j}, {message["role"]}: {message["content"]}')
+        for idx, message in enumerate(full_history):
+            logger.debug("%s, %s: %s", idx, message.type, getattr(message, "content", ""))
         logger.debug(content_str)
         logger.debug("*" * 21 + " VLM END " + "*" * 21)
         logger.debug("")
 
-    return content_str, new_msg_history
-
-
-def create_vlm_client(model: str) -> tuple[openai.OpenAI, str]:
-    """Create client for vision-language model."""
-    if model in [
-        "gpt-4o-2024-05-13",
-        "gpt-4o-2024-08-06",
-        "gpt-4o-2024-11-20",
-        "gpt-4o-mini-2024-07-18",
-        "o3-mini",
-        "gpt-5",
-    ]:
-        logger.info(f"Using OpenAI API with model {model}.")
-        base_url = get_openai_base_url()
-        if base_url:
-            logger.info(f"Using custom OpenAI base_url: {base_url}")
-        return openai.OpenAI(base_url=base_url), model
-    else:
-        raise ValueError(f"Model {model} not supported.")
+    return content_str, full_history
 
 
 def extract_json_between_markers_vlm(llm_output: str) -> dict[Any, Any] | None:
