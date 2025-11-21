@@ -41,12 +41,14 @@ class Args(BaseSettings):
     model: str = "gpt-4o-mini"
     temperature: float = 0.0
 
-    verbose: Annotated[CliImplicitFlag[bool], Field(validation_alias=AliasChoices('verbose', 'v'))] = False
+    verbose: Annotated[
+        CliImplicitFlag[bool], Field(validation_alias=AliasChoices("verbose", "v"))
+    ] = False
 
     async def cli_cmd(self) -> None:
         if self.verbose:
             log.init()
-        
+
         code = self.code.read_text()
         config = RunnableConfig(callbacks=[CallbackHandler()])
         state = plotting.State(cwd=self.cwd, task=task, code=code)
