@@ -249,4 +249,4 @@ def build() -> CompiledStateGraph[State, Context]:
     )
     builder.add_edge("node_plotting_analyze_single_plot", END)
 
-    return builder.compile(name="graph_plotting")  # type: ignore
+    return builder.compile(name="graph_plotting", checkpointer=True) # type: ignore

@@ -352,4 +352,4 @@ def build() -> CompiledStateGraph[State, Context, State, State]:
         node_ablation_should_retry_parser_from_output,
     )
 
-    return builder.compile(name="graph_ablation")  # type: ignore
+    return builder.compile(name="graph_ablation", checkpointer=True) # type: ignore

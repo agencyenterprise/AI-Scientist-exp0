@@ -325,5 +325,5 @@ def build() -> CompiledStateGraph[State, Context, State, State]:
     builder.add_edge("node_tuning_exec_metrics_parser", "node_tuning_parse_metrics_output")
     builder.add_edge("node_tuning_parse_metrics_output", END)
 
-    return builder.compile(name="graph_tuning")  # type: ignore
+    return builder.compile(name="graph_tuning", checkpointer=True) # type: ignore
 

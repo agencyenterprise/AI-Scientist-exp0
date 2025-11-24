@@ -1,10 +1,14 @@
 import json
+import logging
 from pathlib import Path
 from typing import Annotated
+import uuid
 
+import aiosqlite
 from langchain_core.runnables import RunnableConfig
 from langfuse.langchain import CallbackHandler
 from langgraph.graph import END, START, StateGraph
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
 from pydantic import AliasChoices, Field
@@ -14,6 +18,8 @@ from pydantic import BaseModel
 
 from aigraph import utils, log
 from aigraph.agents import ablation, baseline, plotting, tuning, writeup
+
+logger = logging.getLogger(__name__)
 
 task = utils.Task.model_validate(
     {
@@ -180,7 +186,7 @@ async def node_writeup(state: State, runtime: Runtime[Context]) -> State:
     return state
 
 
-def build() -> CompiledStateGraph[State, Context, State, State]:
+def build(conn: aiosqlite.Connection) -> CompiledStateGraph[State, Context, State, State]:
     builder = StateGraph(state_schema=State, context_schema=Context)
 
     # Add nodes
@@ -198,11 +204,13 @@ def build() -> CompiledStateGraph[State, Context, State, State]:
     builder.add_edge("node_plotting", "node_writeup")
     builder.add_edge("node_writeup", END)
 
-    return builder.compile(name="graph_all")  # type: ignore
+    checkpointer = AsyncSqliteSaver(conn=conn)
+    return builder.compile(name="graph_all", checkpointer=checkpointer) # type: ignore
 
 
 class Args(BaseSettings):
     cwd: CliPositionalArg[Path]
+    thread_id: Annotated[str, Field(default_factory=lambda: str(uuid.uuid4()))]
 
     model: str = "gpt-4o-mini"
     temperature: float = 0.0
@@ -214,14 +222,16 @@ class Args(BaseSettings):
     async def cli_cmd(self) -> None:
         if self.verbose:
             log.init()
-
-        config = RunnableConfig(callbacks=[CallbackHandler()])
+        print('thread_id:', self.thread_id)
+        
+        config = RunnableConfig(callbacks=[CallbackHandler()], thread_id=self.thread_id) # type: ignore
         state = State(cwd=self.cwd, task=task)
         context = Context(model=self.model, temperature=self.temperature)
 
-        graph = build()
-        result = await graph.ainvoke(input=state, context=context, config=config)
-        print(json.dumps(result, indent=2, sort_keys=True, default=str))
+        async with aiosqlite.connect("checkpoints.db") as conn:
+            graph = build(conn)
+            result = await graph.ainvoke(input=state, context=context, config=config)
+            print(json.dumps(result, indent=2, sort_keys=True, default=str))
 
 
 if __name__ == "__main__":

@@ -329,4 +329,4 @@ def build() -> CompiledStateGraph[State, Context, State, State]:
     builder.add_edge("node_baseline_exec_metrics_parser", "node_baseline_parse_metrics_output")
     builder.add_conditional_edges("node_baseline_parse_metrics_output", node_baseline_should_retry_parser_from_output)
 
-    return builder.compile(name="graph_baseline")  # type: ignore
+    return builder.compile(name="graph_baseline", checkpointer=True) # type: ignore
