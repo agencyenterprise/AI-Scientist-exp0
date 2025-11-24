@@ -23,10 +23,6 @@ class SupportsStage4Agent(Protocol):
     def plan_and_code_query(self, *, prompt: PromptType, retries: int = 3) -> Tuple[str, str]:
         pass
 
-    @property
-    def _prompt_ablation_resp_fmt(self) -> dict[str, str]:
-        pass
-
 
 class Stage4Ablation(Stage):
     MAIN_STAGE_SLUG = "ablation_studies"
@@ -76,7 +72,6 @@ class Stage4Ablation(Stage):
                 "Make sure to use a filename 'experiment_data.npy' to save the data. Do not use any other filename.",
             ]
         }
-        abl_instructions |= agent._prompt_ablation_resp_fmt
         prompt["Instructions"] = abl_instructions
         plan, code = agent.plan_and_code_query(prompt=prompt)
         logger.debug("----- LLM code start (stage4 ablation) -----")

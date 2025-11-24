@@ -23,10 +23,6 @@ class SupportsPlottingAgent(Protocol):
     def plan_and_code_query(self, *, prompt: PromptType, retries: int) -> Tuple[str, str]:
         pass
 
-    @property
-    def _prompt_resp_fmt(self) -> dict[str, str]:
-        pass
-
 
 def generate_plotting_code(
     *,
@@ -92,7 +88,6 @@ def generate_plotting_code(
         "Instructions": {},
     }
     plotting_instructions: dict[str, str | list[str]] = {}
-    plotting_instructions |= agent._prompt_resp_fmt
     plotting_instructions |= {
         "Plotting code guideline": prompt_guideline,
     }
