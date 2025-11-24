@@ -212,9 +212,7 @@ def build_prompt_ablation_parser_code(code: str, memory: str = "") -> str:
     
     ## Instructions
     
-    0. Make sure to get the working directory from `os.path.join(os.getcwd(),
-       'working')`
-    1. Load the `data_ablation.json` file, which is located in the working
+    1. Load the `data_ablation.json` file, which is located in the current
        directory
     2. Extract metrics for the ablation run and dataset. Refer to the original
        code to understand the data structure.

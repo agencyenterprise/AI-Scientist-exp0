@@ -57,7 +57,7 @@ def build_prompt_plotting_code(task: Task, code: str, memory: str = "") -> str:
 
     - Create standard visualizations (learning curves, sample comparisons,
       etc.).
-    - Save all plots as .png or .pdf files in the current working directory.
+    - Save all plots as .png or .pdf files in the current directory.
     - Do NOT use `plt.show()`.
     - Handle potential missing keys gracefully.
 

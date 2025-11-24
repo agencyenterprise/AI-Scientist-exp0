@@ -157,7 +157,7 @@ def build_prompt_baseline_code(task: Task, metrics: Iterable[Metric], memory: st
     - The script should execute immediately when run, without requiring any
       special entry point or args. Should be executable py running `python
       script.py`.
-    - Store any extra files and outputs in the current working directory.
+    - Store any extra files and outputs in the current directory.
     - DO NOT CREATE ANY PLOTS! USING PLOTS IS NOT ALLOWED.
 
     Data saving requirements:
@@ -344,7 +344,7 @@ def build_prompt_baseline_parser_code(code: str, memory: str = "") -> str:
     ## Instructions
 
     - Load the `data_baseline.json` file, which is located in the current
-      working directory
+      directory
     - Extract metrics for each dataset. Refer to the original code to understand
       the data structure.
     - Always print the name of the dataset before printing the metrics
@@ -361,7 +361,7 @@ def build_prompt_baseline_parser_code(code: str, memory: str = "") -> str:
     - The script should execute immediately when run, without requiring any
       special entry point or args. Should be executable py running `python
       script.py`.
-    - Store any extra files and outputs in the current working directory.
+    - Store any extra files and outputs in the current directory.
 
     ## Example data loading code
 
