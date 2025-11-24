@@ -8,6 +8,18 @@ Scientific research automation using LangGraph agents.
 
 ## Development
 
+### Requirements
+
+- **pdflatex**: Required for LaTeX document compilation
+
+```bash
+sudo apt-get install texlive
+# or
+brew install basictex
+```
+
+### Setup
+
 ```bash
 uv sync
 ```
