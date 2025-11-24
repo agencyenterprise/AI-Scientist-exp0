@@ -218,7 +218,9 @@ async def node_plotting_analyze_single_plot(
     logger.debug(f"analysis: {response.analysis[:32]!r}")
 
     logger.info(f"Finished node_plotting_analyze_single_plot for {state.image}")
-    return {"plots": [{"path": state.image, "analysis": response.analysis}]}
+
+    plot = utils.Plot(path=state.image, analysis=response.analysis)
+    return {"plots": set([plot])}
 
 
 def build() -> CompiledStateGraph[State, Context]:
