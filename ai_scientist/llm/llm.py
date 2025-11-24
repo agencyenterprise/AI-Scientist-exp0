@@ -2,7 +2,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Tuple, TypeVar
+from typing import Any, Tuple, TypeVar, cast
 
 import jsonschema
 from dataclasses_json import DataClassJsonMixin
@@ -340,7 +340,7 @@ def structured_query_with_schema(
     result = structured_chat.invoke(
         input=messages,
     )
-    return result
+    return cast(TStructured, result)
 
 
 def query(
