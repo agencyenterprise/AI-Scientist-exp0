@@ -12,18 +12,11 @@ import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import anthropic
-import openai
+from langchain_core.messages import BaseMessage
 
 from ai_scientist.ideation.semantic_scholar import search_for_papers
 from ai_scientist.latest_run_finder import find_latest_run_dir_name
-from ai_scientist.llm import (
-    AVAILABLE_LLMS,
-    create_client,
-    create_vlm_client,
-    extract_json_between_markers,
-    get_response_from_llm,
-)
+from ai_scientist.llm import extract_json_between_markers, get_response_from_llm
 from ai_scientist.perform_vlm_review import (
     detect_duplicate_figures,
     generate_vlm_img_review,
@@ -333,7 +326,6 @@ def get_reflection_page_info(reflection_pdf: str, page_limit: int) -> str:
 
 
 def get_citation_addition(
-    client: openai.OpenAI | anthropic.Anthropic,
     model: str,
     context: Tuple[str, str],
     current_round: int,
@@ -342,7 +334,7 @@ def get_citation_addition(
     temperature: float,
 ) -> Tuple[Optional[str], bool]:
     report, citations = context
-    msg_history: List[Dict[str, Any]] = []
+    msg_history: list[BaseMessage] = []
     citation_system_msg_template = """You are an ambitious AI researcher who is looking to publish a paper to a workshop at ICLR 2025 that explores real-world pitfalls, failures, and challenges in deep learning.
 You have already completed the experiments and now you are looking to collect citations to related papers.
 This phase focuses on collecting references and annotating them to be integrated later.
@@ -436,7 +428,6 @@ This JSON will be automatically parsed, so ensure the format is precise."""
                 report=report,
                 citations=citations,
             ),
-            client=client,
             model=model,
             system_message=citation_system_msg_template.format(total_rounds=total_rounds),
             temperature=temperature,
@@ -482,7 +473,6 @@ This JSON will be automatically parsed, so ensure the format is precise."""
                 current_round=current_round + 1,
                 total_rounds=total_rounds,
             ),
-            client=client,
             model=model,
             system_message=citation_system_msg_template.format(total_rounds=total_rounds),
             temperature=temperature,
@@ -870,15 +860,14 @@ def gather_citations(
         )
         filtered_summaries_str = json.dumps(filtered_summaries, indent=2)
 
-        # Run small model for citation additions
-        client, client_model = create_client(model)
+        # Run model for citation additions
+        citation_model = model
 
         for round_idx in range(current_round, num_cite_rounds):
             try:
                 context_for_citation = (filtered_summaries_str, citations_text)
                 addition, done = get_citation_addition(
-                    client=client,
-                    model=client_model,
+                    model=citation_model,
                     context=context_for_citation,
                     current_round=round_idx,
                     total_rounds=num_cite_rounds,
@@ -1055,7 +1044,6 @@ def perform_writeup(
 
         # Generate VLM-based descriptions
         try:
-            vlm_client, vlm_model = create_vlm_client(model)
             desc_map = {}
             for pf in plot_names:
                 ppath = osp.join(figures_dir, pf)
@@ -1068,8 +1056,7 @@ def perform_writeup(
                 }
                 review_data = generate_vlm_img_review(
                     img=img_dict,
-                    model=vlm_model,
-                    client=vlm_client,
+                    model=model,
                     temperature=temperature,
                 )
                 if review_data:
@@ -1087,7 +1074,7 @@ def perform_writeup(
             plot_descriptions_str = "No descriptions available."
 
         big_model_system_message = writeup_system_message_template.format(page_limit=page_limit)
-        big_client, big_client_model = create_client(model)
+        big_client_model = model
         with open(writeup_file, "r") as f:
             writeup_text = f.read()
 
@@ -1103,7 +1090,6 @@ def perform_writeup(
         try:
             response, msg_history = get_response_from_llm(
                 prompt=combined_prompt,
-                client=big_client,
                 model=big_client_model,
                 system_message=big_model_system_message,
                 temperature=temperature,
@@ -1155,16 +1141,14 @@ def perform_writeup(
             compile_latex(latex_folder, reflection_pdf)
 
             review_img_cap_ref = perform_imgs_cap_ref_review(
-                client=vlm_client,
-                client_model=vlm_model,
+                model=model,
                 pdf_path=reflection_pdf,
                 temperature=temperature,
             )
 
             # Detect duplicate figures between main text and appendix
             analysis_duplicate_figs = detect_duplicate_figures(
-                client=vlm_client,
-                client_model=vlm_model,
+                model=model,
                 pdf_path=reflection_pdf,
                 temperature=temperature,
             )
@@ -1213,7 +1197,6 @@ Ensure proper citation usage:
 
             reflection_response, msg_history = get_response_from_llm(
                 prompt=reflection_prompt,
-                client=big_client,
                 model=big_client_model,
                 system_message=big_model_system_message,
                 temperature=temperature,
@@ -1253,8 +1236,7 @@ Ensure proper citation usage:
             # Get new reflection_page_info
             reflection_page_info = get_reflection_page_info(reflection_pdf, page_limit)
             review_img_selection = perform_imgs_cap_ref_review_selection(
-                client=vlm_client,
-                client_model=vlm_model,
+                model=model,
                 pdf_path=reflection_pdf,
                 reflection_page_info=reflection_page_info,
                 temperature=temperature,
@@ -1282,7 +1264,6 @@ Be more aggressive with figure selection - move more figures to the appendix or 
 If you believe you are done with reflection, simply say: "I am done"."""
             reflection_response, msg_history = get_response_from_llm(
                 prompt=img_reflection_prompt,
-                client=big_client,
                 model=big_client_model,
                 system_message=big_model_system_message,
                 temperature=temperature,
@@ -1333,7 +1314,6 @@ If you believe you are done with reflection, simply say: "I am done"."""
 USE MINIMAL EDITS TO OPTIMIZE THE PAGE LIMIT USAGE."""
         reflection_response, msg_history = get_response_from_llm(
             prompt=final_reflection_prompt,
-            client=big_client,
             model=big_client_model,
             system_message=big_model_system_message,
             temperature=temperature,
@@ -1397,8 +1377,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         default="gpt-5",
-        choices=AVAILABLE_LLMS,
-        help="Model to use for writeup.",
+        help="LLM model to use for writeup.",
     )
     parser.add_argument(
         "--writeup-reflections",

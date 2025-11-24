@@ -1,4 +1,4 @@
-from ai_scientist.llm.query import FunctionSpec
+from ai_scientist.llm import FunctionSpec
 
 review_func_spec = FunctionSpec(
     name="submit_review",

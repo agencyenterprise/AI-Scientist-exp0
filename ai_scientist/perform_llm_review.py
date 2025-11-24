@@ -2,13 +2,12 @@ import json
 import logging
 import os
 from textwrap import dedent
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, cast
 
-import anthropic
 import numpy as np
-import openai
 import pymupdf  # type: ignore[import-untyped]
 import pymupdf4llm  # type: ignore[import-untyped]
+from langchain_core.messages import AIMessage, BaseMessage
 from pypdf import PdfReader
 
 from ai_scientist.llm import (
@@ -159,19 +158,18 @@ def _render_context_block(context: Optional[Dict[str, Any]]) -> str:
 def perform_review(
     text: str,
     model: str,
-    client: openai.OpenAI | anthropic.Anthropic,
     temperature: float,
     *,
     context: dict[str, str] | None = None,
     num_reflections: int = 2,
     num_fs_examples: int = 1,
     num_reviews_ensemble: int = 3,
-    msg_history: list[dict[str, Any]] | None = None,
+    msg_history: list[BaseMessage] | None = None,
     return_msg_history: bool = False,
     reviewer_system_prompt: str = reviewer_system_prompt_balanced,
     review_instruction_form: str = neurips_form,
     calibration_notes: str = CALIBRATION_GUIDE,
-) -> tuple[dict[str, Any], list[dict[str, Any]]] | dict[str, Any]:
+) -> tuple[dict[str, Any], list[BaseMessage]] | dict[str, Any]:
     context_block = _render_context_block(context)
     base_prompt = review_instruction_form
     if calibration_notes:
@@ -193,7 +191,6 @@ Here is the paper you are asked to review:
     if num_reviews_ensemble > 1:
         llm_reviews, msg_histories = get_batch_responses_from_llm(
             prompt=base_prompt,
-            client=client,
             model=model,
             system_message=reviewer_system_prompt,
             temperature=temperature,
@@ -211,7 +208,7 @@ Here is the paper you are asked to review:
                 parsed_reviews.append(parsed)
 
         if parsed_reviews:
-            review = get_meta_review(model, client, temperature, parsed_reviews)
+            review = get_meta_review(model, temperature, parsed_reviews)
             if review is None:
                 review = parsed_reviews[0]
             for score, limits in [
@@ -232,21 +229,16 @@ Here is the paper you are asked to review:
                         collected.append(float(value))
                 if collected:
                     review[score] = float(np.round(np.mean(collected), 2))
-            msg_history = msg_histories[0][:-1]
-            msg_history += [
-                {
-                    "role": "assistant",
-                    "content": f"""
-THOUGHT:
-I will start by aggregating the opinions of {num_reviews_ensemble} reviewers that I previously obtained.
-
-REVIEW JSON:
-```json
-{json.dumps(review)}
-```
-""",
-                }
-            ]
+            base_history: list[BaseMessage] = msg_histories[0][:-1]
+            assistant_content = (
+                "THOUGHT:\n"
+                f"I will start by aggregating the opinions of {num_reviews_ensemble} reviewers that I previously obtained.\n\n"
+                "REVIEW JSON:\n"
+                "```json\n"
+                f"{json.dumps(review)}\n"
+                "```\n"
+            )
+            msg_history = base_history + [AIMessage(content=assistant_content)]
         else:
             logger.warning(
                 "Warning: Failed to parse ensemble reviews; falling back to single review run."
@@ -255,7 +247,6 @@ REVIEW JSON:
     if review is None:
         llm_review, msg_history = get_response_from_llm(
             prompt=base_prompt,
-            client=client,
             model=model,
             system_message=reviewer_system_prompt,
             temperature=temperature,
@@ -266,8 +257,7 @@ REVIEW JSON:
     if num_reflections > 1 and review is not None:
         for _ in range(num_reflections - 1):
             reflection_text, msg_history = get_response_from_llm(
-                reviewer_reflection_prompt,
-                client=client,
+                prompt=reviewer_reflection_prompt,
                 model=model,
                 system_message=reviewer_system_prompt,
                 msg_history=msg_history,
@@ -402,7 +392,6 @@ Be critical and cautious in your decision, find consensus, and respect the opini
 
 def get_meta_review(
     model: str,
-    client: openai.OpenAI | anthropic.Anthropic,
     temperature: float,
     reviews: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
@@ -417,11 +406,10 @@ Review {i + 1}/{len(reviews)}:
     base_prompt = neurips_form + review_text
     llm_review, _ = get_response_from_llm(
         prompt=base_prompt,
-        client=client,
         model=model,
         system_message=meta_reviewer_system_prompt.format(reviewer_count=len(reviews)),
         temperature=temperature,
         msg_history=None,
     )
     meta_review = extract_json_between_markers(llm_review)
-    return meta_review
+    return cast(dict[str, Any] | None, meta_review)

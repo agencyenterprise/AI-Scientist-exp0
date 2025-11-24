@@ -6,7 +6,7 @@ import traceback
 from pathlib import Path
 from typing import Callable, Optional, cast
 
-from ai_scientist.llm.query import query
+from ai_scientist.llm import query
 
 from .codegen_agent import MinimalAgent
 from .gpu_manager import GPUSpec, get_gpu_specs

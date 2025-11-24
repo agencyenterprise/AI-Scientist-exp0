@@ -7,8 +7,7 @@ import traceback
 from pathlib import Path
 from typing import Dict, List
 
-import anthropic
-import openai
+from langchain_core.messages import BaseMessage
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ current_dir = Path(__file__).parent
 sys.path.append(str(current_dir.parent.parent))
 from ai_scientist.ideation.base_tool import BaseTool  # noqa: E402
 from ai_scientist.ideation.semantic_scholar import SemanticScholarSearchTool  # noqa: E402
-from ai_scientist.llm import create_client, get_response_from_llm  # noqa: E402
+from ai_scientist.llm import get_response_from_llm  # noqa: E402
 from ai_scientist.perform_llm_review import load_paper  # noqa: E402
 
 # Create tool instances
@@ -129,7 +128,6 @@ Results from your last action (if any):
 
 def generate_temp_free_idea(
     idea_fname: str,
-    client: openai.OpenAI | anthropic.Anthropic,
     model: str,
     workshop_description: str,
     temperature: float,
@@ -156,7 +154,7 @@ def generate_temp_free_idea(
 
             last_tool_results = ""
             idea_finalized = False
-            msg_history: list[dict[str, str]] = []
+            msg_history: list[BaseMessage] = []
 
             for reflection_round in range(num_reflections):
                 if reflection_round == 0:
@@ -175,7 +173,6 @@ def generate_temp_free_idea(
 
                 response_text, msg_history = get_response_from_llm(
                     prompt=prompt_text,
-                    client=client,
                     model=model,
                     system_message=system_prompt,
                     temperature=temperature,
@@ -305,9 +302,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Create the LLM client
-    client, client_model = create_client(args.model)
-
     # Load workshop description from PDF or markdown
     if args.workshop_file.endswith(".pdf"):
         workshop_description = load_paper(args.workshop_file)
@@ -326,8 +320,7 @@ if __name__ == "__main__":
     logger.info(f"Starting idea generation for {idea_fname}")
     ideas = generate_temp_free_idea(
         idea_fname=idea_fname,
-        client=client,
-        model=client_model,
+        model=args.model,
         workshop_description=workshop_description,
         temperature=args.temperature,
         max_num_generations=args.max_num_generations,

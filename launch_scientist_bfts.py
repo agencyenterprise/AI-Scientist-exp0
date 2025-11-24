@@ -26,7 +26,7 @@ from typing import cast
 from omegaconf import OmegaConf
 
 from ai_scientist.latest_run_finder import normalize_run_name
-from ai_scientist.llm import create_client, token_tracker
+from ai_scientist.llm import token_tracker
 from ai_scientist.perform_icbinb_writeup import gather_citations
 from ai_scientist.perform_icbinb_writeup import perform_writeup as perform_icbinb_writeup
 from ai_scientist.perform_llm_review import load_paper, perform_review
@@ -62,10 +62,16 @@ logger = logging.getLogger(__name__)
 
 
 def save_token_tracker(idea_dir: str) -> None:
-    with open(osp.join(idea_dir, "token_tracker.json"), "w") as f:
-        json.dump(token_tracker.get_summary(), f)
-    with open(osp.join(idea_dir, "token_tracker_interactions.json"), "w") as f:
-        json.dump(token_tracker.get_interactions(), f)
+    try:
+        with open(osp.join(idea_dir, "token_tracker.json"), "w") as f:
+            json.dump(token_tracker.get_summary(), f)
+    except Exception:
+        traceback.print_exc()
+    try:
+        with open(osp.join(idea_dir, "token_tracker_interactions.json"), "w") as f:
+            json.dump(token_tracker.get_interactions(), f)
+    except Exception:
+        traceback.print_exc()
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -549,20 +555,18 @@ def run_review_stage(
 
     logger.info(f"Paper found at: {pdf_path}")
     paper_content = load_paper(pdf_path)
-    client, client_model = create_client(review_cfg.model)
+    review_model = review_cfg.model
     review_context = build_auto_review_context(reports_base, None, paper_content or "")
     review_text = perform_review(
-        paper_content,
-        client_model,
-        client,
+        text=paper_content,
+        model=review_model,
         temperature=review_cfg.temperature,
         context=review_context,
         num_reviews_ensemble=3,
         num_reflections=2,
     )
     review_img_cap_ref = perform_imgs_cap_ref_review(
-        client=client,
-        client_model=client_model,
+        model=review_model,
         pdf_path=pdf_path,
         temperature=review_cfg.temperature,
     )

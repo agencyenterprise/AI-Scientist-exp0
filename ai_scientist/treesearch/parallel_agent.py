@@ -19,7 +19,7 @@ from concurrent.futures import Future, ProcessPoolExecutor
 from types import TracebackType
 from typing import List, Optional, cast
 
-from ai_scientist.llm.query import query
+from ai_scientist.llm import query
 
 from .events import BaseEvent, RunLogEvent
 from .gpu_manager import GPUManager, get_gpu_count

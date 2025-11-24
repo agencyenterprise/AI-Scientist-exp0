@@ -10,8 +10,10 @@ import traceback
 from pathlib import Path
 from typing import Optional
 
+from langchain_core.messages import BaseMessage
+
 from ai_scientist.latest_run_finder import find_latest_run_dir_name
-from ai_scientist.llm import create_client, get_response_from_llm
+from ai_scientist.llm import get_response_from_llm
 from ai_scientist.perform_icbinb_writeup import (
     filter_experiment_summaries,
     load_exp_summaries,
@@ -222,15 +224,12 @@ def aggregate_plots(
     # Build aggregator prompt
     aggregator_prompt = build_aggregator_prompt(combined_summaries_str, idea_text)
 
-    # Call LLM
-    client, model_name = create_client(model)
     response: str | None = None
-    msg_history: list[dict[str, str]] = []
+    msg_history: list[BaseMessage] = []
     try:
         response, msg_history = get_response_from_llm(
             prompt=aggregator_prompt,
-            client=client,
-            model=model_name,
+            model=model,
             system_message=AGGREGATOR_SYSTEM_MSG,
             temperature=temperature,
             msg_history=msg_history,
@@ -240,7 +239,7 @@ def aggregate_plots(
         logger.exception("Failed to get aggregator script from LLM.")
         return
 
-    aggregator_code = extract_code_snippet(response)
+    aggregator_code = extract_code_snippet(response or "")
     if not aggregator_code.strip():
         logger.warning("No Python code block was found in LLM response. Full response:")
         logger.debug(response)
@@ -280,8 +279,7 @@ If you believe you are done, simply say: "I am done". Otherwise, please provide 
         try:
             reflection_response, msg_history = get_response_from_llm(
                 prompt=reflection_prompt,
-                client=client,
-                model=model_name,
+                model=model,
                 system_message=AGGREGATOR_SYSTEM_MSG,
                 temperature=temperature,
                 msg_history=msg_history,
