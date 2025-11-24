@@ -188,4 +188,4 @@ def build() -> CompiledStateGraph[State, Context, State, State]:
         "node_parse_compile_output", node_should_retry_compile
     )
 
-    return builder.compile(name="graph_writeup")  # type: ignore
+    return builder.compile(name="graph_writeup", checkpointer=True) # type: ignore
