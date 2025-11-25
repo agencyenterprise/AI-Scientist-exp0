@@ -363,9 +363,9 @@ async def list_conversation_files(
             response.status_code = 404
             return ErrorResponse(error="Conversation not found", detail="Conversation not found")
 
-        # Get all chat messages for this conversation's project draft
-        project_draft_data = db.get_project_draft_by_conversation_id(conversation_id)
-        if not project_draft_data:
+        # Get all chat messages for this conversation's idea
+        idea_data = db.get_idea_by_conversation_id(conversation_id)
+        if not idea_data:
             return FileListResponse(files=[], file_count=0)
 
         # Get all file attachments for this conversation

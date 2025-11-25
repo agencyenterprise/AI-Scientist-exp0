@@ -1,8 +1,8 @@
 """
-Grok service for generating conversation summaries and project drafts.
+Grok service for generating conversation summaries and ideas.
 
 This module handles communication with xAI's Grok API to generate summaries
-of conversations and transform them into structured project proposals.
+of conversations and transform them into structured research ideas.
 Since Grok API is OpenAI-compatible, this service extends OpenAIService
 and only overrides the client initialization with Grok-specific configuration.
 """

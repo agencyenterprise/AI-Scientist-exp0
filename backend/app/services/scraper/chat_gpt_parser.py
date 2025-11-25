@@ -1,5 +1,5 @@
 """
-ChatGPT Scraper for the AGI Judd's Idea Catalog.
+ChatGPT Scraper for the AE Scientist
 
 This module contains the ChatGPT conversation scraper using Playwright
 for parsing and extracting content from ChatGPT share URLs.

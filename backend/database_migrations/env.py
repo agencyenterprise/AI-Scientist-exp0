@@ -1,4 +1,4 @@
-"""Alembic environment configuration for AGI Judd's Idea Catalog."""
+"""Alembic environment configuration for AE Scientist"""
 
 import logging
 import os

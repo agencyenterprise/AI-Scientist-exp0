@@ -1,18 +1,16 @@
 # AE Scientist
 
-A collaborative platform that transforms LLM conversations into actionable Linear projects through AI-guided refinement.
+A collaborative platform that transforms LLM conversations into structured research ideas through AI-guided refinement.
 
 ## How It Works
 
 **AE Scientist** streamlines the journey from conversational ideas to structured project execution:
 
-1. **Import Conversations**: Paste LLM share URLs to import rich conversational content that contains project ideas, technical discussions, or experimental concepts.
+1. **Import Conversations**: Paste LLM share URLs to import rich conversational content that contains research ideas, technical discussions, or experimental concepts.
 
-2. **Generate Project Drafts**: AI analyzes the imported conversations and automatically generates structured project proposals with clear titles and descriptions.
+2. **Generate Research Ideas**: AI analyzes the imported conversations and automatically generates structured research proposals with hypotheses, experiments, and expected outcomes.
 
-3. **Refine Through Dialogue**: Engage in an interactive refinement process where you can prompt the AI to adjust, expand, or focus the project scope. Ask for more technical detail, request MVP simplification, or explore different implementation approaches.
-
-4. **Deploy to Linear**: When your project is refined and ready for execution, create a Linear project with a single click.
+3. **Refine Through Dialogue**: Engage in an interactive refinement process where you can prompt the AI to adjust, expand, or focus the research scope. Ask for more experimental detail, refine hypotheses, or explore different methodologies.
 
 
 
@@ -99,18 +97,8 @@ This application uses **PostgreSQL** as its database. You'll need to set up a Po
 
 #### Option 2: Local PostgreSQL Setup
 1. Install PostgreSQL on your machine
-2. Install pgvector extension (required for vector similarity search):
-   ```bash
-   # On macOS with Homebrew
-   brew install pgvector
-   
-   # On Ubuntu/Debian
-   sudo apt-get install postgresql-<version>-pgvector
-   
-   # Or build from source: https://github.com/pgvector/pgvector#installation
-   ```
 
-3. Create the database and user:
+2. Create the database and user:
    ```bash
    # Connect to PostgreSQL as superuser
    psql -U postgres
@@ -125,7 +113,7 @@ This application uses **PostgreSQL** as its database. You'll need to set up a Po
    \q
    ```
 
-4. Update the PostgreSQL environment variables in `.env`:
+3. Update the PostgreSQL environment variables in `.env`:
    ```bash
    POSTGRES_HOST="localhost"
    POSTGRES_PORT="5432"
@@ -134,7 +122,7 @@ This application uses **PostgreSQL** as its database. You'll need to set up a Po
    POSTGRES_PASSWORD="your_secure_password"  # Use the password you set above
    ```
 
-5. Run migrations:
+4. Run migrations:
    ```bash
    # Apply database migrations (tables will be created with correct ownership)
    make migrate-db
@@ -258,8 +246,8 @@ USE_MEMORIES="true"
 
 #### Where it's used
 
-- To give context to the LLM when creating the very first project draft when the chat is imported
-- To give context to the LLM when chatting with it to refine the project draft
+- To give context to the LLM when creating the very first idea when the chat is imported
+- To give context to the LLM when chatting with it to refine the idea
 
 ## Running Tests
 ```bash
@@ -316,7 +304,6 @@ FRONTEND_URL="http://localhost:3000"
 OPENAI_API_KEY="your-openai-api-key-here"          # For LLM services
 ANTHROPIC_API_KEY="your-anthropic-api-key-here"    # For Claude models
 XAI_API_KEY="your-xai-api-key-here"                # For Grok models
-LINEAR_ACCESS_KEY="your-linear-access-key"          # For Linear project creation
 MEM0_API_URL="https://branchprompt-mem0-production.up.railway.app"    # For memory search
 MEM0_USER_ID="your-mem0-user-id-here"              # For memory search
 # Feature flags

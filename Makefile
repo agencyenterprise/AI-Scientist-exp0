@@ -7,6 +7,15 @@ lint:
 	uv run mypy . --exclude '^(workspaces|\.venv|frontend|backend/tests|ai_scientist/example_code.py)'
 	uv run python3 check_inline_imports.py --exclude workspaces,frontend,backend/tests,backend/playground
 
+lint-frontend:
+	@echo "🔍 Linting frontend..."
+	@echo "🎨 Auto-formatting frontend..."
+	cd frontend && npm run format
+	cd frontend && npm run lint
+	cd frontend && npm run style
+	@echo "🔍 Type checking frontend..."
+	cd frontend && npx tsc --noEmit
+
 # Development servers
 dev-frontend: gen-api-types
 	@echo "🚀 Starting frontend development server..."

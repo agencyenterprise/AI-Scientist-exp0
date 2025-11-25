@@ -46,9 +46,9 @@ def configure_logging() -> None:
 configure_logging()
 
 app = FastAPI(
-    title="AGI Judd's Idea Catalog API",
+    title="AE Scientist API",
     version=settings.VERSION,
-    description="Transform LLM conversations into actionable Linear projects",
+    description="Transform LLM conversations into actionable AE ideas",
 )
 
 # Set up CORS
