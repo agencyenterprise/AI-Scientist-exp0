@@ -145,6 +145,10 @@ async def node_writeup(state: State, runtime: Runtime[Context]) -> dict[str, Any
     assert state.state_ablation.parser_code
     assert state.state_ablation.parser_stdout
 
+    research = ""
+    if state.state_research and state.state_research.research:
+        research = state.state_research.research.get("final_report", "NA")
+
     writeup_state = writeup.State(
         cwd=state.cwd,
         task=state.task,
@@ -152,6 +156,7 @@ async def node_writeup(state: State, runtime: Runtime[Context]) -> dict[str, Any
         parser_code=state.state_ablation.parser_code,
         parser_stdout=state.state_ablation.parser_stdout,
         plots=list(state.state_plotting.plots),
+        research=research,
     )
     writeup_context = writeup.Context(
         model=runtime.context.model,

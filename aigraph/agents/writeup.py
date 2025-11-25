@@ -26,6 +26,7 @@ class State(BaseModel):
     parser_stdout: str | None = None
     experiment_code: str
     plots: list[utils.Plot]
+    research: str | None = None
 
     # counts retry attempts
     writeup_retry_count: int = 0
@@ -99,6 +100,7 @@ async def node_writeup_generate_writeup(
         code_parser=state.parser_code,
         parser_stdout=state.parser_stdout,
         plots=state.plots,
+        research=state.research,
         memory=memory,
     )
 
