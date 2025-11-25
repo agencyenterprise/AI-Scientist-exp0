@@ -38,3 +38,7 @@ warn_unreachable = true
 warn_unused_configs = true
 warn_unused_ignores = true
 
+
+[[tool.mypy.overrides]]
+module = "open_deep_research.*"
+ignore_missing_imports = true
