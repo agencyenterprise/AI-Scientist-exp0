@@ -165,6 +165,7 @@ def build_writeup_prompt(
     code_parser: str,
     parser_stdout: str | None,
     plots: Iterable[utils.Plot],
+    research: str | None = None,
     memory: str = "",
 ) -> str:
     return f"""
@@ -191,6 +192,12 @@ def build_writeup_prompt(
     <PARSER_OUTPUT>
     {parser_stdout or "NA"}
     </PARSER_OUTPUT>
+
+    ## Research output
+
+    <RESEARCH_OUTPUT>
+    {research or "NA"}
+    </RESEARCH_OUTPUT>
 
     ## Images
 
