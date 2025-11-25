@@ -208,3 +208,5 @@ research_topic_example.json
 
 configure_pod.sh
 /.docker/
+/.agent/
+/CLAUDE.md
