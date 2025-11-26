@@ -1,33 +1,19 @@
 # Installation targets
 install-research:
-	@echo "📦 Installing research_pipeline dependencies..."
-	cd research_pipeline && uv sync
+	$(MAKE) -C research_pipeline install
 
 install-server:
-	@echo "📦 Installing server dependencies..."
-	cd server && uv sync
+	$(MAKE) -C server install
 
 install: install-research install-server
 	@echo "✅ All dependencies installed"
 
 # Linting targets
 lint-research:
-	@echo "🔍 Linting research_pipeline..."
-	@echo "🎨 Auto-formatting research_pipeline..."
-	cd research_pipeline && uv run black . --exclude 'workspaces|\.venv'
-	cd research_pipeline && uv run isort . --skip-glob 'workspaces/*' --skip-glob '.venv/*'
-	cd research_pipeline && uv run ruff check . --exclude workspaces,.venv
-	cd research_pipeline && uv run mypy . --exclude '^(workspaces|\.venv|ai_scientist/example_code.py)'
-	uv run --directory research_pipeline python ../linter/check_inline_imports.py --target-dir research_pipeline --exclude workspaces
+	$(MAKE) -C research_pipeline lint
 
 lint-server:
-	@echo "🔍 Linting server..."
-	@echo "🎨 Auto-formatting server..."
-	cd server && uv run black . --exclude '\.venv|tests'
-	cd server && uv run isort . --skip-glob '.venv/*'
-	cd server && uv run ruff check . --exclude .venv,tests
-	cd server && uv run mypy . --exclude '^(\.venv|tests|playground)'
-	uv run --directory server python ../linter/check_inline_imports.py --target-dir server --exclude tests,playground
+	$(MAKE) -C server lint
 
 lint: lint-research lint-server
 	@echo "✅ All linting complete"
@@ -46,20 +32,18 @@ dev-frontend: gen-api-types
 	@echo "🚀 Starting frontend development server..."
 	cd frontend && npm run dev
 
-dev-server: migrate-db gen-api-types
-	@echo "🚀 Starting server development server with DEBUG logging..."
-	cd server && LOG_LEVEL=DEBUG uv run -m uvicorn app.main:app --reload
+dev-server:
+	$(MAKE) -C server dev
 
 # OpenAPI export and TS type generation
 export-openapi:
-	@echo "📝 Exporting OpenAPI schema..."
-	cd server && uv run export_openapi.py > openapi.json
+	$(MAKE) -C server export-openapi
 
-gen-api-types: export-openapi
-	@echo "🧬 Generating frontend API types from OpenAPI schema..."
-	cd frontend && npx openapi-typescript ../server/openapi.json --output src/types/api.gen.ts
+gen-api-types:
+	$(MAKE) -C server gen-api-types
 
 # Database migrations
 migrate-db:
-	@echo "📊 Running database migrations..."
-	cd server && uv run migrate.py upgrade
+	$(MAKE) -C server migrate
+
+.PHONY: install-research install-server install lint-research lint-server lint lint-frontend dev-frontend dev-server export-openapi gen-api-types migrate-db
