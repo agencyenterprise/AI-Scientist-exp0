@@ -72,6 +72,7 @@ export function ProjectDraftFooter({
             {allVersions.length > 2 && (
               <VersionNavigationPanel
                 comparisonVersion={comparisonVersion}
+                totalVersions={allVersions.length}
                 canNavigatePrevious={canNavigatePrevious}
                 canNavigateNext={canNavigateNext}
                 onPreviousVersion={onPreviousVersion}
