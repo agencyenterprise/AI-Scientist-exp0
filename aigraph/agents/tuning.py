@@ -22,6 +22,7 @@ class State(BaseModel):
     cwd: Path
     task: utils.Task
     code: str
+    research: str = ""  # research context from prepare
     metrics: list[utils.Metric] = []
     cumulative_summary: str = ""
     baseline_results: str = ""  # baseline parser stdout for comparison
@@ -150,6 +151,7 @@ async def node_tuning_code_tuning(
         cumulative_summary=state.cumulative_summary,
         baseline_results=state.baseline_results,
         experiment_plan=state.experiment_plan_structured,
+        research=state.research,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -295,6 +297,7 @@ async def node_tuning_code_metrics_parser(
         memory=memory,
         baseline_results=state.baseline_results,
         experiment_plan=state.experiment_plan_structured,
+        research=state.research,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)

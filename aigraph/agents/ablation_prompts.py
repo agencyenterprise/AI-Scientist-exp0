@@ -96,6 +96,7 @@ def build_prompt_code_ablation(
     baseline_results: str = "",
     experiment_plan: str = "",
     baseline_code: str = "",
+    research: str = "",
 ) -> str:
     return f"""
     You are an experienced AI researcher. You are provided with a previously
@@ -113,6 +114,7 @@ def build_prompt_code_ablation(
     - cumulative_summary: Summary of all experiments run so far for context.
     - baseline_results: Performance metrics from baseline to compare against.
     - experiment_plan: Structured experiment plan defining objectives and approach.
+    - research: Deep research findings on related work and state-of-the-art.
     
     Name: {name}
     Description: {description}
@@ -216,6 +218,12 @@ def build_prompt_code_ablation(
     {experiment_plan or "No structured plan available."}
     </EXPERIMENT_PLAN>
 
+    ## Research Context
+
+    <RESEARCH_CONTEXT>
+    {research or "No research context available."}
+    </RESEARCH_CONTEXT>
+
     ## Memory
 
     <MEMORY>
@@ -315,6 +323,7 @@ def build_prompt_ablation_parser_code(
     memory: str = "",
     baseline_results: str = "",
     experiment_plan: str = "",
+    research: str = "",
 ) -> str:
     return f"""
     ## Introduction
@@ -329,6 +338,7 @@ def build_prompt_ablation_parser_code(
     - memory: Historical notes from previous parser attempts.
     - baseline_results: Baseline metrics to compare ablation results against.
     - experiment_plan: Structured experiment plan for context on expected outputs.
+    - research: Deep research findings for additional context.
     
     ## Context
     
@@ -389,6 +399,12 @@ def build_prompt_ablation_parser_code(
     <EXPERIMENT_PLAN>
     {experiment_plan or "No structured plan available."}
     </EXPERIMENT_PLAN>
+
+    ## Research Context
+
+    <RESEARCH_CONTEXT>
+    {research or "No research context available."}
+    </RESEARCH_CONTEXT>
 
     ## Baseline Results (for comparison)
 

@@ -102,6 +102,7 @@ def build_prompt_baseline_code(
     memory: str,
     cumulative_summary: str = "",
     experiment_plan: str = "",
+    research: str = "",
 ) -> str:
     prompt = f"""
     ## Introduction
@@ -120,6 +121,7 @@ def build_prompt_baseline_code(
     - memory: Historical notes from previous attempts to avoid repeating mistakes.
     - cumulative_summary: Summary of all experiments run so far for context.
     - experiment_plan: Structured experiment plan defining objectives and approach.
+    - research: Deep research findings on related work and state-of-the-art.
 
     ## Instructions
 
@@ -296,6 +298,12 @@ def build_prompt_baseline_code(
     {experiment_plan or "No structured plan available."}
     </EXPERIMENT_PLAN>
 
+    ## Research Context
+
+    <RESEARCH_CONTEXT>
+    {research or "No research context available."}
+    </RESEARCH_CONTEXT>
+
     ## Evaluation metrics
 
     <EVALUATION METRICS>
@@ -394,7 +402,7 @@ def build_prompt_baseline_code_output(
 
 
 def build_prompt_baseline_parser_code(
-    code: str, memory: str = "", experiment_plan: str = ""
+    code: str, memory: str = "", experiment_plan: str = "", research: str = ""
 ) -> str:
     return f"""
     ## Introduction
@@ -408,6 +416,7 @@ def build_prompt_baseline_parser_code(
     - code: Original baseline experiment code to understand data structure.
     - memory: Historical notes from previous parser attempts.
     - experiment_plan: Structured experiment plan for context on expected outputs.
+    - research: Deep research findings for additional context.
 
     ```json
     {{
@@ -475,6 +484,12 @@ def build_prompt_baseline_parser_code(
     <EXPERIMENT_PLAN>
     {experiment_plan or "No structured plan available."}
     </EXPERIMENT_PLAN>
+
+    ## Research Context
+
+    <RESEARCH_CONTEXT>
+    {research or "No research context available."}
+    </RESEARCH_CONTEXT>
 
     ## Context
 

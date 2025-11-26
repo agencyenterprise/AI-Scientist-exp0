@@ -97,6 +97,7 @@ def build_prompt_tuning_code(
     cumulative_summary: str = "",
     baseline_results: str = "",
     experiment_plan: str = "",
+    research: str = "",
 ) -> str:
     return f"""
     ## Introduction
@@ -116,6 +117,7 @@ def build_prompt_tuning_code(
     - cumulative_summary: Summary of all experiments run so far for context.
     - baseline_results: Baseline performance metrics to compare improvements against.
     - experiment_plan: Structured experiment plan defining objectives and approach.
+    - research: Deep research findings on related work and state-of-the-art.
     
     Name: {name}
     Description: {description}
@@ -290,6 +292,12 @@ def build_prompt_tuning_code(
     {experiment_plan or "No structured plan available."}
     </EXPERIMENT_PLAN>
 
+    ## Research Context
+
+    <RESEARCH_CONTEXT>
+    {research or "No research context available."}
+    </RESEARCH_CONTEXT>
+
     ## Evaluation metrics
 
     <EVALUATION METRICS>
@@ -403,6 +411,7 @@ def build_prompt_tuning_parser_code(
     memory: str = "",
     baseline_results: str = "",
     experiment_plan: str = "",
+    research: str = "",
 ) -> str:
     return f"""
     ## Introduction
@@ -417,6 +426,7 @@ def build_prompt_tuning_parser_code(
     - memory: Historical notes from previous parser attempts.
     - baseline_results: Baseline metrics to compare tuning improvements against.
     - experiment_plan: Structured experiment plan for context on expected outputs.
+    - research: Deep research findings for additional context.
 
     ```json
     {{
@@ -486,6 +496,12 @@ def build_prompt_tuning_parser_code(
     <EXPERIMENT_PLAN>
     {experiment_plan or "No structured plan available."}
     </EXPERIMENT_PLAN>
+
+    ## Research Context
+
+    <RESEARCH_CONTEXT>
+    {research or "No research context available."}
+    </RESEARCH_CONTEXT>
 
     ## Context
 

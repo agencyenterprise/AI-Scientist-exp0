@@ -22,6 +22,7 @@ class State(BaseModel):
     cwd: Path
     task: utils.Task
     code: str
+    research: str = ""  # research context from prepare
     baseline_code: str = ""  # original baseline code for reference
     metrics: list[utils.Metric] = []
     cumulative_summary: str = ""
@@ -151,6 +152,7 @@ async def node_ablation_code_ablation(
         baseline_results=state.baseline_results,
         experiment_plan=state.experiment_plan_structured,
         baseline_code=state.baseline_code,
+        research=state.research,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -297,10 +299,11 @@ async def node_ablation_code_metrics_parser(
         memory += f"```\n{state.parser_stderr or 'NA'}\n```\n\n"
 
     prompt = prompts.build_prompt_ablation_parser_code(
-        state.ablation_code,
+        code=state.ablation_code,
         memory=memory,
         baseline_results=state.baseline_results,
         experiment_plan=state.experiment_plan_structured,
+        research=state.research,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)

@@ -15,7 +15,7 @@ from pydantic import AliasChoices, BaseModel, Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliPositionalArg
 
 from aigraph import log, utils
-from aigraph.agents import ablation, baseline, plotting, research, tuning, writeup
+from aigraph.agents import ablation, baseline, plotting, prepare, tuning, writeup
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +25,16 @@ class State(BaseModel):
     cwd: Path
     task: utils.Task
 
+    # outputs from prepare
+    research: str = ""  # research report from prepare
     metrics: list[utils.Metric] = []
-    cumulative_summary: str = ""
-    baseline_results: str = ""  # baseline parser stdout for comparison
     experiment_plan_structured: str = ""  # structured experiment plan
 
-    state_research: research.State | None = None
+    # outputs from downstream nodes
+    cumulative_summary: str = ""
+    baseline_results: str = ""  # baseline parser stdout for comparison
+
+    state_prepare: prepare.State | None = None
     state_baseline: baseline.State | None = None
     state_tuning: tuning.State | None = None
     state_ablation: ablation.State | None = None
@@ -43,22 +47,35 @@ class Context(BaseModel):
     temperature: float = 0.0
 
 
-async def node_research(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
-    research_state = research.State(
+async def node_prepare(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
+    """Run prepare phase: research + metrics + plan."""
+    prepare_state = prepare.State(
         cwd=state.cwd,
         task=state.task,
     )
+    prepare_context = prepare.Context(
+        model=runtime.context.model,
+        temperature=runtime.context.temperature,
+    )
 
-    graph = research.build(checkpointer=True)
-    result = await graph.ainvoke(input=research_state)
+    graph = prepare.build(checkpointer=True)
+    result = await graph.ainvoke(input=prepare_state, context=prepare_context)
 
-    return {"state_research": result}
+    return {
+        "state_prepare": result,
+        "research": result.get("research", ""),
+        "metrics": result.get("metrics", []),
+        "experiment_plan_structured": result.get("experiment_plan_structured", ""),
+    }
 
 
 async def node_baseline(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
     baseline_state = baseline.State(
         cwd=state.cwd,
         task=state.task,
+        research=state.research,
+        metrics=state.metrics,
+        experiment_plan_structured=state.experiment_plan_structured,
         cumulative_summary=state.cumulative_summary,
     )
     baseline_context = baseline.Context(
@@ -74,10 +91,8 @@ async def node_baseline(state: State, runtime: Runtime[Context]) -> dict[str, An
 
     return {
         "state_baseline": result,
-        "metrics": result.get("metrics", []),
         "cumulative_summary": result.get("cumulative_summary", ""),
         "baseline_results": result.get("parse_stdout", ""),
-        "experiment_plan_structured": result.get("experiment_plan_structured", ""),
     }
 
 
@@ -88,6 +103,7 @@ async def node_tuning(state: State, runtime: Runtime[Context]) -> dict[str, Any]
     tuning_state = tuning.State(
         cwd=state.cwd,
         task=state.task,
+        research=state.research,
         code=state.state_baseline.experiment_code,
         metrics=state.metrics,
         cumulative_summary=state.cumulative_summary,
@@ -122,6 +138,7 @@ async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, An
     ablation_state = ablation.State(
         cwd=state.cwd,
         task=state.task,
+        research=state.research,
         code=state.state_tuning.tuning_code,
         baseline_code=state.state_baseline.experiment_code,
         metrics=state.metrics,
@@ -181,10 +198,6 @@ async def node_writeup(state: State, runtime: Runtime[Context]) -> dict[str, Any
     assert state.state_ablation.parser_code
     assert state.state_ablation.parser_stdout
 
-    research = ""
-    if state.state_research and state.state_research.research:
-        research = state.state_research.research.get("final_report", "NA")
-
     writeup_state = writeup.State(
         cwd=state.cwd,
         task=state.task,
@@ -193,7 +206,7 @@ async def node_writeup(state: State, runtime: Runtime[Context]) -> dict[str, Any
         parser_stdout=state.state_ablation.parser_stdout,
         baseline_results=state.baseline_results,
         plots=list(state.state_plotting.plots),
-        research=research,
+        research=state.research,
         experiment_plan_structured=state.experiment_plan_structured,
     )
     writeup_context = writeup.Context(
@@ -216,7 +229,7 @@ def build(
     builder = StateGraph(state_schema=State, context_schema=Context)
 
     # Add nodes
-    builder.add_node("node_research", node_research)
+    builder.add_node("node_prepare", node_prepare)
     builder.add_node("node_baseline", node_baseline)
     builder.add_node("node_tuning", node_tuning)
     builder.add_node("node_ablation", node_ablation)
@@ -224,15 +237,14 @@ def build(
     builder.add_node("node_writeup", node_writeup)
 
     # Add edges
-    # Research and baseline start in parallel
-    builder.add_edge(START, "node_research")
-    builder.add_edge(START, "node_baseline")
-    # Sequential flow: baseline → tuning → ablation → plotting
+    # Prepare runs first (research + metrics + plan)
+    builder.add_edge(START, "node_prepare")
+    # Sequential flow: prepare → baseline → tuning → ablation → plotting → writeup
+    builder.add_edge("node_prepare", "node_baseline")
     builder.add_edge("node_baseline", "node_tuning")
     builder.add_edge("node_tuning", "node_ablation")
     builder.add_edge("node_ablation", "node_plotting")
-    # Writeup waits for both research and plotting to complete
-    builder.add_edge(["node_research", "node_plotting"], "node_writeup")
+    builder.add_edge("node_plotting", "node_writeup")
     builder.add_edge("node_writeup", END)
 
     checkpointer = AsyncSqliteSaver(conn=conn)
