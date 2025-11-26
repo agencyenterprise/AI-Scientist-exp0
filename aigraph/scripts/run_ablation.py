@@ -21,7 +21,11 @@ class Args(BaseSettings):
     cwd: CliPositionalArg[Path]
     task: CliPositionalArg[Path]
     code: CliPositionalArg[Path]
-
+    
+    baseline_code: Annotated[
+        Path | None,
+        Field(default=None),
+    ]
     thread_id: Annotated[
         str,
         Field(default_factory=lambda: str(uuid.uuid4())),
@@ -59,6 +63,7 @@ class Args(BaseSettings):
 
         task = utils.Task.model_validate_json(self.task.read_text())
         code_content = self.code.read_text()
+        baseline_code_content = self.baseline_code.read_text() if self.baseline_code else ""
 
         configurable = {"thread_id": self.thread_id}
         if self.checkpoint_id:
@@ -66,7 +71,12 @@ class Args(BaseSettings):
         config = RunnableConfig(
             callbacks=[CallbackHandler()], configurable=configurable
         )
-        state = ablation.State(cwd=self.cwd, task=task, code=code_content)
+        state = ablation.State(
+            cwd=self.cwd, 
+            task=task, 
+            code=code_content,
+            baseline_code=baseline_code_content,
+        )
         context = ablation.Context(model=self.model, temperature=self.temperature)
 
         async with aiosqlite.connect(self.checkpoint_db) as conn:

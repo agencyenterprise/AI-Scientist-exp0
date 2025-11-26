@@ -21,7 +21,11 @@ class Args(BaseSettings):
     cwd: CliPositionalArg[Path]
     task: CliPositionalArg[Path]
     code: CliPositionalArg[Path]
-
+    
+    baseline_code: Annotated[
+        Path | None,
+        Field(default=None),
+    ]
     thread_id: Annotated[
         str,
         Field(default_factory=lambda: str(uuid.uuid4())),
@@ -59,13 +63,20 @@ class Args(BaseSettings):
 
         task = utils.Task.model_validate_json(self.task.read_text())
         code = self.code.read_text()
+        baseline_code_content = self.baseline_code.read_text() if self.baseline_code else ""
+        
         configurable = {"thread_id": self.thread_id}
         if self.checkpoint_id:
             configurable["checkpoint_id"] = self.checkpoint_id
         config = RunnableConfig(
             callbacks=[CallbackHandler()], configurable=configurable
         )
-        state = plotting.State(cwd=self.cwd, task=task, code=code)
+        state = plotting.State(
+            cwd=self.cwd, 
+            task=task, 
+            code=code,
+            baseline_code=baseline_code_content,
+        )
         context = plotting.Context(model=self.model, temperature=self.temperature)
 
         async with aiosqlite.connect(self.checkpoint_db) as conn:

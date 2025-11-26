@@ -116,11 +116,14 @@ async def node_tuning(state: State, runtime: Runtime[Context]) -> dict[str, Any]
 async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
     assert state.state_tuning
     assert state.state_tuning.tuning_code
+    assert state.state_baseline
+    assert state.state_baseline.experiment_code
 
     ablation_state = ablation.State(
         cwd=state.cwd,
         task=state.task,
         code=state.state_tuning.tuning_code,
+        baseline_code=state.state_baseline.experiment_code,
         metrics=state.metrics,
         cumulative_summary=state.cumulative_summary,
         baseline_results=state.baseline_results,
@@ -148,11 +151,14 @@ async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, An
 async def node_plotting(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
     assert state.state_ablation
     assert state.state_ablation.ablation_code
+    assert state.state_baseline
+    assert state.state_baseline.experiment_code
 
     plotting_state = plotting.State(
         cwd=state.cwd,
         task=state.task,
         code=state.state_ablation.ablation_code,
+        baseline_code=state.state_baseline.experiment_code,
     )
     plotting_context = plotting.Context(
         model=runtime.context.model,

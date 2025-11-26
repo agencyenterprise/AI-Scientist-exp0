@@ -23,6 +23,7 @@ class State(BaseModel):
     cwd: Path
     task: utils.Task
     code: str  # The experiment code that generated the data
+    baseline_code: str = ""  # Original baseline code for reference
 
     plots: Annotated[list[utils.Plot], operator.add] = []
 
@@ -85,6 +86,7 @@ async def node_plotting_code_plotting(
         state.task,
         state.code,
         memory,
+        baseline_code=state.baseline_code,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)

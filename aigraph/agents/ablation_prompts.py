@@ -1,10 +1,10 @@
 from typing import Iterable
 
-from aigraph.utils import DATA_DIR, Metric, Task
+from aigraph.utils import Metric, Task
 
 
 def _task_to_prompt(task: Task) -> str:
-    prompt = f"""
+    return f"""
     You are an ambitious AI researcher who is looking to publish a paper that
     will contribute significantly to the field.
 
@@ -36,20 +36,7 @@ def _task_to_prompt(task: Task) -> str:
 
     Risk Factors and Limitations:
     {"\n".join(f"- {risk}" for risk in task.risk_factors_and_limitations)}
-
     """
-
-    if task.code:
-        code = f"```python\n{task.code}\n```"
-        return prompt + f"Code To Use:\n{code}\n"
-
-    example = DATA_DIR / "code.py.txt"
-    if not example.exists():
-        return prompt
-
-    code = example.read_text()
-    code = f"```python\n{code}\n```"
-    return prompt + f"Code To Use:\n{code}\n"
 
 
 def build_prompt_propose_ablation(code: str, ablations: list[str]) -> str:
@@ -108,6 +95,7 @@ def build_prompt_code_ablation(
     cumulative_summary: str = "",
     baseline_results: str = "",
     experiment_plan: str = "",
+    baseline_code: str = "",
 ) -> str:
     return f"""
     You are an experienced AI researcher. You are provided with a previously
@@ -129,7 +117,19 @@ def build_prompt_code_ablation(
     Name: {name}
     Description: {description}
 
+    ## Reference: Original Baseline Implementation
+    
+    This is the original baseline code for reference. Use it to understand the 
+    overall structure, dataset handling, and evaluation patterns:
+    
+    ```python
+    {baseline_code or "Not available"}
+    ```
+
     ## Base code you are working on
+    
+    This is the current code (may be tuned version) that you should modify for 
+    the ablation study:
     
     ```python
     {code}
@@ -158,10 +158,15 @@ def build_prompt_code_ablation(
     - No parts of the code should be skipped, don't terminate the code execution
       before finishing the script.
     - You MUST evaluate your solution on at least 3 different datasets to ensure
-      robustness. Use standard benchmark datasets when available (e.g., MNIST,
-      CIFAR-10, ImageNet, GLUE, SQuAD, etc.). Each dataset should be evaluated
-      separately and results should be tracked per dataset in the experiment_data
-      structure.
+      robustness. Use standard benchmark datasets when available:
+      
+      **Vision**: MNIST, Fashion-MNIST, CIFAR-10, CIFAR-100, ImageNet, SVHN
+      **NLP**: GLUE, SQuAD, IMDb, AG News, SST-2, MRPC
+      **Tabular**: Iris, Wine Quality, Titanic, Diabetes, Breast Cancer
+      **Audio**: LibriSpeech, Speech Commands
+      
+      Each dataset should be evaluated separately and results tracked per dataset 
+      in the experiment_data structure.
 
     ### Implementation guidelines
 

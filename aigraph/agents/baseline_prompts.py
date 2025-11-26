@@ -142,15 +142,20 @@ def build_prompt_baseline_code(
       extensive hyper-parameter optimization.
     - Take the Memory section into consideration when proposing the design.
     - Don't suggest to do EDA.
-    - Prioritize using real public datasets (e.g., from HuggingFace) when they
-      suit the task, and only fall back to synthetic data if no suitable dataset
-      is available or synthetic generation is essential to the proposed
-      experiment.
+    - Prioritize using real public datasets (e.g., from HuggingFace, torchvision,
+      scikit-learn, Kaggle) when they suit the task, and only fall back to 
+      synthetic data if no suitable dataset is available or synthetic generation 
+      is essential to the proposed experiment.
     - You MUST evaluate your solution on at least 3 different datasets to ensure
-      robustness. Use standard benchmark datasets when available (e.g., MNIST,
-      CIFAR-10, ImageNet, GLUE, SQuAD, etc.). Each dataset should be evaluated
-      separately and results should be tracked per dataset in the experiment_data
-      structure.
+      robustness. Use standard benchmark datasets when available:
+      
+      **Vision**: MNIST, Fashion-MNIST, CIFAR-10, CIFAR-100, ImageNet, SVHN
+      **NLP**: GLUE, SQuAD, IMDb, AG News, SST-2, MRPC
+      **Tabular**: Iris, Wine Quality, Titanic, Diabetes, Breast Cancer
+      **Audio**: LibriSpeech, Speech Commands
+      
+      Each dataset should be evaluated separately and results tracked per dataset 
+      in the experiment_data structure.
 
     ## Implementation guidelines
 

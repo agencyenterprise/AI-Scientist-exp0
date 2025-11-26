@@ -22,6 +22,7 @@ class State(BaseModel):
     cwd: Path
     task: utils.Task
     code: str
+    baseline_code: str = ""  # original baseline code for reference
     metrics: list[utils.Metric] = []
     cumulative_summary: str = ""
     baseline_results: str = ""  # baseline parser stdout for comparison
@@ -149,6 +150,7 @@ async def node_ablation_code_ablation(
         cumulative_summary=state.cumulative_summary,
         baseline_results=state.baseline_results,
         experiment_plan=state.experiment_plan_structured,
+        baseline_code=state.baseline_code,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)

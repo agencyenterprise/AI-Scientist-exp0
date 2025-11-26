@@ -37,7 +37,9 @@ def _task_to_prompt(task: Task) -> str:
     """
 
 
-def build_prompt_plotting_code(task: Task, code: str, memory: str = "") -> str:
+def build_prompt_plotting_code(
+    task: Task, code: str, memory: str = "", baseline_code: str = ""
+) -> str:
     return f"""
     ## Introduction
 
@@ -109,9 +111,20 @@ def build_prompt_plotting_code(task: Task, code: str, memory: str = "") -> str:
     {_task_to_prompt(task)}
     </RESEARCH_IDEA>
 
+    ## Reference: Original Baseline Implementation
+    
+    This is the original baseline code for reference. Use it to understand the 
+    data structure and visualization context:
+    
+    <BASELINE_CODE>
+    ```python
+    {baseline_code or "Not available"}
+    ```
+    </BASELINE_CODE>
+
     ## Experiment Code
 
-    This is the code that generated the data:
+    This is the current code that generated the data to visualize:
     
     <CODE>
     ```python
