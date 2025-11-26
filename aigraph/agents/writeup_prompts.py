@@ -48,6 +48,11 @@ def build_writeup_system_message(task: utils.Task, pages: int = 5) -> str:
     scientifically accurate, objective, and truthful. Accurately report the
     experimental results, even if they are negative or inconclusive.
     
+    ## Input Variables
+
+    - task: Research task with hypothesis and goals for the paper.
+    - pages: Page limit for the main paper content.
+    
     You are planning to submit to a top-tier ML conference, which has
     guidelines:
 
@@ -177,6 +182,17 @@ def build_writeup_prompt(
     task is to write a LaTeX document that summarizes the research you have
     conducted.
 
+    ## Input Variables
+
+    - code_experiment: Experiment implementation code to describe in methods.
+    - code_parser: Parser code used to analyze results.
+    - parser_stdout: Output from parser showing final results.
+    - baseline_results: Initial baseline performance metrics.
+    - plots: List of generated plots with analysis and relevancy scores.
+    - research: Research notes or additional findings.
+    - memory: Historical notes from previous writeup attempts.
+    - cumulative_summary: Summary of all experiments conducted.
+
     ## Baseline Results
 
     <BASELINE_RESULTS>
@@ -237,6 +253,12 @@ def build_prompt_compile_output(latex: str, stdout: str, stderr: str) -> str:
     return f"""
     Review LaTeX compilation output and identify compilation bugs.
     
+    ## Input Variables
+
+    - latex: LaTeX source code that was compiled.
+    - stdout: Standard output from LaTeX compilation.
+    - stderr: Error output from LaTeX compilation.
+    
     Determine if compilation succeeded or failed.
 
     Common LaTeX errors:
@@ -281,6 +303,13 @@ def build_writeup_review_prompt(
     You are an experienced scientific paper reviewer with expertise in machine
     learning and artificial intelligence research. Your role is to provide
     thorough, constructive, and fair reviews of academic papers.
+
+    ## Input Variables
+
+    - latex_content: LaTeX source code of the paper to review.
+    - task: Research task with hypothesis and goals for context.
+    - baseline_results: Initial baseline performance metrics.
+    - parser_stdout: Final results after tuning/ablation studies.
 
     Review the following paper generated from the research task below. Evaluate
     the paper across multiple dimensions including originality, quality,

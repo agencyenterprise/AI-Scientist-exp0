@@ -24,6 +24,16 @@ def build_prompt_summary(
     maintain a cumulative summary of the progress, focusing on the key evaluation
     metrics defined for this research.
 
+    ## Input Variables
+
+    - task: Research task with hypothesis and goals for context.
+    - metrics: Evaluation metrics being tracked across experiments.
+    - code: Experiment code that was executed.
+    - stdout: Standard output from running the experiment.
+    - stderr: Error output from running the experiment.
+    - existing_summary: Cumulative summary of all previous experiments.
+    - parsed_summary: Summary from parser analyzing the execution output.
+
     ## Research Idea
 
     {_task_to_prompt(task)}

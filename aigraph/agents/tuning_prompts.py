@@ -67,6 +67,11 @@ def build_prompt_tuning_propose(code: str, hyperparams: list[str]) -> str:
     batch size, etc. Only propose algorithm-specific and/or model-specific
     hyperparameters after you have tried the above.
     
+    ## Input Variables
+
+    - code: The baseline implementation code to tune hyperparameters for.
+    - hyperparams: List of previously attempted hyperparameter tuning studies.
+    
     ## Code
     
     <CODE>
@@ -111,6 +116,17 @@ def build_prompt_tuning_code(
     You are an experienced AI researcher. You are provided with a previously
     developed baseline implementation. Your task is to implement hyperparameter
     tuning for the following idea:
+    
+    ## Input Variables
+
+    - task: Research task with hypothesis and goals to implement.
+    - metrics: Evaluation metrics to track during tuning experiments.
+    - name: Name of the specific hyperparameter being tuned.
+    - description: Detailed description of the hyperparameter tuning approach.
+    - code: Baseline implementation code to modify for tuning.
+    - memory: Historical notes from previous attempts to avoid repeating mistakes.
+    - cumulative_summary: Summary of all experiments run so far for context.
+    - baseline_results: Baseline performance metrics to compare improvements against.
     
     Name: {name}
     Description: {description}
@@ -321,6 +337,13 @@ def build_prompt_tuning_code_output(
     execution. Analyze the execution output, determine if there were any bugs,
     and provide a summary of the findings.
 
+    ## Input Variables
+
+    - task: Research task with hypothesis and goals for context.
+    - code: The tuning experiment code that was executed.
+    - stdout: Standard output from running the experiment code.
+    - stderr: Error output from running the experiment code.
+
     ## Research idea
 
     <RESEARCH_IDEA>
@@ -364,6 +387,12 @@ def build_prompt_tuning_parser_code(
     You are an AI researcher analyzing experimental results stored in a JSON
     file. Write code to load and analyze the metrics from a file named
     'data_tuning.json'. It has the following structure:
+
+    ## Input Variables
+
+    - code: Original tuning experiment code to understand data structure.
+    - memory: Historical notes from previous parser attempts.
+    - baseline_results: Baseline metrics to compare tuning improvements against.
 
     ```json
     {{
@@ -465,6 +494,13 @@ def build_prompt_tuning_parser_output(
     results of your research experiment. Now you need to evaluate the output of the
     parser execution. Analyze the execution output, determine if there were any bugs,
     and provide a summary of the findings.
+
+    ## Input Variables
+
+    - code: Parser code that was executed to analyze results.
+    - stdout: Standard output from running the parser code.
+    - stderr: Error output from running the parser code.
+    - original_code: Original tuning experiment code for reference.
 
     ## Original Experiment Code
 

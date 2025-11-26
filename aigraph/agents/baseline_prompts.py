@@ -13,6 +13,10 @@ def build_prompt_baseline_metrics(task: Task) -> str:
     evaluation metrics that will help analyze the performance and
     characteristics of solutions for this research task.
 
+    ## Input Variables
+
+    - task: Research task containing hypothesis, abstract, and experimental goals.
+
     ## Research idea
 
     {_task_to_prompt(task)}
@@ -54,6 +58,13 @@ def build_prompt_baseline_code(
     below. From data preparation to model training. Focus on getting a simple
     but working implementation first, before any sophisticated improvements. We
     will explore more advanced variations in later stages.
+
+    ## Input Variables
+
+    - task: Research task with hypothesis and goals to implement.
+    - metrics: Evaluation metrics to track during baseline training.
+    - memory: Historical notes from previous attempts to avoid repeating mistakes.
+    - cumulative_summary: Summary of all experiments run so far for context.
 
     ## Instructions
 
@@ -253,6 +264,13 @@ def build_prompt_baseline_code_output(
     execution. Analyze the execution output, determine if there were any bugs,
     and provide a summary of the findings.
 
+    ## Input Variables
+
+    - task: Research task with hypothesis and goals for context.
+    - code: The baseline experiment code that was executed.
+    - stdout: Standard output from running the experiment code.
+    - stderr: Error output from running the experiment code.
+
     ## Research idea
 
     <RESEARCH IDEA>
@@ -292,6 +310,11 @@ def build_prompt_baseline_parser_code(code: str, memory: str = "") -> str:
     You are an AI researcher analyzing experimental results stored in a JSON
     file. Write code to load and analyze the metrics from a file named
     'data_baseline.json'. It has the following structure:
+
+    ## Input Variables
+
+    - code: Original baseline experiment code to understand data structure.
+    - memory: Historical notes from previous parser attempts.
 
     ```json
     {{
@@ -383,6 +406,13 @@ def build_prompt_baseline_parser_output(
     analyze the results of your research experiment. Now you need to evaluate
     the output of the parser execution. Analyze the execution output, determine
     if there were any bugs, and provide a summary of the findings.
+
+    ## Input Variables
+
+    - code: Parser code that was executed to analyze results.
+    - stdout: Standard output from running the parser code.
+    - stderr: Error output from running the parser code.
+    - original_code: Original baseline experiment code for reference.
 
     ## Original Experiment Code
 

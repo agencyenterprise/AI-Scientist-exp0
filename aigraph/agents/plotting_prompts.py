@@ -45,6 +45,12 @@ def build_prompt_plotting_code(task: Task, code: str, memory: str = "") -> str:
     in `data_ablation.json`. Your task is to write a Python script to
     visualize these results using matplotlib or seaborn.
 
+    ## Input Variables
+
+    - task: Research task with hypothesis and goals for context.
+    - code: Experiment code that generated the data to plot.
+    - memory: Historical notes from previous plotting attempts.
+
     ## Instructions
 
     - Write a Python script to load `data_ablation.json` and generate plots.
@@ -131,6 +137,13 @@ def build_prompt_plotting_output(
     experiment results. Analyze the execution output to determine if the
     plotting was successful or if there were bugs.
 
+    ## Input Variables
+
+    - task: Research task with hypothesis and goals for context.
+    - code: The plotting code that was executed.
+    - stdout: Standard output from running the plotting code.
+    - stderr: Error output from running the plotting code.
+
     ## Instructions
 
     - Check if the code executed without crashing (return code 0 is not enough,
@@ -179,6 +192,10 @@ def build_prompt_analyze_plots(task: Task) -> str:
     You are an AI researcher. You have generated plots from your experiment
     results. Your task is to analyze these plots to interpret the scientific
     findings.
+
+    ## Input Variables
+
+    - task: Research task with hypothesis and goals for context.
 
     ## Research idea
 
