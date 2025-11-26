@@ -1,7 +1,7 @@
 import logging
 import operator as op
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 from langchain.chat_models import BaseChatModel, init_chat_model
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
@@ -99,9 +99,11 @@ async def node_generate_code(state: State, runtime: Runtime[Context]) -> dict[st
         messages.append(HumanMessage(content=memory))
 
     llms = runtime.context.llm.with_structured_output(Schema)
-    response: Schema = await llms.ainvoke({"messages": messages})  # type: ignore
+    response = await llms.ainvoke(messages)
+    response = cast(Schema, response)
 
     logger.debug(f"Generated code length: {len(response.code)}")
+    logger.debug(f"Generated code: {response.code[:32]!r}")
     logger.debug(f"Dependencies: {response.dependencies}")
 
     logger.info("Finished node_generate_code")
@@ -177,7 +179,8 @@ async def node_check_output(state: State, runtime: Runtime[Context]) -> dict[str
         messages.append(HumanMessage(content=memory))
 
     llms = runtime.context.llm.with_structured_output(Schema)
-    response: Schema = await llms.ainvoke({"messages": messages})  # type: ignore
+    response = await llms.ainvoke(messages)
+    response = cast(Schema, response)
 
     logger.debug(f"Analysis score: {response.score}")
     logger.debug(f"Analysis summary: {response.summary[:32]!r}")
