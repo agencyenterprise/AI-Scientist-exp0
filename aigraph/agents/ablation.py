@@ -207,7 +207,7 @@ async def node_ablation_summary(
         temperature=runtime.context.temperature,
     )
 
-    graph = summary.build()
+    graph = summary.build(checkpointer=True)
     result = await graph.ainvoke(input=summary_state, context=summary_context)
     new_summary = result["new_summary"]
 
