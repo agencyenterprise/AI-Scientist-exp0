@@ -1,6 +1,6 @@
 import logging
 import operator as op
-from typing import Annotated, Any
+from typing import Annotated, Any, TypedDict, cast
 
 import open_deep_research.deep_researcher as researcher
 from langchain.chat_models import BaseChatModel, init_chat_model
@@ -16,22 +16,16 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
-class Research(BaseModel):
-    is_novel: bool
-    summary: str
-    related_papers: list[str]
-    research: AgentState
-
-
 class Analysis(BaseModel):
-    score: int
+    novel: bool
+    relevance: int
     rationale: str
 
 
 class Idea(BaseModel):
     title: str
-    description: str
     plan: str
+    description: str
 
 
 class State(BaseModel):
@@ -39,16 +33,15 @@ class State(BaseModel):
     research_domain: str
     prompt_generate: str
     prompt_novelty: str
-    prompt_score: str
 
     # state
     ideas: Annotated[list[Idea], op.add] = []
-    researches: Annotated[list[Research], op.add] = []
+    researches: Annotated[list[AgentState], op.add] = []
     analyses: Annotated[list[Analysis], op.add] = []
 
     # outputs
     idea: Idea | None = None
-    research: Research | None = None
+    research: AgentState | None = None
     analysis: Analysis | None = None
 
 
@@ -95,13 +88,12 @@ async def node_generate_ideas(state: State, runtime: Runtime[Context]) -> list[S
         logger.debug(f"idea[{i}]: {idea.plan[:32]!r}")
 
     sends = []
-    for idea in state.ideas:
+    for idea in response.ideas:
         sends.append(
             Send(
                 "node_research",
                 {
                     "idea": idea,
-                    "prompt_score": state.prompt_score,
                     "prompt_novelty": state.prompt_novelty,
                 },
             )
@@ -111,46 +103,17 @@ async def node_generate_ideas(state: State, runtime: Runtime[Context]) -> list[S
     return sends
 
 
-class InteralState(BaseModel):
+class InteralState(TypedDict, total=False):
     # inputs
     idea: Idea
-    prompt_score: str
     prompt_novelty: str
 
-    # outputs
-    research: Research | None = None
-    analysis: Analysis | None = None
 
+async def do_research(prompt: str) -> AgentState:
+    logger.info("Starting do_research")
 
-async def node_research(
-    state: InteralState,
-    runtime: Runtime[Context],
-) -> dict[str, Any]:
-    logger.info("Starting node_check_novelty")
-    assert state.idea is not None, "Idea is required"
-
-    class SchemaAnalysis(BaseModel):
-        is_novel: bool
-        similar_papers: list[str]
-        novelty_summary: str
-
-    class SchemaScore(BaseModel):
-        score: int
-        rationale: str
-
-    prompt = ""
-    prompt += "Research idea:\n\n"
-    prompt += f"<title>\n{state.idea.title}\n</title>\n\n"
-    prompt += "Description:\n\n"
-    prompt += f"<description>\n{state.idea.description}\n</description>\n\n"
-    prompt += "Plan:\n\n"
-    prompt += f"<plan>\n{state.idea.plan}\n</plan>\n\n"
-
-    messages_researcher: list[BaseMessage] = [HumanMessage(content=prompt)]
-    graph = researcher.deep_researcher_builder.compile(checkpointer=True)
-
-    res_research: AgentState = await graph.ainvoke(  # type: ignore
-        input={"messages": messages_researcher},
+    response = await researcher.deep_researcher.ainvoke(
+        input={"messages": [HumanMessage(content=prompt)]},
         config={
             "configurable": {
                 "allow_clarification": False,
@@ -159,59 +122,64 @@ async def node_research(
         },
     )
 
-    logger.debug(f"Research report: {res_research['final_report'][:32]!r}")
-
-    messages_novel: list[BaseMessage] = [
-        SystemMessage(content=state.prompt_novelty),
-        HumanMessage(content=f"Research report: {res_research['final_report']}"),
-        HumanMessage(content=res_research["final_report"]),
-    ]
-
-    llms_novel = runtime.context.llm.with_structured_output(SchemaAnalysis)
-    res_novel: SchemaAnalysis = await llms_novel.ainvoke({"messages": messages_novel})  # type: ignore
-
-    logger.debug(f"Is novel: {res_novel.is_novel}")
-    logger.debug(f"Related papers: {res_novel.similar_papers[:4]!r}")
-    logger.debug(f"Novelty summary: {res_novel.novelty_summary[:32]!r}")
-
-    messages_score: list[BaseMessage] = [
-        SystemMessage(content=state.prompt_score),
-        HumanMessage(content=f"Novelty summary: {res_novel.novelty_summary}"),
-        HumanMessage(content=res_novel.novelty_summary),
-    ]
-
-    llms_score = runtime.context.llm.with_structured_output(SchemaScore)
-    res_score: SchemaScore = await llms_score.ainvoke({"messages": messages_score})  # type: ignore
-
-    logger.info("Finished node_check_novelty")
-    return {
-        "idea": state.idea,
-        "research": Research(
-            is_novel=res_novel.is_novel,
-            summary=res_novel.novelty_summary,
-            related_papers=res_novel.similar_papers,
-            research=res_research,
-        ),
-        "analysis": Analysis(
-            score=res_score.score,
-            rationale=res_score.rationale,
-        ),
-    }
+    logger.debug("Finished do_research")
+    return cast(AgentState, response)
 
 
-async def node_aggregate_research(
+async def do_analysis(
+    prompt_novelty: str,
+    prompt: str,
+    runtime: Runtime[Context],
+) -> Analysis:
+    logger.info("Starting do_analysis")
+
+    llms = runtime.context.llm.with_structured_output(Analysis)
+    response = await llms.ainvoke(
+        [
+            SystemMessage(content=prompt_novelty),
+            HumanMessage(content=prompt),
+        ]
+    )
+
+    logger.debug("Finished do_analysis")
+    return cast(Analysis, response)
+
+
+async def node_research(
     state: InteralState,
     runtime: Runtime[Context],
 ) -> dict[str, Any]:
-    logger.info("Starting node_aggregate_research")
-    assert state.research is not None, "Research is required"
-    assert state.analysis is not None, "Analysis is required"
+    logger.info("Starting node_check_novelty")
 
-    logger.info("Finished node_aggregate_research")
+    idea = state.get("idea")
+    assert idea is not None, "Idea is required"
+
+    prompt_novelty = state.get("prompt_novelty", "")
+
+    # original prompt with idea
+    prompt = ""
+    prompt += "Research idea:\n\n"
+    prompt += f"<title>\n{idea.title}\n</title>\n\n"
+    prompt += "Description:\n\n"
+    prompt += f"<description>\n{idea.description}\n</description>\n\n"
+    prompt += "Plan:\n\n"
+    prompt += f"<plan>\n{idea.plan}\n</plan>\n\n"
+
+    res_research = await do_research(prompt)
+    logger.debug(f"Research report: {res_research['final_report'][:32]!r}")
+
+    prompt += "----------------------------------------\n\n"
+    prompt += "Research report:\n\n"
+    prompt += f"<report>\n{res_research['final_report']}\n</report>\n\n"
+
+    res_analysis = await do_analysis(prompt_novelty, prompt, runtime)
+    logger.debug(f"Analysis: {res_analysis.rationale[:32]!r}")
+
+    logger.info("Finished node_check_novelty")
     return {
-        "ideas": [state.idea],
-        "researches": [state.research],
-        "analyses": [state.analysis],
+        "ideas": [idea],
+        "researches": [res_research],
+        "analyses": [res_analysis],
     }
 
 
@@ -233,26 +201,28 @@ async def node_select_best(state: State, runtime: Runtime[Context]) -> dict[str,
         prompt += f"<plan>\n{idea.plan}\n</plan>\n\n"
         prompt += "----------------------------------------\n\n"
         prompt += f"Research {i}:\n\n"
-        prompt += f"<summary>\n{research.summary}\n</summary>\n\n"
-        prompt += f"<related_papers>\n{research.related_papers}\n</related_papers>\n\n"
-        prompt += f"<research>\n{research.research}\n</research>\n\n"
+        prompt += f"<summary>\n{research['final_report']}\n</summary>\n\n"
         prompt += "----------------------------------------\n\n"
         prompt += f"Analysis {i}:\n\n"
-        prompt += f"<score>\n{analysis.score}\n</score>\n\n"
+        prompt += f"<score>\n{analysis.novel}\n</score>\n\n"
+        prompt += f"<relevance>\n{analysis.relevance}\n</relevance>\n\n"
         prompt += f"<rationale>\n{analysis.rationale}\n</rationale>\n\n"
         prompt += "========================================\n\n"
 
-    system = "Select the best idea based on the research and analysis"
     messages: list[BaseMessage] = [
-        SystemMessage(content=system),
+        SystemMessage("Select the best idea based on the research and analysis"),
         HumanMessage(content=prompt),
     ]
 
     llms = runtime.context.llm.with_structured_output(Schema)
     response: Schema = await llms.ainvoke({"messages": messages})  # type: ignore
 
+    idea_i = state.ideas.index(response.idea)
+    research = state.researches[idea_i]
+    analysis = state.analyses[idea_i]
+
     logger.info("Finished node_select_best")
-    return {"idea": state.idea}
+    return {"idea": response.idea, "research": research, "analysis": analysis}
 
 
 def build(
@@ -266,10 +236,6 @@ def build(
         node_research,
     )
     builder.add_node(
-        "node_aggregate_research",
-        node_aggregate_research,
-    )
-    builder.add_node(
         "node_select_best",
         node_select_best,
     )
@@ -281,10 +247,6 @@ def build(
     )
     builder.add_edge(
         "node_research",
-        "node_aggregate_research",
-    )
-    builder.add_edge(
-        "node_aggregate_research",
         "node_select_best",
     )
     builder.add_edge(
