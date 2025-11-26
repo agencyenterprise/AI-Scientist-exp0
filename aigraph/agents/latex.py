@@ -118,6 +118,96 @@ async def node_generate_latex(
     return {"content": response.content, "attempts_content": [response.content]}
 
 
+async def node_lint(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
+    logger.info("Starting node_lint")
+    assert state.content is not None, "Content is required"
+
+    file = state.cwd / "template.tex"
+    file.write_text(state.content)
+
+    result = await utils.lint(state.cwd, file)
+
+    logger.debug(f"lint_stdout: {result.stdout[:32]!r}")
+    logger.debug(f"lint_stderr: {result.stderr[:32]!r}")
+    logger.debug(f"lint_returncode: {result.returncode}")
+
+    logger.info("Finished node_lint")
+    return {
+        "attempts_execution": [
+            Execution(
+                stdout=result.stdout,
+                stderr=result.stderr,
+                returncode=result.returncode,
+                filename=file,
+            ),
+        ],
+    }
+
+
+async def node_check_lint(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
+    logger.info("Starting node_check_lint")
+    assert state.content is not None, "Content is required"
+    assert state.attempts_execution is not None, "Attempts execution is required"
+    assert len(state.attempts_execution) > 0, "Attempts execution is required"
+
+    prompt = "\n".join(
+        [
+            "You are a LaTeX expert. Your goal is to analyze the `chktex` ",
+            "linter output and determine if there are any critical syntax ",
+            "errors that would prevent compilation or result in a broken ",
+            "document.",
+            "",
+            "Ignore stylistic warnings unless they indicate a syntax error.",
+            "Focus on unmatched brackets, invalid commands, or other fatal issues.",
+            "",
+            "Provide a clear summary of any critical errors found.",
+            "",
+            "Content:",
+            "",
+            f"<content>\n{state.content}\n</content>",
+            "",
+            "Stdout:",
+            "",
+            f"<stdout>\n{state.attempts_execution[-1].stdout}\n</stdout>",
+            "",
+            "Stderr:",
+            "",
+            f"<stderr>\n{state.attempts_execution[-1].stderr}\n</stderr>",
+            "",
+            "Return code:",
+            "",
+            f"<returncode>\n{state.attempts_execution[-1].returncode}\n</returncode>",
+        ]
+    )
+
+    llms = runtime.context.llm.with_structured_output(Output)
+    response = await llms.ainvoke([SystemMessage(prompt)])
+    response = cast(Output, response)
+
+    logger.debug(f"lint_is_bug: {response.is_error}")
+    logger.debug(f"lint_summary: {response.summary[:32]!r}")
+
+    logger.info("Finished node_check_lint")
+    return {"attempts_output": [response.model_dump()]}
+
+
+async def node_should_retry_lint(
+    state: State, runtime: Runtime[Context]
+) -> Literal["node_generate_latex", "node_compile"]:
+    logger.info("Starting node_should_retry_lint")
+    assert state.attempts_output is not None, "Attempts output is required"
+    assert len(state.attempts_output) > 0, "Attempts output is required"
+
+    last_out = state.attempts_output[-1]
+
+    if last_out.is_error:
+        logger.info("Lint failed, going to `node_generate_latex`")
+        return "node_generate_latex"
+
+    logger.info("Lint passed, going to `node_compile`")
+    return "node_compile"
+
+
 async def node_compile(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
     logger.info("Starting node_compile")
     assert state.content is not None, "Content is required"
@@ -144,89 +234,25 @@ async def node_compile(state: State, runtime: Runtime[Context]) -> dict[str, Any
     }
 
 
-async def node_check_output(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
-    logger.info("Starting node_check_output")
-    assert state.content is not None, "Content is required"
-    assert state.attempts_execution is not None, "Attempts execution is required"
-    assert len(state.attempts_execution) > 0, "Attempts execution is required"
-
-    prompt = "\n".join(
-        [
-            "You are a LaTeX expert. Your goal is to analyze the pdflatex ",
-            "compilation output and determine if there are any errors or ",
-            "issues.",
-            "",
-            "Search for `LaTeX Error` in the outputs and add a possible fix ",
-            "if you can.",
-            "",
-            "Look for common LaTeX errors like undefined commands, missing "
-            "packages, syntax errors, or file not found errors",
-            "",
-            "Provide a clear summary of what happened during compilation, "
-            "including any specific errors found. and possible fixes.",
-            "",
-            "Content:",
-            "",
-            f"<content>\n{state.content}\n</content>",
-            "",
-            "Stdout:",
-            "",
-            f"<stdout>\n{state.attempts_execution[-1].stdout}\n</stdout>",
-            "",
-            "Stderr:",
-            "",
-            f"<stderr>\n{state.attempts_execution[-1].stderr}\n</stderr>",
-            "",
-            "Return code:",
-            "",
-            f"<returncode>\n{state.attempts_execution[-1].returncode}\n</returncode>",
-        ]
-    )
-
-    llms = runtime.context.llm.with_structured_output(Output)
-    response = await llms.ainvoke([SystemMessage(prompt)])
-    response = cast(Output, response)
-
-    logger.debug(f"compile_is_bug: {response.is_error}")
-    logger.debug(f"compile_summary: {response.summary[:32]!r}")
-
-    logger.info("Finished node_check_output")
-    return {"attempts_output": [response.model_dump()]}
-
-
-async def node_should_retry(
-    state: State, runtime: Runtime[Context]
-) -> Literal["node_generate_latex", "__end__"]:
-    logger.info("Starting node_should_retry")
-    assert state.attempts_output is not None, "Attempts output is required"
-    assert len(state.attempts_output) > 0, "Attempts output is required"
-
-    last_out = state.attempts_output[-1]
-
-    if last_out.is_error:
-        logger.info("Going to `node_generate_latex`")
-        return "node_generate_latex"
-
-    logger.info("Going to `__end__`")
-    return "__end__"
-
-
 def build(
     checkpointer: Checkpointer = None,
 ) -> CompiledStateGraph[State, Context, State, State]:
     builder = StateGraph(state_schema=State, context_schema=Context)
 
     builder.add_node("node_generate_latex", node_generate_latex)
+    builder.add_node("node_lint", node_lint)
+    builder.add_node("node_check_lint", node_check_lint)
+    builder.add_node("node_should_retry_lint", node_should_retry_lint)
     builder.add_node("node_compile", node_compile)
-    builder.add_node("node_check_output", node_check_output)
 
     builder.add_edge(START, "node_generate_latex")
-    builder.add_edge("node_generate_latex", "node_compile")
-    builder.add_edge("node_compile", "node_check_output")
+    builder.add_edge("node_generate_latex", "node_lint")
+    builder.add_edge("node_lint", "node_check_lint")
     builder.add_conditional_edges(
-        "node_check_output",
-        node_should_retry,
-        ["node_generate_latex", END],
+        "node_check_lint",
+        node_should_retry_lint,
+        ["node_generate_latex", "node_compile"],
     )
+    builder.add_edge("node_compile", END)
 
     return builder.compile(name="graph_latex", checkpointer=checkpointer)  # type: ignore

@@ -205,19 +205,18 @@ async def exec_code(
 
 async def compile(cwd: Path, file: Path) -> Exec:
     first = await exec("pdflatex", "-interaction=nonstopmode", file.name, cwd=cwd)
+    second = await exec("bibtex", file.stem, cwd=cwd)
+    third = await exec("pdflatex", "-interaction=nonstopmode", file.name, cwd=cwd)
+    fourth = await exec("pdflatex", "-interaction=nonstopmode", file.name, cwd=cwd)
+
     if first.returncode != 0:
         return first
-
-    second = await exec("bibtex", file.stem, cwd=cwd)
     if second.returncode != 0:
         return second
-
-    third = await exec("pdflatex", "-interaction=nonstopmode", file.name, cwd=cwd)
     if third.returncode != 0:
         return third
-
-    fourth = await exec("pdflatex", "-interaction=nonstopmode", file.name, cwd=cwd)
-    if fourth.returncode != 0:
-        return fourth
-
     return fourth
+
+
+async def lint(cwd: Path, file: Path) -> Exec:
+    return await exec("chktex", "-q", file.name, cwd=cwd)
