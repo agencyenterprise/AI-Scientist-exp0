@@ -1,8 +1,8 @@
 import json
 from typing import Iterable
 
-from aigraph.utils import Metric, Task
 from aigraph.agents.research_prompts import _task_to_prompt
+from aigraph.utils import Metric, Task
 
 
 def build_prompt_baseline_metrics(task: Task) -> str:
@@ -195,14 +195,17 @@ def build_prompt_baseline_code(
 
     Your code MUST include ALL of these:
 
-    1. Track and print to stdout the validation loss at each epoch or at suitable
-       intervals:
+    1. ALWAYS print the dataset name at the start of training for that dataset:
        ```python
-       print(f'Epoch {{epoch}}: validation_loss = {{val_loss:.4f}}')
+       print(f'Training on dataset: {{dataset_name}}')
        ```
-    2. Track and update ALL metrics passed below
-    3. Update metrics at EACH epoch
-    4. Save ALL metrics at the end. You must use the filename `data_baseline.json`:
+    2. ALWAYS print epoch number, validation loss, and ALL metrics at EACH epoch:
+       ```python
+       print(f'Epoch {{epoch}}: val_loss={{val_loss:.4f}}, val_metric={{val_metric:.4f}}')
+       ```
+    3. Track and update ALL metrics passed below
+    4. Update metrics at EACH epoch
+    5. Save ALL metrics at the end. You must use the filename `data_baseline.json`:
        ```python
        with open(os.path.join(os.getcwd(), 'data_baseline.json'), 'w') as f:
            json.dump(experiment_data, f)
@@ -370,7 +373,9 @@ def build_prompt_baseline_parser_code(code: str, memory: str = "") -> str:
     """
 
 
-def build_prompt_baseline_parser_output(code: str, stdout: str, stderr: str) -> str:
+def build_prompt_baseline_parser_output(
+    code: str, stdout: str, stderr: str, original_code: str = ""
+) -> str:
     return f"""
     ## Introduction
 
@@ -379,13 +384,21 @@ def build_prompt_baseline_parser_output(code: str, stdout: str, stderr: str) -> 
     the output of the parser execution. Analyze the execution output, determine
     if there were any bugs, and provide a summary of the findings.
 
-    ## Implementation
+    ## Original Experiment Code
 
-    <IMPLEMENTATION>
+    <ORIGINAL_CODE>
+    ```python
+    {original_code or "NA"}
+    ```
+    </ORIGINAL_CODE>
+
+    ## Parser Implementation
+
+    <PARSER_IMPLEMENTATION>
     ```python
     {code}
     ```
-    </IMPLEMENTATION>
+    </PARSER_IMPLEMENTATION>
 
     ## Stdout
 

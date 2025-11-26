@@ -355,6 +355,7 @@ async def node_ablation_parse_metrics_output(
         state.parser_code or "",
         state.parser_stdout or "",
         state.parser_stderr or "",
+        original_code=state.ablation_code or "",
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)

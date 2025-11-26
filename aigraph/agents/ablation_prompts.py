@@ -94,12 +94,12 @@ def build_prompt_propose_ablation(code: str, ablations: list[str]) -> str:
 
 
 def build_prompt_code_ablation(
-    task: Task, 
-    metrics: Iterable[Metric], 
-    name: str, 
-    description: str, 
-    code: str, 
-    memory: str, 
+    task: Task,
+    metrics: Iterable[Metric],
+    name: str,
+    description: str,
+    code: str,
+    memory: str,
     cumulative_summary: str = "",
     baseline_results: str = "",
 ) -> str:
@@ -172,6 +172,21 @@ def build_prompt_code_ablation(
     - Make sure to use a filename 'data_ablation.json' to save the data. Do not
       use any other filename.
 
+    ### CRITICAL EVALUATION REQUIREMENTS
+
+    Your code MUST include ALL of these:
+
+    1. ALWAYS print the dataset name at the start of training for that dataset:
+       ```python
+       print(f'Training on dataset: {{dataset_name}}')
+       ```
+    2. ALWAYS print epoch number, validation loss, and ALL metrics at EACH epoch:
+       ```python
+       print(f'Epoch {{epoch}}: val_loss={{val_loss:.4f}}, val_metric={{val_metric:.4f}}')
+       ```
+    3. Track and update ALL metrics at EACH epoch
+    4. Save ALL metrics at the end using 'data_ablation.json' filename
+
     ## Memory
 
     <MEMORY>
@@ -238,7 +253,7 @@ def build_prompt_ablation_output(
 
 
 def build_prompt_ablation_parser_code(
-    code: str, 
+    code: str,
     memory: str = "",
     baseline_results: str = "",
 ) -> str:
@@ -320,7 +335,9 @@ def build_prompt_ablation_parser_code(
     """
 
 
-def build_prompt_ablation_parser_output(code: str, stdout: str, stderr: str) -> str:
+def build_prompt_ablation_parser_output(
+    code: str, stdout: str, stderr: str, original_code: str = ""
+) -> str:
     return f"""
     ## Introduction
 
@@ -329,13 +346,21 @@ def build_prompt_ablation_parser_output(code: str, stdout: str, stderr: str) -> 
     the output of the parser execution. Analyze the execution output, determine
     if there were any bugs, and provide a summary of the findings.
 
-    ## Implementation
+    ## Original Experiment Code
 
-    <IMPLEMENTATION>
+    <ORIGINAL_CODE>
+    ```python
+    {original_code or "NA"}
+    ```
+    </ORIGINAL_CODE>
+
+    ## Parser Implementation
+
+    <PARSER_IMPLEMENTATION>
     ```python
     {code}
     ```
-    </IMPLEMENTATION>
+    </PARSER_IMPLEMENTATION>
 
     ## Stdout
 

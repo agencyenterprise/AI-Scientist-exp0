@@ -328,6 +328,7 @@ async def node_baseline_parse_metrics_output(
         state.parse_code or "",
         state.parse_stdout or "",
         state.parse_stderr or "",
+        original_code=state.experiment_code or "",
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)

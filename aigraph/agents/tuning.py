@@ -351,6 +351,7 @@ async def node_tuning_parse_metrics_output(
         state.parser_code or "NA",
         state.parser_stdout or "NA",
         state.parser_stderr or "NA",
+        original_code=state.tuning_code or "",
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
