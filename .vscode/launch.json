@@ -19,7 +19,33 @@
             "type": "debugpy",
             "request": "launch",
             "program": "launch_scientist_bfts.py",
-            "args": ["bfts_config.yaml", "--model_agg_plots", "gpt-5", "--model_writeup", "gpt-5", "--model_citation", "gpt-5", "--model_review", "gpt-5"],
+            "args": [
+                "bfts_config.yaml",
+                "--model_agg_plots",
+                "gpt-5",
+                "--model_writeup",
+                "gpt-5",
+                "--model_citation",
+                "gpt-5",
+                "--model_review",
+                "gpt-5"
+            ],
+            "envFile": "${workspaceFolder}/.env",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run All",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "aigraph.scripts.run_all",
+            "args": [
+                "-v",
+                "--model",
+                "gpt-4o-mini",
+                "tst",
+                "example.json"
+            ],
             "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}"

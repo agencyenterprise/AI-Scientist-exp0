@@ -1,4 +1,7 @@
-from aigraph.utils import DATA_DIR, Task
+import json
+from typing import Iterable
+
+from aigraph.utils import DATA_DIR, Metric, Task
 
 
 def _task_to_prompt(task: Task) -> str:
@@ -93,7 +96,12 @@ def build_prompt_tuning_propose(code: str, hyperparams: list[str]) -> str:
 
 
 def build_prompt_tuning_code(
-    task: Task, name: str, description: str, code: str, memory: str
+    task: Task,
+    metrics: Iterable[Metric],
+    name: str,
+    description: str,
+    code: str,
+    memory: str,
 ) -> str:
     return f"""
     ## Introduction
@@ -245,7 +253,7 @@ def build_prompt_tuning_code(
        ```python
        print(f'Epoch {{epoch}}: validation_loss = {{val_loss:.4f}}')
        ```
-    2. Track and update metrics as in the original code.
+    2. Track and update ALL metrics passed below
     3. Update metrics at EACH epoch
     4. Save ALL metrics at the end. You must use the filename `data_tuning.json`:
        ```python
@@ -260,6 +268,14 @@ def build_prompt_tuning_code(
     <RESEARCH_IDEA>
     {_task_to_prompt(task)}
     </RESEARCH_IDEA>
+
+    ## Evaluation metrics
+
+    <EVALUATION METRICS>
+    ```json
+    {json.dumps([i.model_dump(mode="json") for i in metrics], indent=2)}
+    ```
+    </EVALUATION METRICS>
 
     ## Original Code
     

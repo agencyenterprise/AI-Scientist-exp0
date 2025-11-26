@@ -1,4 +1,6 @@
-from aigraph.utils import DATA_DIR, Task
+from typing import Iterable
+
+from aigraph.utils import DATA_DIR, Metric, Task
 
 
 def _task_to_prompt(task: Task) -> str:
@@ -92,7 +94,7 @@ def build_prompt_propose_ablation(code: str, ablations: list[str]) -> str:
 
 
 def build_prompt_code_ablation(
-    name: str, description: str, code: str, memory: str
+    task: Task, metrics: Iterable[Metric], name: str, description: str, code: str, memory: str
 ) -> str:
     return f"""
     You are an experienced AI researcher. You are provided with a previously

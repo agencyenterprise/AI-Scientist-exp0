@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from aigraph import utils
 from aigraph.agents import ablation_prompts as prompts
+from aigraph.agents import summary
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,8 @@ class State(BaseModel):
     cwd: Path
     task: utils.Task
     code: str
+    metrics: list[utils.Metric] = []
+    cumulative_summary: str = ""
 
     ablations: list[utils.Ablation] = []
     last_ablation: utils.Ablation | None = None
@@ -135,9 +138,11 @@ async def node_ablation_code_ablation(
     assert state.last_ablation, "last_ablation is required"
 
     prompt = prompts.build_prompt_code_ablation(
+        task=state.task,
         name=state.last_ablation.name,
         description=state.last_ablation.description,
         code=state.code,
+        metrics=state.metrics,
         memory=memory,
     )
 
@@ -180,6 +185,36 @@ async def node_ablation_exec_ablation(
         "ablation_returncode": result.returncode,
         "ablation_filename": result.filename,
     }
+
+
+async def node_ablation_summary(
+    state: State, runtime: Runtime[Context]
+) -> dict[str, Any]:
+    logger.info("Starting node_ablation_summary")
+
+    summary_state = summary.State(
+        task=state.task,
+        metrics=state.metrics,
+        code=state.ablation_code or "",
+        stdout=state.ablation_stdout or "",
+        stderr=state.ablation_stderr or "",
+        existing_summary=state.cumulative_summary,
+        parsed_summary=state.ablation_summary or "",
+    )
+    summary_context = summary.Context(
+        model=runtime.context.model,
+        temperature=runtime.context.temperature,
+    )
+
+    graph = summary.build()
+    result = await graph.ainvoke(input=summary_state, context=summary_context)
+    new_summary = result["new_summary"]
+
+    if state.cumulative_summary:
+        new_summary = f"{state.cumulative_summary}\n\n---\n\n{new_summary}"
+
+    logger.info("Finished node_ablation_summary")
+    return {"cumulative_summary": new_summary}
 
 
 async def node_ablation_parse_ablation_output(
@@ -363,6 +398,10 @@ def build(
         node_ablation_exec_ablation,
     )
     builder.add_node(
+        "node_ablation_summary",
+        node_ablation_summary,
+    )
+    builder.add_node(
         "node_ablation_parse_ablation_output",
         node_ablation_parse_ablation_output,
     )
@@ -396,8 +435,12 @@ def build(
         "node_ablation_exec_ablation",
         "node_ablation_parse_ablation_output",
     )
-    builder.add_conditional_edges(
+    builder.add_edge(
         "node_ablation_parse_ablation_output",
+        "node_ablation_summary",
+    )
+    builder.add_conditional_edges(
+        "node_ablation_summary",
         node_ablation_should_retry_code_from_ablation_output,
         ["node_ablation_code_ablation", "node_ablation_code_metrics_parser"],
     )

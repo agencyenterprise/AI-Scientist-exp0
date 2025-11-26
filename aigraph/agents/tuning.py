@@ -11,6 +11,7 @@ from langgraph.types import Checkpointer
 from pydantic import BaseModel
 
 from aigraph import utils
+from aigraph.agents import summary
 from aigraph.agents import tuning_prompts as prompts
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,8 @@ class State(BaseModel):
     cwd: Path
     task: utils.Task
     code: str
+    metrics: list[utils.Metric] = []
+    cumulative_summary: str = ""
 
     hyperparams: list[utils.Hyperparam] = []
     last_hyperparam: utils.Hyperparam | None = None
@@ -137,6 +140,7 @@ async def node_tuning_code_tuning(
 
     prompt = prompts.build_prompt_tuning_code(
         task=state.task,
+        metrics=state.metrics,
         name=state.last_hyperparam.name,
         description=state.last_hyperparam.description,
         code=state.code,
@@ -182,6 +186,36 @@ async def node_tuning_exec_tuning(
         "tuning_returncode": result.returncode,
         "tuning_filename": result.filename,
     }
+
+
+async def node_tuning_summary(
+    state: State, runtime: Runtime[Context]
+) -> dict[str, Any]:
+    logger.info("Starting node_tuning_summary")
+
+    summary_state = summary.State(
+        task=state.task,
+        metrics=state.metrics,
+        code=state.tuning_code or "",
+        stdout=state.tuning_stdout or "",
+        stderr=state.tuning_stderr or "",
+        existing_summary=state.cumulative_summary,
+        parsed_summary=state.tuning_summary or "",
+    )
+    summary_context = summary.Context(
+        model=runtime.context.model,
+        temperature=runtime.context.temperature,
+    )
+
+    graph = summary.build()
+    result = await graph.ainvoke(input=summary_state, context=summary_context)
+    new_summary = result["new_summary"]
+
+    if state.cumulative_summary:
+        new_summary = f"{state.cumulative_summary}\n\n---\n\n{new_summary}"
+
+    logger.info("Finished node_tuning_summary")
+    return {"cumulative_summary": new_summary}
 
 
 async def node_tuning_parse_tuning_output(
@@ -357,6 +391,10 @@ def build(
         node_tuning_exec_tuning,
     )
     builder.add_node(
+        "node_tuning_summary",
+        node_tuning_summary,
+    )
+    builder.add_node(
         "node_tuning_parse_tuning_output",
         node_tuning_parse_tuning_output,
     )
@@ -390,8 +428,12 @@ def build(
         "node_tuning_exec_tuning",
         "node_tuning_parse_tuning_output",
     )
-    builder.add_conditional_edges(
+    builder.add_edge(
         "node_tuning_parse_tuning_output",
+        "node_tuning_summary",
+    )
+    builder.add_conditional_edges(
+        "node_tuning_summary",
         node_tuning_should_retry_code_from_tuning_output,
     )
     builder.add_edge(

@@ -25,6 +25,9 @@ class State(BaseModel):
     cwd: Path
     task: utils.Task
 
+    metrics: list[utils.Metric] = []
+    cumulative_summary: str = ""
+
     state_research: research.State | None = None
     state_baseline: baseline.State | None = None
     state_tuning: tuning.State | None = None
@@ -54,6 +57,7 @@ async def node_baseline(state: State, runtime: Runtime[Context]) -> dict[str, An
     baseline_state = baseline.State(
         cwd=state.cwd,
         task=state.task,
+        cumulative_summary=state.cumulative_summary,
     )
     baseline_context = baseline.Context(
         model=runtime.context.model,
@@ -66,7 +70,11 @@ async def node_baseline(state: State, runtime: Runtime[Context]) -> dict[str, An
         context=baseline_context,
     )
 
-    return {"state_baseline": result}
+    return {
+        "state_baseline": result,
+        "metrics": result.get("metrics", []),
+        "cumulative_summary": result.get("cumulative_summary", ""),
+    }
 
 
 async def node_tuning(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
@@ -77,6 +85,8 @@ async def node_tuning(state: State, runtime: Runtime[Context]) -> dict[str, Any]
         cwd=state.cwd,
         task=state.task,
         code=state.state_baseline.experiment_code,
+        metrics=state.metrics,
+        cumulative_summary=state.cumulative_summary,
     )
     tuning_context = tuning.Context(
         model=runtime.context.model,
@@ -89,7 +99,12 @@ async def node_tuning(state: State, runtime: Runtime[Context]) -> dict[str, Any]
         context=tuning_context,
     )
 
-    return {"state_tuning": result}
+    return {
+        "state_tuning": result,
+        "cumulative_summary": result.get(
+            "cumulative_summary", state.cumulative_summary
+        ),
+    }
 
 
 async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
@@ -100,6 +115,8 @@ async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, An
         cwd=state.cwd,
         task=state.task,
         code=state.state_tuning.tuning_code,
+        metrics=state.metrics,
+        cumulative_summary=state.cumulative_summary,
     )
     ablation_context = ablation.Context(
         model=runtime.context.model,
@@ -112,7 +129,12 @@ async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, An
         context=ablation_context,
     )
 
-    return {"state_ablation": result}
+    return {
+        "state_ablation": result,
+        "cumulative_summary": result.get(
+            "cumulative_summary", state.cumulative_summary
+        ),
+    }
 
 
 async def node_plotting(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
@@ -246,6 +268,7 @@ class Args(BaseSettings):
         config = RunnableConfig(
             callbacks=[CallbackHandler()],
             configurable=configurable,
+            recursion_limit=1_000,
         )
 
         task = utils.Task.model_validate_json(self.task.read_text())
