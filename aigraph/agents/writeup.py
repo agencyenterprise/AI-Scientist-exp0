@@ -83,7 +83,7 @@ async def node_writeup_generate_writeup(
     class Schema(BaseModel):
         content: str
 
-    if state.writeup_retry_count > 5:
+    if state.writeup_retry_count >= 5:
         raise GraphRecursionError("Max retry count reached")
 
     memory = ""

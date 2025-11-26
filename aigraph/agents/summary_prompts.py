@@ -100,4 +100,3 @@ def build_prompt_summary(
     Provide ONLY the new summary text to append. Do not include the previous
     summary in your response.
     """
-

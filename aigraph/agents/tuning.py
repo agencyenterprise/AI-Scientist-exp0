@@ -291,7 +291,7 @@ async def node_tuning_code_metrics_parser(
         memory += f"```\n{state.parser_stderr or 'NA'}\n```\n\n"
 
     prompt = prompts.build_prompt_tuning_parser_code(
-        state.tuning_code, 
+        state.tuning_code,
         memory=memory,
         baseline_results=state.baseline_results,
         experiment_plan=state.experiment_plan_structured,

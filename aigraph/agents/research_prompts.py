@@ -48,4 +48,3 @@ def _task_to_prompt(task: Task) -> str:
     code = example.read_text()
     code = f"```python\n{code}\n```"
     return prompt + f"Code To Use:\n{code}\n"
-
