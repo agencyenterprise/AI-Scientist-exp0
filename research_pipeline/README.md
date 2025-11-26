@@ -1,73 +1,87 @@
-# AE-Scientist - Research pipeline
+# AE-Scientist - Research Pipeline
 
+Automated AI scientist for running multi-stage experiments and generating research papers.
+
+## Overview
+
+The research pipeline implements a Best-First Tree Search (BFTS) approach to automated scientific experimentation:
+- Generates and evaluates experimental implementations
+- Runs multi-seed evaluations for statistical significance
+- Performs ablation studies to validate contributions
+- Aggregates results and generates LaTeX papers with citations
+- Supports both local and GPU-accelerated (RunPod) execution
 
 ## Setup (Local)
 
-1. Clone repository and cd into it
-```bash
-git clone https://github.com/agencyenterprise/AE-Scientist.git
-cd AE-Scientist
-```
+From the repository root:
 
-2. Install dependencies
 ```bash
+# Install dependencies
+cd research_pipeline
 uv sync --extra gpu
+
+# Activate the virtual environment
+source .venv/bin/activate
 ```
 
-3. Activate the virtual environment
+Or use the Makefile from the root directory:
+
 ```bash
-source .venv/bin/activate
+make install-research
 ```
 
 ## Setup (RunPod)
 
-1. Clone repository and cd into it
-```bash
-git clone https://github.com/agencyenterprise/AE-Scientist.git
-cd AE-Scientist
-```
+For GPU-accelerated experiments on RunPod:
 
-2. Create a new virtual environment with access to system-wide packages
+1. **Create a new virtual environment with access to system-wide packages**
 ```bash
 uv venv --system-site-packages
 ```
 
-This is important because RunPod provides images with pytorch and other gpu-related packages, 
-some of these packages may conflict with the packages listed in pyproject.toml.
+RunPod provides images with PyTorch and other GPU-related packages. Some of these packages may conflict with the packages listed in pyproject.toml. To use the pre-installed packages, create a virtual environment with access to system-wide packages.
 
-In order to use the pre-installed packages, we need to create a virtual environment with access to system-wide packages.
+2. **Activate the virtual environment**:
+   ```bash
+   source .venv/bin/activate
+   ```
 
-3. Activate the virtual environment
-```bash
-source .venv/bin/activate
-```
+3. **Install dependencies**:
+   ```bash
+   cd research_pipeline
+   uv sync
+   ```
 
-4. Install dependencies
-```bash
-uv sync
-```
+4. **Install LaTeX packages** (required for paper generation):
+   ```bash
+   apt-get update && apt-get install -y texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-bibtex-extra biber poppler-utils chktex
+   ```
 
-5. Install LaTeX packages (required for paper generation)
-```bash
-apt-get update && apt-get install -y texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-bibtex-extra biber poppler-utils chktex
-```
+### Quick Setup Script
 
-6. Quick setup (alternative)
+Alternatively, use the provided setup script from the repository root:
+
 ```bash
 bash install_run_pod.sh
 ```
-This script creates a virtual environment with system packages, activates it, installs dependencies, and installs LaTeX packages.
+
+This script:
+- Creates a virtual environment with system packages
+- Activates it
+- Installs dependencies
+- Installs LaTeX packages
 
 ## Environment Variables
 
-Before running experiments, you need to configure API keys and tokens.
+Configure API keys and tokens before running experiments.
 
-1. Copy the example environment file:
-```bash
-cp .env.example .env
-```
+1. **Copy the example environment file**:
+   ```bash
+   cd research_pipeline
+   cp .env.example .env
+   ```
 
-2. Edit `.env` and add your API keys:
+2. **Edit `.env`** and add your API keys:
 
 ### Required Variables
 
@@ -102,62 +116,10 @@ ANTHROPIC_API_KEY=your-anthropic-key
 
 ## Running Experiments
 
-### Run Stage 1 Only (Initial Implementation)
-
-To run only Stage 1 of the experiment pipeline (useful for testing or debugging):
-
-```bash
-python launch_stage1_only.py <config_file>
-```
-
-**Example:**
-```bash
-python launch_stage1_only.py bfts_config.yaml
-```
-
 **Available config files:**
 - `bfts_config.yaml` - Default configuration
 - `bfts_config_gpt-5.yaml` - GPT-5 model configuration
 - `bfts_config_claude-haiku.yaml` - Claude Haiku configuration
-
-**What Stage 1 does:**
-- Loads research idea from `desc_file` (specified in config)
-- Creates initial experiment implementations
-- Generates plots from experimental results
-- Uses Vision Language Model (VLM) to validate plot quality
-- Runs multi-seed evaluation on successful implementations
-- Saves results to `workspace_dir` (specified in config)
-
-**Output:**
-- Experiment artifacts saved to: `workspaces/<exp_name>/`
-- Logs saved to: `workspaces/logs/<exp_name>/`
-- Plots saved to: `workspaces/logs/<exp_name>/experiment_results/`
-- Best implementation code: `workspaces/logs/<exp_name>/stage_*/best_solution_*.py`
-
-## Creating a RunPod Container for Experiments
-
-**Note:** This is only necessary if you want to run experiments on RunPod.
-
-Requirement: make sure you have a RUNPOD_API_KEY environment variable set.
-
-1. Open orchestrator and install dependencies
-```bash
-cd orchestrator
-pnpm install
-```
-
-2. Call the create_runpod.ts script
-```bash
-./create_runpod.ts --gpu-count 3 --branch main --gpu-types "NVIDIA GeForce RTX 5090"
-
-# Or from the root
-./orchestrator/create_runpod.ts --gpu-count 3 --branch my-branch --gpu-types "NVIDIA GeForce RTX 5090"
-
-# Use a custom pod name
-./orchestrator/create_runpod.ts --gpu-count 3 --branch main --gpu-types "NVIDIA GeForce RTX 5090" --pod-name "my-pod-name"
-./orchestrator/create_runpod.ts --gpu-count 3 --branch main --gpu-types "NVIDIA GeForce RTX 5090" -n "my-pod-name"
-```
-
 
 ### Run Full End-to-End Pipeline
 
@@ -235,6 +197,5 @@ python launch_scientist_bfts.py bfts_config_gpt-5.yaml --resume 1
 - Token usage: `token_tracker.json` in the reports base directory
 
 ### Notes
-- The idea file (`desc_file`) and all directories are taken from your YAML config; do not pass idea flags to the launcher.
+- The idea file (`desc_file`) and all directories are taken from your YAML config;
 - Logging level is controlled via `log_level` in the YAML config (e.g., `DEBUG`, `INFO`).
-
