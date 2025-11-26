@@ -3,7 +3,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, NamedTuple
+from typing import Annotated, Literal, NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -94,6 +94,22 @@ class Plot(BaseModel):
 
     path: Path
     analysis: str
+
+
+class Review(BaseModel):
+    summary: str
+    strengths: str
+    weaknesses: str
+    originality: int
+    quality: int
+    clarity: int
+    significance: int
+    soundness: int
+    presentation: int
+    contribution: int
+    overall_score: int
+    confidence: int
+    decision: Literal["Accept", "Reject"]
 
 
 @dataclass

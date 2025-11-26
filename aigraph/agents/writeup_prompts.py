@@ -256,3 +256,39 @@ def build_prompt_compile_output(latex: str, stdout: str, stderr: str) -> str:
     {stderr}
     </STDERR>
     """
+
+
+def build_writeup_review_prompt(latex_content: str, task: utils.Task) -> str:
+    return f"""
+    You are an experienced scientific paper reviewer with expertise in machine
+    learning and artificial intelligence research. Your role is to provide
+    thorough, constructive, and fair reviews of academic papers.
+
+    Review the following paper generated from the research task below. Evaluate
+    the paper across multiple dimensions including originality, quality,
+    clarity, significance, soundness, presentation, and contribution.
+
+    Provide a comprehensive review that includes:
+
+    - Summary: Brief overview of the paper's main contributions
+    - Strengths: What the paper does well
+    - Weaknesses: Areas for improvement or concerns
+    - Originality (1-10): How novel is the work?
+    - Quality (1-10): Technical quality and rigor
+    - Clarity (1-10): How well is the paper written and organized?
+    - Significance (1-10): Impact and importance of the work
+    - Soundness (1-10): Correctness of methodology and conclusions
+    - Presentation (1-10): Quality of figures, tables, and overall presentation
+    - Contribution (1-10): Value added to the field
+    - Overall Score (1-10): Overall assessment
+    - Confidence (1-10): How confident are you in your review?
+    - Decision: "Accept" or "Reject"
+
+    Research Task:
+    {_task_to_prompt(task)}
+
+    Paper Content (LaTeX):
+    <PAPER>
+    {latex_content}
+    </PAPER>
+    """
