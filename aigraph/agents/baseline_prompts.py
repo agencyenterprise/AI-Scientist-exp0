@@ -261,8 +261,8 @@ def build_prompt_baseline_code_output(
 
     You are an experienced AI researcher. You have written code for your
     research experiment and now need to evaluate the output of the code
-    execution. Analyze the execution output, determine if there were any bugs,
-    and provide a summary of the findings.
+    execution. Provide comprehensive analysis of implementation quality,
+    experimental validity, and actionable suggestions.
 
     ## Input Variables
 
@@ -270,6 +270,30 @@ def build_prompt_baseline_code_output(
     - code: The baseline experiment code that was executed.
     - stdout: Standard output from running the experiment code.
     - stderr: Error output from running the experiment code.
+
+    ## Analysis Requirements
+
+    Provide structured analysis covering:
+
+    1. **Execution Status**: Success or failure with specific errors
+    2. **Implementation Quality**:
+       - Coding errors (syntax, runtime, exceptions)
+       - Logic flaws (incorrect formulas, missing steps)
+       - Design issues (doesn't match research hypothesis)
+    3. **Output Validity**:
+       - Do metrics show reasonable convergence patterns?
+       - Are loss values in expected ranges (not NaN/inf)?
+       - Do predictions align with ground truth distributions?
+       - Are multiple datasets properly evaluated?
+    4. **Experimental Soundness**:
+       - Proper data splits and evaluation?
+       - Sufficient training epochs/iterations?
+       - All required metrics tracked correctly?
+       - Data saved in correct format?
+    5. **Hypothesis Alignment**:
+       - Does implementation test the stated hypothesis?
+       - Are results interpretable for research goals?
+    6. **Suggestions**: Concrete improvements for next iteration
 
     ## Research idea
 
@@ -403,9 +427,8 @@ def build_prompt_baseline_parser_output(
     ## Introduction
 
     You are an experienced AI researcher. You have written code to parse and
-    analyze the results of your research experiment. Now you need to evaluate
-    the output of the parser execution. Analyze the execution output, determine
-    if there were any bugs, and provide a summary of the findings.
+    analyze the results of your research experiment. Evaluate the parser
+    execution, data extraction quality, and result interpretation validity.
 
     ## Input Variables
 
@@ -413,6 +436,28 @@ def build_prompt_baseline_parser_output(
     - stdout: Standard output from running the parser code.
     - stderr: Error output from running the parser code.
     - original_code: Original baseline experiment code for reference.
+
+    ## Analysis Requirements
+
+    Provide structured analysis covering:
+
+    1. **Parsing Success**: Were all expected metrics extracted?
+    2. **Data Consistency**: 
+       - Do extracted values match experiment logs?
+       - Are all datasets represented?
+       - Correct identification of best/final values?
+    3. **Result Interpretation**:
+       - Are reported metrics meaningful?
+       - Do values make scientific sense?
+       - Are trends/patterns correctly identified?
+    4. **Completeness Check**:
+       - All required metrics reported?
+       - Missing comparisons or analysis?
+       - Dataset-specific results shown?
+    5. **Presentation Quality**:
+       - Clear labeling of metrics?
+       - Proper formatting of values?
+    6. **Suggestions**: Better presentation or additional metrics to report
 
     ## Original Experiment Code
 

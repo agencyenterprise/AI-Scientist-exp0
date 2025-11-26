@@ -134,8 +134,8 @@ def build_prompt_plotting_output(
     ## Introduction
 
     You are an AI researcher. You have executed a plotting script to visualize
-    experiment results. Analyze the execution output to determine if the
-    plotting was successful or if there were bugs.
+    experiment results. Evaluate plotting execution, visualization quality,
+    and scientific interpretability.
 
     ## Input Variables
 
@@ -144,14 +144,28 @@ def build_prompt_plotting_output(
     - stdout: Standard output from running the plotting code.
     - stderr: Error output from running the plotting code.
 
-    ## Instructions
+    ## Analysis Requirements
 
-    - Check if the code executed without crashing (return code 0 is not enough,
-      look for python tracebacks).
-    - Check if the expected plot files seem to have been generated (based on
-      logs if any).
-    - If there are errors, summarize them.
-    - If successful, confirm that plots were generated.
+    Provide structured analysis covering:
+
+    1. **Execution Status**: Success or failure with specific errors
+    2. **Plot Generation**:
+       - Were expected plot files created?
+       - All datasets visualized?
+       - File naming and formats correct?
+    3. **Implementation Quality**:
+       - Coding errors (matplotlib, data loading issues)
+       - Logic flaws (wrong data plotted)
+       - Missing visualizations
+    4. **Visualization Validity**:
+       - Do plots accurately represent data?
+       - Appropriate plot types chosen?
+       - Labels, legends, titles clear?
+    5. **Scientific Value**:
+       - Do visualizations support hypothesis testing?
+       - Key trends/patterns visible?
+       - Comparisons clearly shown?
+    6. **Suggestions**: Additional plots needed or visualization improvements
 
     ## Research idea
 

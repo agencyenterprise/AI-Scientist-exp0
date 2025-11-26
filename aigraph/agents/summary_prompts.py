@@ -83,12 +83,17 @@ def build_prompt_summary(
        the values of the defined metrics.
     2. Determine if the experiment was successful (ran to completion) and what
        the results were.
-    3. Write a concise update (max 5 sentences) summarizing the results of THIS
-       experiment.
-    4. Do NOT rewrite the entire summary. Just provide the text to APPEND to the
+    3. Assess implementation quality: Does code properly test hypothesis?
+    4. Evaluate scientific validity: Do results make sense? Any anomalies?
+    5. Note if results support or contradict research hypothesis.
+    6. Write a concise update (max 7 sentences) summarizing:
+       - Execution status (success/failure)
+       - Key metric values (be quantitative)
+       - Implementation quality issues if any
+       - Whether results align with hypothesis
+       - Suggestions for next experiments
+    7. Do NOT rewrite the entire summary. Just provide the text to APPEND to the
        existing summary.
-    5. If the experiment failed (bugs, errors), briefly mention the failure mode.
-    6. Be quantitative when possible (e.g., "Accuracy improved to 85%").
 
     ## Response
 

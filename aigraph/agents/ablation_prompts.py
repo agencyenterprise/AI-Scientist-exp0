@@ -232,9 +232,8 @@ def build_prompt_ablation_output(
     ## Introduction
     
     You are an experienced AI researcher. You have written code for your
-    ablation experiment and now need to evaluate the output of the code
-    execution. Analyze the execution output, determine if there were any bugs,
-    and provide a summary of the findings.
+    ablation study experiment. Provide comprehensive analysis of ablation
+    implementation, component impact assessment, and actionable suggestions.
 
     ## Input Variables
 
@@ -242,6 +241,29 @@ def build_prompt_ablation_output(
     - code: The ablation experiment code that was executed.
     - stdout: Standard output from running the experiment code.
     - stderr: Error output from running the experiment code.
+
+    ## Analysis Requirements
+
+    Provide structured analysis covering:
+
+    1. **Execution Status**: Success or failure with specific errors
+    2. **Implementation Quality**:
+       - Coding errors (syntax, runtime, exceptions)
+       - Logic flaws (component not properly removed/modified)
+       - Design issues (ablation doesn't test intended component)
+    3. **Ablation Validity**:
+       - Was target component correctly ablated?
+       - Does ablated version still function properly?
+       - Fair comparison to baseline maintained?
+    4. **Output Assessment**:
+       - Do metrics show component impact clearly?
+       - Are performance changes interpretable?
+       - Multiple datasets evaluated correctly?
+    5. **Scientific Interpretation**:
+       - Does ablation reveal component importance?
+       - Results align with expected behavior?
+       - Unexpected findings explained?
+    6. **Suggestions**: Improvements for ablation study or additional ablations
 
     ## Research idea
 
@@ -371,9 +393,8 @@ def build_prompt_ablation_parser_output(
     ## Introduction
 
     You are an experienced AI researcher. You have written code to parse and
-    analyze the results of your ablation experiment. Now you need to evaluate
-    the output of the parser execution. Analyze the execution output, determine
-    if there were any bugs, and provide a summary of the findings.
+    analyze ablation study results. Evaluate parsing quality, component impact
+    quantification, and baseline comparison validity.
 
     ## Input Variables
 
@@ -381,6 +402,29 @@ def build_prompt_ablation_parser_output(
     - stdout: Standard output from running the parser code.
     - stderr: Error output from running the parser code.
     - original_code: Original ablation experiment code for reference.
+
+    ## Analysis Requirements
+
+    Provide structured analysis covering:
+
+    1. **Parsing Success**: All ablation metrics extracted correctly?
+    2. **Data Consistency**:
+       - Do extracted values match ablation output?
+       - All ablation types and datasets represented?
+       - Baseline comparison data included?
+    3. **Component Impact Analysis**:
+       - Is component contribution clearly quantified?
+       - Performance degradation/improvement calculated correctly?
+       - Percentage changes meaningful and accurate?
+    4. **Result Interpretation**:
+       - Do ablation results make scientific sense?
+       - Component importance correctly assessed?
+       - Unexpected impacts explained?
+    5. **Completeness Check**:
+       - All ablation variations reported?
+       - Dataset-specific impacts shown?
+       - Missing comparisons or analysis?
+    6. **Suggestions**: Better impact presentation or additional ablation analysis
 
     ## Original Experiment Code
 

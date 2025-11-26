@@ -333,9 +333,8 @@ def build_prompt_tuning_code_output(
     ## Introduction
     
     You are an experienced AI researcher. You have written code for your
-    research experiment and now need to evaluate the output of the code
-    execution. Analyze the execution output, determine if there were any bugs,
-    and provide a summary of the findings.
+    hyperparameter tuning experiment. Provide comprehensive analysis of
+    implementation quality, tuning effectiveness, and actionable suggestions.
 
     ## Input Variables
 
@@ -343,6 +342,29 @@ def build_prompt_tuning_code_output(
     - code: The tuning experiment code that was executed.
     - stdout: Standard output from running the experiment code.
     - stderr: Error output from running the experiment code.
+
+    ## Analysis Requirements
+
+    Provide structured analysis covering:
+
+    1. **Execution Status**: Success or failure with specific errors
+    2. **Implementation Quality**:
+       - Coding errors (syntax, runtime, exceptions)
+       - Logic flaws (incorrect hyperparameter application)
+       - Design issues (tuning strategy doesn't match goals)
+    3. **Tuning Validity**:
+       - Are hyperparameter changes correctly implemented?
+       - Do metrics show impact of tuning?
+       - Are results compared to baseline?
+    4. **Output Assessment**:
+       - Do loss curves show proper convergence?
+       - Are metric improvements/degradations reasonable?
+       - Multiple datasets evaluated correctly?
+    5. **Experimental Soundness**:
+       - Sufficient tuning exploration?
+       - Fair comparison conditions maintained?
+       - All metrics tracked properly?
+    6. **Suggestions**: Improvements for hyperparameter tuning strategy
 
     ## Research idea
 
@@ -490,10 +512,9 @@ def build_prompt_tuning_parser_output(
     return f"""
     ## Introduction
 
-    You are an experienced AI researcher. You have written code to parse and analyze the
-    results of your research experiment. Now you need to evaluate the output of the
-    parser execution. Analyze the execution output, determine if there were any bugs,
-    and provide a summary of the findings.
+    You are an experienced AI researcher. You have written code to parse and
+    analyze hyperparameter tuning results. Evaluate parsing quality, baseline
+    comparison validity, and improvement interpretation.
 
     ## Input Variables
 
@@ -501,6 +522,29 @@ def build_prompt_tuning_parser_output(
     - stdout: Standard output from running the parser code.
     - stderr: Error output from running the parser code.
     - original_code: Original tuning experiment code for reference.
+
+    ## Analysis Requirements
+
+    Provide structured analysis covering:
+
+    1. **Parsing Success**: All tuning metrics extracted correctly?
+    2. **Data Consistency**:
+       - Do extracted values match experiment output?
+       - All datasets included in comparison?
+       - Baseline vs tuned results clearly separated?
+    3. **Comparison Validity**:
+       - Are improvements/degradations calculated correctly?
+       - Percentage changes meaningful?
+       - Fair comparison (same conditions)?
+    4. **Result Interpretation**:
+       - Do tuning outcomes make scientific sense?
+       - Are improvements statistically meaningful?
+       - Unexpected results explained?
+    5. **Completeness Check**:
+       - All hyperparameter impacts reported?
+       - Dataset-specific comparisons shown?
+       - Missing analysis or metrics?
+    6. **Suggestions**: Better comparison presentation or additional analysis
 
     ## Original Experiment Code
 
