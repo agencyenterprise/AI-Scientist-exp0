@@ -24,6 +24,7 @@ class State(BaseModel):
 
     parser_code: str
     parser_stdout: str | None = None
+    baseline_results: str = ""  # baseline parser stdout for comparison
     experiment_code: str
     plots: list[utils.Plot]
     research: str | None = None
@@ -111,6 +112,7 @@ async def node_writeup_generate_writeup(
         code_experiment=state.experiment_code,
         code_parser=state.parser_code,
         parser_stdout=state.parser_stdout,
+        baseline_results=state.baseline_results,
         plots=state.plots,
         research=state.research,
         memory=memory,
@@ -208,6 +210,8 @@ async def node_writeup_review_paper(
     prompt = prompts.build_writeup_review_prompt(
         latex_content=state.latex_content,
         task=state.task,
+        baseline_results=state.baseline_results,
+        parser_stdout=state.parser_stdout or "",
     )
 
     llms = runtime.context.llm.with_structured_output(utils.Review)

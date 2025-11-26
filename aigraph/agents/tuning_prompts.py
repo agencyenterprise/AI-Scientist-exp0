@@ -103,6 +103,7 @@ def build_prompt_tuning_code(
     code: str,
     memory: str,
     cumulative_summary: str = "",
+    baseline_results: str = "",
 ) -> str:
     return f"""
     ## Introduction
@@ -295,6 +296,14 @@ def build_prompt_tuning_code(
     <PREVIOUS_SUMMARIES>
     {cumulative_summary or "No previous experiments have been run yet."}
     </PREVIOUS_SUMMARIES>
+
+    ## Baseline Results (for comparison)
+
+    <BASELINE_RESULTS>
+    {baseline_results or "NA"}
+    </BASELINE_RESULTS>
+
+    Your goal is to tune hyperparameters to improve upon these baseline metrics.
     """
 
 
@@ -341,7 +350,11 @@ def build_prompt_tuning_code_output(
     """
 
 
-def build_prompt_tuning_parser_code(code: str, memory: str = "") -> str:
+def build_prompt_tuning_parser_code(
+    code: str,
+    memory: str = "",
+    baseline_results: str = "",
+) -> str:
     return f"""
     ## Introduction
 
@@ -389,6 +402,8 @@ def build_prompt_tuning_parser_code(code: str, memory: str = "") -> str:
     - Always print the name of the metric before printing the value with precise
       labels (e.g., 'train accuracy', 'validation loss', 'test F1 score').
     - Only print the best or final value for each metric for each dataset
+    - IMPORTANT: After printing tuning results, compare with baseline results
+      and print improvement/degradation percentages
     - DO NOT CREATE ANY PLOTS. PLOTS ARE NOT ALLOWED.
 
     ### CODING GUIDELINES
@@ -420,6 +435,14 @@ def build_prompt_tuning_parser_code(code: str, memory: str = "") -> str:
     {code}
     ```
     </ORIGINAL_CODE>
+
+    ## Baseline Results (for comparison)
+
+    <BASELINE_RESULTS>
+    {baseline_results or "NA"}
+    </BASELINE_RESULTS>
+
+    Compare tuning results against these baseline metrics to show improvements.
 
     ## Memory
 

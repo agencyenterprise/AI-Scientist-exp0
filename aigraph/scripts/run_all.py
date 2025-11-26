@@ -27,6 +27,7 @@ class State(BaseModel):
 
     metrics: list[utils.Metric] = []
     cumulative_summary: str = ""
+    baseline_results: str = ""  # baseline parser stdout for comparison
 
     state_research: research.State | None = None
     state_baseline: baseline.State | None = None
@@ -74,6 +75,7 @@ async def node_baseline(state: State, runtime: Runtime[Context]) -> dict[str, An
         "state_baseline": result,
         "metrics": result.get("metrics", []),
         "cumulative_summary": result.get("cumulative_summary", ""),
+        "baseline_results": result.get("parse_stdout", ""),
     }
 
 
@@ -87,6 +89,7 @@ async def node_tuning(state: State, runtime: Runtime[Context]) -> dict[str, Any]
         code=state.state_baseline.experiment_code,
         metrics=state.metrics,
         cumulative_summary=state.cumulative_summary,
+        baseline_results=state.baseline_results,
     )
     tuning_context = tuning.Context(
         model=runtime.context.model,
@@ -117,6 +120,7 @@ async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, An
         code=state.state_tuning.tuning_code,
         metrics=state.metrics,
         cumulative_summary=state.cumulative_summary,
+        baseline_results=state.baseline_results,
     )
     ablation_context = ablation.Context(
         model=runtime.context.model,
@@ -177,6 +181,7 @@ async def node_writeup(state: State, runtime: Runtime[Context]) -> dict[str, Any
         experiment_code=state.state_ablation.ablation_code,
         parser_code=state.state_ablation.parser_code,
         parser_stdout=state.state_ablation.parser_stdout,
+        baseline_results=state.baseline_results,
         plots=list(state.state_plotting.plots),
         research=research,
     )

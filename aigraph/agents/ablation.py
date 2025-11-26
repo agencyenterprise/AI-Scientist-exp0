@@ -24,6 +24,7 @@ class State(BaseModel):
     code: str
     metrics: list[utils.Metric] = []
     cumulative_summary: str = ""
+    baseline_results: str = ""  # baseline parser stdout for comparison
 
     ablations: list[utils.Ablation] = []
     last_ablation: utils.Ablation | None = None
@@ -145,6 +146,7 @@ async def node_ablation_code_ablation(
         metrics=state.metrics,
         memory=memory,
         cumulative_summary=state.cumulative_summary,
+        baseline_results=state.baseline_results,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -291,7 +293,9 @@ async def node_ablation_code_metrics_parser(
         memory += f"```\n{state.parser_stderr or 'NA'}\n```\n\n"
 
     prompt = prompts.build_prompt_ablation_parser_code(
-        state.ablation_code, memory=memory
+        state.ablation_code,
+        memory=memory,
+        baseline_results=state.baseline_results,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)

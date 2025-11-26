@@ -94,7 +94,14 @@ def build_prompt_propose_ablation(code: str, ablations: list[str]) -> str:
 
 
 def build_prompt_code_ablation(
-    task: Task, metrics: Iterable[Metric], name: str, description: str, code: str, memory: str, cumulative_summary: str = ""
+    task: Task, 
+    metrics: Iterable[Metric], 
+    name: str, 
+    description: str, 
+    code: str, 
+    memory: str, 
+    cumulative_summary: str = "",
+    baseline_results: str = "",
 ) -> str:
     return f"""
     You are an experienced AI researcher. You are provided with a previously
@@ -176,6 +183,14 @@ def build_prompt_code_ablation(
     <PREVIOUS_SUMMARIES>
     {cumulative_summary or "No previous experiments have been run yet."}
     </PREVIOUS_SUMMARIES>
+
+    ## Baseline Results (for comparison)
+
+    <BASELINE_RESULTS>
+    {baseline_results or "NA"}
+    </BASELINE_RESULTS>
+
+    Compare ablation results against baseline to understand component importance.
     """
 
 
@@ -222,7 +237,11 @@ def build_prompt_ablation_output(
     """
 
 
-def build_prompt_ablation_parser_code(code: str, memory: str = "") -> str:
+def build_prompt_ablation_parser_code(
+    code: str, 
+    memory: str = "",
+    baseline_results: str = "",
+) -> str:
     return f"""
     ## Introduction
     
@@ -250,7 +269,9 @@ def build_prompt_ablation_parser_code(code: str, memory: str = "") -> str:
        precise labels (e.g., 'train accuracy', 'validation loss', 'test F1
        score').
     5. Only print the best or final value for each metric for each dataset
-    6. DO NOT CREATE ANY PLOTS
+    6. IMPORTANT: After printing ablation results, compare with baseline 
+       results to show component impact (improvement/degradation percentages)
+    7. DO NOT CREATE ANY PLOTS
     
     Important code structure requirements:
 
@@ -281,6 +302,15 @@ def build_prompt_ablation_parser_code(code: str, memory: str = "") -> str:
       ["torch", "torchvision", "numpy", "pandas", "scikit-learn"]. NEVER
       include Python standard library dependencies (e.g., json, os, sys, pathlib).
       ALWAYS only include third-party packages.
+
+    ## Baseline Results (for comparison)
+
+    <BASELINE_RESULTS>
+    {baseline_results or "NA"}
+    </BASELINE_RESULTS>
+
+    Compare ablation results against these baseline metrics to quantify 
+    component importance and contribution.
 
     ## Memory
 

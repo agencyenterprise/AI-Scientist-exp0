@@ -24,6 +24,7 @@ class State(BaseModel):
     code: str
     metrics: list[utils.Metric] = []
     cumulative_summary: str = ""
+    baseline_results: str = ""  # baseline parser stdout for comparison
 
     hyperparams: list[utils.Hyperparam] = []
     last_hyperparam: utils.Hyperparam | None = None
@@ -146,6 +147,7 @@ async def node_tuning_code_tuning(
         code=state.code,
         memory=memory,
         cumulative_summary=state.cumulative_summary,
+        baseline_results=state.baseline_results,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -286,7 +288,11 @@ async def node_tuning_code_metrics_parser(
         memory += "Stderr of executing the previous code:\n\n"
         memory += f"```\n{state.parser_stderr or 'NA'}\n```\n\n"
 
-    prompt = prompts.build_prompt_tuning_parser_code(state.tuning_code, memory=memory)
+    prompt = prompts.build_prompt_tuning_parser_code(
+        state.tuning_code, 
+        memory=memory,
+        baseline_results=state.baseline_results,
+    )
 
     llms = runtime.context.llm.with_structured_output(Schema)
     response: Schema = await llms.ainvoke(prompt)  # type: ignore

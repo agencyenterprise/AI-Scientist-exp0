@@ -164,7 +164,8 @@ def build_writeup_prompt(
     code_experiment: str,
     code_parser: str,
     parser_stdout: str | None,
-    plots: Iterable[utils.Plot],
+    baseline_results: str = "",
+    plots: Iterable[utils.Plot] = [],
     research: str | None = None,
     memory: str = "",
     cumulative_summary: str = "",
@@ -175,6 +176,12 @@ def build_writeup_prompt(
     You are an AI researcher writing a paper for a top-tier ML conference. Your
     task is to write a LaTeX document that summarizes the research you have
     conducted.
+
+    ## Baseline Results
+
+    <BASELINE_RESULTS>
+    {baseline_results or "NA"}
+    </BASELINE_RESULTS>
 
     ## Experiment code
 
@@ -188,7 +195,7 @@ def build_writeup_prompt(
     {code_parser}
     </PARSER_CODE>
 
-    ## Parser output
+    ## Parser output (after tuning/ablation)
 
     <PARSER_OUTPUT>
     {parser_stdout or "NA"}
@@ -217,6 +224,12 @@ def build_writeup_prompt(
     <PREVIOUS_SUMMARIES>
     {cumulative_summary or "No previous experiments have been run yet."}
     </PREVIOUS_SUMMARIES>
+
+    ## Instructions
+
+    Compare the baseline results with the final experiment results. Clearly 
+    present improvements or differences. If results improved after tuning and 
+    ablation studies, highlight the gains. If not, discuss objectively.
     """
 
 
@@ -258,7 +271,12 @@ def build_prompt_compile_output(latex: str, stdout: str, stderr: str) -> str:
     """
 
 
-def build_writeup_review_prompt(latex_content: str, task: utils.Task) -> str:
+def build_writeup_review_prompt(
+    latex_content: str,
+    task: utils.Task,
+    baseline_results: str = "",
+    parser_stdout: str = "",
+) -> str:
     return f"""
     You are an experienced scientific paper reviewer with expertise in machine
     learning and artificial intelligence research. Your role is to provide
@@ -284,8 +302,26 @@ def build_writeup_review_prompt(latex_content: str, task: utils.Task) -> str:
     - Confidence (1-10): How confident are you in your review?
     - Decision: "Accept" or "Reject"
 
+    ## Review Guidelines:
+
+    Verify paper properly compares final results with baseline metrics. Check if 
+    improvements/differences are clearly reported. Reject if baseline comparison 
+    is missing or misleading.
+
     Research Task:
     {_task_to_prompt(task)}
+
+    ## Baseline Results (Initial Experiment):
+    
+    <BASELINE_RESULTS>
+    {baseline_results or "NA"}
+    </BASELINE_RESULTS>
+
+    ## Final Results (After Tuning/Ablation):
+    
+    <FINAL_RESULTS>
+    {parser_stdout or "NA"}
+    </FINAL_RESULTS>
 
     Paper Content (LaTeX):
     <PAPER>
