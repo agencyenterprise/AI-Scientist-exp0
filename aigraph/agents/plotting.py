@@ -193,6 +193,7 @@ async def node_plotting_analyze_single_plot(
 
     class Schema(BaseModel):
         analysis: str
+        relevancy_score: int
 
     prompt = prompts.build_prompt_analyze_plots(state.task)
 
@@ -226,10 +227,15 @@ async def node_plotting_analyze_single_plot(
 
     logger.debug(f"image: {state.image}")
     logger.debug(f"analysis: {response.analysis[:32]!r}")
+    logger.debug(f"relevancy_score: {response.relevancy_score}")
 
     logger.info(f"Finished node_plotting_analyze_single_plot for {state.image}")
 
-    plot = utils.Plot(path=state.image, analysis=response.analysis)
+    plot = utils.Plot(
+        path=state.image,
+        analysis=response.analysis,
+        relevancy_score=response.relevancy_score,
+    )
     return {"plots": [plot]}
 
 

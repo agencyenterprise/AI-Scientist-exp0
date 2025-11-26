@@ -94,6 +94,7 @@ class Plot(BaseModel):
 
     path: Path
     analysis: str
+    relevancy_score: int
 
 
 class Review(BaseModel):

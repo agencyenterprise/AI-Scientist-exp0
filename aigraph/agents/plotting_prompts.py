@@ -193,4 +193,6 @@ def build_prompt_analyze_plots(task: Task) -> str:
       performance comparison).
     - Relate the findings back to the hypothesis.
     - Conclude if the hypothesis is supported or rejected.
+    - Provide a relevancy score (integer 0-10) indicating how important this
+      plot is for the final paper. 0 means irrelevant, 10 means critical.
     """

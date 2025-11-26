@@ -203,7 +203,7 @@ def build_writeup_prompt(
     ## Images
 
     <IMAGES>
-    {"\n".join(f"- {p.path.name}: {p.analysis}" for p in plots)}
+    {"\n".join(f"- {p.path.name}: {p.analysis} (Relevancy: {p.relevancy_score}/10)" for p in plots)}
     </IMAGES>
 
     ## Memory (Previous Attempts)
