@@ -46,8 +46,62 @@ def build_prompt_baseline_metrics(task: Task) -> str:
     """
 
 
+def build_prompt_baseline_create_plan(task: Task, metrics: Iterable[Metric]) -> str:
+    return f"""
+    ## Introduction
+
+    You are an AI researcher creating a structured experiment plan. Transform
+    the research task into a detailed, actionable experiment plan that will
+    guide implementation.
+
+    ## Input Variables
+
+    - task: Research task with hypothesis and experimental goals.
+    - metrics: Evaluation metrics defined for this experiment.
+
+    ## Research idea
+
+    {_task_to_prompt(task)}
+
+    ## Evaluation metrics
+
+    ```json
+    {json.dumps([i.model_dump(mode="json") for i in metrics], indent=2)}
+    ```
+
+    ## Instructions
+
+    Create a structured experiment plan covering:
+
+    1. **Research Objective**: Clear statement of what hypothesis is tested
+    2. **Experimental Design**:
+       - Approach overview
+       - Key components/modules needed
+       - Data flow architecture
+    3. **Implementation Strategy**:
+       - Dataset selection rationale (3+ datasets required)
+       - Model architecture requirements
+       - Training/evaluation procedure
+    4. **Metric Collection**:
+       - Where/when each metric is computed
+       - Expected value ranges
+       - Success criteria
+    5. **Expected Outputs**:
+       - Data structure format
+       - Key results to track
+       - Validation checkpoints
+
+    Format as clear, detailed plan (10-15 sentences). Be specific about
+    technical choices and justify decisions relative to research hypothesis.
+    """
+
+
 def build_prompt_baseline_code(
-    task: Task, metrics: Iterable[Metric], memory: str, cumulative_summary: str = ""
+    task: Task,
+    metrics: Iterable[Metric],
+    memory: str,
+    cumulative_summary: str = "",
+    experiment_plan: str = "",
 ) -> str:
     prompt = f"""
     ## Introduction
@@ -65,6 +119,7 @@ def build_prompt_baseline_code(
     - metrics: Evaluation metrics to track during baseline training.
     - memory: Historical notes from previous attempts to avoid repeating mistakes.
     - cumulative_summary: Summary of all experiments run so far for context.
+    - experiment_plan: Structured experiment plan defining objectives and approach.
 
     ## Instructions
 
@@ -230,6 +285,12 @@ def build_prompt_baseline_code(
     {_task_to_prompt(task)}
     </RESEARCH IDEA>
 
+    ## Structured Experiment Plan
+
+    <EXPERIMENT_PLAN>
+    {experiment_plan or "No structured plan available."}
+    </EXPERIMENT_PLAN>
+
     ## Evaluation metrics
 
     <EVALUATION METRICS>
@@ -327,7 +388,9 @@ def build_prompt_baseline_code_output(
     """
 
 
-def build_prompt_baseline_parser_code(code: str, memory: str = "") -> str:
+def build_prompt_baseline_parser_code(
+    code: str, memory: str = "", experiment_plan: str = ""
+) -> str:
     return f"""
     ## Introduction
 
@@ -339,6 +402,7 @@ def build_prompt_baseline_parser_code(code: str, memory: str = "") -> str:
 
     - code: Original baseline experiment code to understand data structure.
     - memory: Historical notes from previous parser attempts.
+    - experiment_plan: Structured experiment plan for context on expected outputs.
 
     ```json
     {{
@@ -400,6 +464,12 @@ def build_prompt_baseline_parser_code(code: str, memory: str = "") -> str:
     with open(os.path.join(os.getcwd(), 'data_baseline.json')) as f:
         experiment_data = json.load(f)
     ```
+
+    ## Structured Experiment Plan
+
+    <EXPERIMENT_PLAN>
+    {experiment_plan or "No structured plan available."}
+    </EXPERIMENT_PLAN>
 
     ## Context
 

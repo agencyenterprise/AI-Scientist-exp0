@@ -28,6 +28,7 @@ class State(BaseModel):
     metrics: list[utils.Metric] = []
     cumulative_summary: str = ""
     baseline_results: str = ""  # baseline parser stdout for comparison
+    experiment_plan_structured: str = ""  # structured experiment plan
 
     state_research: research.State | None = None
     state_baseline: baseline.State | None = None
@@ -76,6 +77,7 @@ async def node_baseline(state: State, runtime: Runtime[Context]) -> dict[str, An
         "metrics": result.get("metrics", []),
         "cumulative_summary": result.get("cumulative_summary", ""),
         "baseline_results": result.get("parse_stdout", ""),
+        "experiment_plan_structured": result.get("experiment_plan_structured", ""),
     }
 
 
@@ -90,6 +92,7 @@ async def node_tuning(state: State, runtime: Runtime[Context]) -> dict[str, Any]
         metrics=state.metrics,
         cumulative_summary=state.cumulative_summary,
         baseline_results=state.baseline_results,
+        experiment_plan_structured=state.experiment_plan_structured,
     )
     tuning_context = tuning.Context(
         model=runtime.context.model,
@@ -121,6 +124,7 @@ async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, An
         metrics=state.metrics,
         cumulative_summary=state.cumulative_summary,
         baseline_results=state.baseline_results,
+        experiment_plan_structured=state.experiment_plan_structured,
     )
     ablation_context = ablation.Context(
         model=runtime.context.model,
@@ -184,6 +188,7 @@ async def node_writeup(state: State, runtime: Runtime[Context]) -> dict[str, Any
         baseline_results=state.baseline_results,
         plots=list(state.state_plotting.plots),
         research=research,
+        experiment_plan_structured=state.experiment_plan_structured,
     )
     writeup_context = writeup.Context(
         model=runtime.context.model,

@@ -107,6 +107,7 @@ def build_prompt_code_ablation(
     memory: str,
     cumulative_summary: str = "",
     baseline_results: str = "",
+    experiment_plan: str = "",
 ) -> str:
     return f"""
     You are an experienced AI researcher. You are provided with a previously
@@ -123,6 +124,7 @@ def build_prompt_code_ablation(
     - memory: Historical notes from previous attempts to avoid repeating mistakes.
     - cumulative_summary: Summary of all experiments run so far for context.
     - baseline_results: Performance metrics from baseline to compare against.
+    - experiment_plan: Structured experiment plan defining objectives and approach.
     
     Name: {name}
     Description: {description}
@@ -202,6 +204,12 @@ def build_prompt_code_ablation(
        ```
     3. Track and update ALL metrics at EACH epoch
     4. Save ALL metrics at the end using 'data_ablation.json' filename
+
+    ## Structured Experiment Plan
+
+    <EXPERIMENT_PLAN>
+    {experiment_plan or "No structured plan available."}
+    </EXPERIMENT_PLAN>
 
     ## Memory
 
@@ -301,6 +309,7 @@ def build_prompt_ablation_parser_code(
     code: str,
     memory: str = "",
     baseline_results: str = "",
+    experiment_plan: str = "",
 ) -> str:
     return f"""
     ## Introduction
@@ -314,6 +323,7 @@ def build_prompt_ablation_parser_code(
     - code: Original ablation experiment code to understand data structure.
     - memory: Historical notes from previous parser attempts.
     - baseline_results: Baseline metrics to compare ablation results against.
+    - experiment_plan: Structured experiment plan for context on expected outputs.
     
     ## Context
     
@@ -368,6 +378,12 @@ def build_prompt_ablation_parser_code(
       ["torch", "torchvision", "numpy", "pandas", "scikit-learn"]. NEVER
       include Python standard library dependencies (e.g., json, os, sys, pathlib).
       ALWAYS only include third-party packages.
+
+    ## Structured Experiment Plan
+
+    <EXPERIMENT_PLAN>
+    {experiment_plan or "No structured plan available."}
+    </EXPERIMENT_PLAN>
 
     ## Baseline Results (for comparison)
 

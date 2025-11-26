@@ -29,6 +29,7 @@ class State(BaseModel):
     plots: list[utils.Plot]
     research: str | None = None
     cumulative_summary: str = ""
+    experiment_plan_structured: str = ""  # structured experiment plan
 
     # counts retry attempts
     writeup_retry_count: int = 0
@@ -117,6 +118,7 @@ async def node_writeup_generate_writeup(
         research=state.research,
         memory=memory,
         cumulative_summary=state.cumulative_summary,
+        experiment_plan=state.experiment_plan_structured,
     )
 
     messages = [
@@ -212,6 +214,7 @@ async def node_writeup_review_paper(
         task=state.task,
         baseline_results=state.baseline_results,
         parser_stdout=state.parser_stdout or "",
+        experiment_plan=state.experiment_plan_structured,
     )
 
     llms = runtime.context.llm.with_structured_output(utils.Review)
@@ -227,18 +230,26 @@ async def node_writeup_review_paper(
     }
 
 
+async def node_reset_compile_counter(
+    state: State, runtime: Runtime[Context]
+) -> dict[str, Any]:
+    logger.info("Starting node_reset_compile_counter")
+    logger.info("Resetting writeup_retry_count to 0")
+    return {"writeup_retry_count": 0}
+
+
 async def node_should_retry_review(
     state: State, runtime: Runtime[Context]
-) -> Literal["node_writeup_generate_writeup", "node_compile_writeup"]:
+) -> Literal["node_reset_compile_counter", "node_compile_writeup"]:
     logger.info("Starting node_should_retry_review")
 
     if (
         state.review
         and state.review.decision == "Reject"
-        and state.review_retry_count <= 3
+        and state.review_retry_count < 3
     ):
-        logger.info("Going to `node_writeup_generate_writeup`")
-        return "node_writeup_generate_writeup"
+        logger.info("Going to `node_reset_compile_counter`")
+        return "node_reset_compile_counter"
 
     logger.info("Going to `node_compile_writeup`")
     return "node_compile_writeup"
@@ -260,6 +271,10 @@ def build(
     builder.add_node(
         "node_writeup_review_paper",
         node_writeup_review_paper,
+    )
+    builder.add_node(
+        "node_reset_compile_counter",
+        node_reset_compile_counter,
     )
     builder.add_node(
         "node_compile_writeup",
@@ -285,7 +300,11 @@ def build(
     builder.add_conditional_edges(
         "node_writeup_review_paper",
         node_should_retry_review,
-        ["node_compile_writeup", "__end__"],
+        ["node_reset_compile_counter", "node_compile_writeup"],
+    )
+    builder.add_edge(
+        "node_reset_compile_counter",
+        "node_writeup_generate_writeup",
     )
     builder.add_edge(
         "node_compile_writeup",

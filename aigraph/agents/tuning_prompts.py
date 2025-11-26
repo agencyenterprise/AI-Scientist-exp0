@@ -109,6 +109,7 @@ def build_prompt_tuning_code(
     memory: str,
     cumulative_summary: str = "",
     baseline_results: str = "",
+    experiment_plan: str = "",
 ) -> str:
     return f"""
     ## Introduction
@@ -127,6 +128,7 @@ def build_prompt_tuning_code(
     - memory: Historical notes from previous attempts to avoid repeating mistakes.
     - cumulative_summary: Summary of all experiments run so far for context.
     - baseline_results: Baseline performance metrics to compare improvements against.
+    - experiment_plan: Structured experiment plan defining objectives and approach.
     
     Name: {name}
     Description: {description}
@@ -290,6 +292,12 @@ def build_prompt_tuning_code(
     {_task_to_prompt(task)}
     </RESEARCH_IDEA>
 
+    ## Structured Experiment Plan
+
+    <EXPERIMENT_PLAN>
+    {experiment_plan or "No structured plan available."}
+    </EXPERIMENT_PLAN>
+
     ## Evaluation metrics
 
     <EVALUATION METRICS>
@@ -402,6 +410,7 @@ def build_prompt_tuning_parser_code(
     code: str,
     memory: str = "",
     baseline_results: str = "",
+    experiment_plan: str = "",
 ) -> str:
     return f"""
     ## Introduction
@@ -415,6 +424,7 @@ def build_prompt_tuning_parser_code(
     - code: Original tuning experiment code to understand data structure.
     - memory: Historical notes from previous parser attempts.
     - baseline_results: Baseline metrics to compare tuning improvements against.
+    - experiment_plan: Structured experiment plan for context on expected outputs.
 
     ```json
     {{
@@ -478,6 +488,12 @@ def build_prompt_tuning_parser_code(
     with open(os.path.join(os.getcwd(), 'data_tuning.json')) as f:
         experiment_data = json.load(f)
     ```
+
+    ## Structured Experiment Plan
+
+    <EXPERIMENT_PLAN>
+    {experiment_plan or "No structured plan available."}
+    </EXPERIMENT_PLAN>
 
     ## Context
 

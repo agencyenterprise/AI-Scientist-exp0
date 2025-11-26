@@ -174,6 +174,7 @@ def build_writeup_prompt(
     research: str | None = None,
     memory: str = "",
     cumulative_summary: str = "",
+    experiment_plan: str = "",
 ) -> str:
     return f"""
     ## Introduction
@@ -192,6 +193,13 @@ def build_writeup_prompt(
     - research: Research notes or additional findings.
     - memory: Historical notes from previous writeup attempts.
     - cumulative_summary: Summary of all experiments conducted.
+    - experiment_plan: Structured experiment plan defining objectives and approach.
+
+    ## Structured Experiment Plan
+
+    <EXPERIMENT_PLAN>
+    {experiment_plan or "No structured plan available."}
+    </EXPERIMENT_PLAN>
 
     ## Baseline Results
 
@@ -298,6 +306,7 @@ def build_writeup_review_prompt(
     task: utils.Task,
     baseline_results: str = "",
     parser_stdout: str = "",
+    experiment_plan: str = "",
 ) -> str:
     return f"""
     You are an experienced scientific paper reviewer with expertise in machine
@@ -310,6 +319,7 @@ def build_writeup_review_prompt(
     - task: Research task with hypothesis and goals for context.
     - baseline_results: Initial baseline performance metrics.
     - parser_stdout: Final results after tuning/ablation studies.
+    - experiment_plan: Structured experiment plan for context on objectives.
 
     Review the following paper generated from the research task below. Evaluate
     the paper across multiple dimensions including originality, quality,
@@ -339,6 +349,12 @@ def build_writeup_review_prompt(
 
     Research Task:
     {_task_to_prompt(task)}
+
+    ## Structured Experiment Plan
+
+    <EXPERIMENT_PLAN>
+    {experiment_plan or "No structured plan available."}
+    </EXPERIMENT_PLAN>
 
     ## Baseline Results (Initial Experiment):
     

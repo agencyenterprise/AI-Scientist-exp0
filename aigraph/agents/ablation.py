@@ -25,6 +25,7 @@ class State(BaseModel):
     metrics: list[utils.Metric] = []
     cumulative_summary: str = ""
     baseline_results: str = ""  # baseline parser stdout for comparison
+    experiment_plan_structured: str = ""  # structured experiment plan
 
     ablations: list[utils.Ablation] = []
     last_ablation: utils.Ablation | None = None
@@ -147,6 +148,7 @@ async def node_ablation_code_ablation(
         memory=memory,
         cumulative_summary=state.cumulative_summary,
         baseline_results=state.baseline_results,
+        experiment_plan=state.experiment_plan_structured,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -296,6 +298,7 @@ async def node_ablation_code_metrics_parser(
         state.ablation_code,
         memory=memory,
         baseline_results=state.baseline_results,
+        experiment_plan=state.experiment_plan_structured,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
