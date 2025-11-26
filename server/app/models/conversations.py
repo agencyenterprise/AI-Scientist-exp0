@@ -68,13 +68,6 @@ class ConversationUpdate(BaseModel):
     title: str = Field(..., description="New title for the conversation", min_length=1)
 
 
-class SlackImportRequest(BaseModel):
-    """Data sent from Slack for conversation import."""
-
-    url: str = Field(..., description="Share URL to import (ChatGPT or BranchPrompt)")
-    user_id: int = Field(..., description="ID of user who posted the URL in Slack")
-
-
 class ConversationResponse(BaseModel):
     """Response model for conversation API endpoints."""
 

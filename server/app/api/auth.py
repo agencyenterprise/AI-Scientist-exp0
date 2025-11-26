@@ -44,7 +44,7 @@ async def login(_request: Request) -> RedirectResponse:
 
     except Exception as e:
         logger.exception(f"Error initiating login: {e}")
-        raise HTTPException(status_code=500, detail="Failed to initiate login")
+        raise HTTPException(status_code=500, detail="Failed to initiate login") from e
 
 
 @router.get("/callback")
@@ -205,4 +205,4 @@ async def cleanup_expired_sessions() -> Dict[str, str]:
 
     except Exception as e:
         logger.exception(f"Error cleaning up sessions: {e}")
-        raise HTTPException(status_code=500, detail="Failed to cleanup sessions")
+        raise HTTPException(status_code=500, detail="Failed to cleanup sessions") from e

@@ -65,19 +65,6 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         if self._should_skip_auth(request):
             return await call_next(request)  # type: ignore[no-any-return]
 
-        # Try service authentication first (X-API-Key header)
-        api_key = request.headers.get("x-api-key")
-        if api_key:
-            service = self.auth_service.validate_service_key(api_key)
-            if service:
-                request.state.auth_type = "service"
-                request.state.service_name = service["service_name"]
-                return await call_next(request)  # type: ignore[no-any-return]
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Invalid service API key"},
-            )
-
         # Try user session authentication (cookie)
         session_token = request.cookies.get("session_token")
         if session_token:

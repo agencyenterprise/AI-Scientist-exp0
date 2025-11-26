@@ -340,24 +340,11 @@ This application now requires **Google OAuth 2.0 authentication** for all users.
 4. Users can access all features and their session persists for 24 hours
 5. Users can sign out at any time from the dashboard header
 
-### Service Authentication (Internal Services)
-Internal services like the Slack integration use API key authentication:
-
-```bash
-# Create service API key for Slack integration
-cd backend
-python manage_service_keys.py create slack-integration
-
-# Use the generated API key in service requests
-X-API-Key: slack-service-xxxxx...
-```
-
 ### Security Features
 - Organization-only access (configured in Google OAuth console)
 - HTTP-only secure session cookies
 - Automatic session expiration and cleanup
 - Protected API endpoints (all routes except `/health`, `/docs`, `/auth/*`)
-- Service-to-service authentication for internal tools
 
 **Important:**
 - `.env` and `.env.local` files are ignored by git for security

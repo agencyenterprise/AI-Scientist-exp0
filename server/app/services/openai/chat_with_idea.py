@@ -750,6 +750,7 @@ class ChatWithIdeaStream:
                         "gpt-5",
                         "gpt-5-nano",
                         "gpt-5-mini",
+                        "gpt-5.1",
                         "o1",
                         "o3",
                         "o3-mini",

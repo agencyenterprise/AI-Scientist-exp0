@@ -185,6 +185,7 @@ RESPONSES_API_MODELS = [
     "o3-pro",
     "o3-mini",
     "gpt-5",
+    "gpt-5.1",
     "gpt-5-mini",
     "gpt-5-nano",
 ]

@@ -89,3 +89,6 @@ select = [
 ]
 extend-select = ["ANN401"]
 ignore = ["E501", "G004"]  # Line too long, allow f-strings in logging statements
+
+[tool.pylint.messages_control]
+disable = ["logging-fstring-interpolation", "broad-except"]

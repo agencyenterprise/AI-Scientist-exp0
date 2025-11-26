@@ -15,7 +15,6 @@ from .imported_conversation_summaries import ImportedConversationSummariesMixin
 from .llm_defaults import LLMDefaultsMixin
 from .memories import ConversationMemoriesMixin
 from .prompts import PromptsMixin
-from .service_keys import ServiceKeysDatabaseMixin
 from .users import UsersDatabaseMixin
 
 
@@ -28,7 +27,6 @@ class DatabaseManager(
     FileAttachmentsMixin,
     LLMDefaultsMixin,
     UsersDatabaseMixin,
-    ServiceKeysDatabaseMixin,
     ImportedConversationSummariesMixin,
     ChatSummariesMixin,
     ConversationMemoriesMixin,

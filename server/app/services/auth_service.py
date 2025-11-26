@@ -117,46 +117,6 @@ class AuthService:
             logger.exception(f"Error logging out user: {e}")
             return False
 
-    def validate_service_key(self, api_key: str) -> Optional[dict]:
-        """
-        Validate service API key.
-
-        Args:
-            api_key: Service API key
-
-        Returns:
-            Service info dict if valid, None otherwise
-        """
-        try:
-            service = self.db.validate_service_key(api_key)
-            if service:
-                logger.debug(f"Valid service key for: {service['service_name']}")
-            return service
-        except Exception as e:
-            logger.exception(f"Error validating service key: {e}")
-            return None
-
-    def create_service_key(self, service_name: str) -> Optional[tuple[str, dict]]:
-        """
-        Create a new service API key.
-
-        Args:
-            service_name: Name of the service
-
-        Returns:
-            Tuple of (api_key, service_info) if successful, None otherwise
-        """
-        try:
-            result = self.db.create_service_key(service_name)
-            if result:
-                api_key, service_info = result
-                logger.info(f"Created service key for: {service_name}")
-                return api_key, service_info
-            return None
-        except Exception as e:
-            logger.exception(f"Error creating service key: {e}")
-            return None
-
     def cleanup_expired_sessions(self) -> int:
         """
         Clean up expired sessions.

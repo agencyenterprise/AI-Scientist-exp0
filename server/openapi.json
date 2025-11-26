@@ -696,53 +696,6 @@
         }
       }
     },
-    "/api/conversations/import-slack": {
-      "post": {
-        "summary": "Import From Slack",
-        "description": "Webhook endpoint for importing conversations from Slack.",
-        "operationId": "import_from_slack_api_conversations_import_slack_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SlackImportRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/IdMessageResponse"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorResponse"
-                    }
-                  ],
-                  "title": "Response Import From Slack Api Conversations Import Slack Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/conversations/{conversation_id}/files": {
       "post": {
         "summary": "Upload File",
@@ -2086,27 +2039,6 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "IdMessageResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id",
-            "description": "Resource ID"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message",
-            "description": "Response message"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "message"
-        ],
-        "title": "IdMessageResponse",
-        "description": "Response with ID and message."
-      },
       "Idea": {
         "properties": {
           "idea_id": {
@@ -2717,27 +2649,6 @@
         ],
         "title": "MessageResponse",
         "description": "Simple message response."
-      },
-      "SlackImportRequest": {
-        "properties": {
-          "url": {
-            "type": "string",
-            "title": "Url",
-            "description": "Share URL to import (ChatGPT or BranchPrompt)"
-          },
-          "user_id": {
-            "type": "integer",
-            "title": "User Id",
-            "description": "ID of user who posted the URL in Slack"
-          }
-        },
-        "type": "object",
-        "required": [
-          "url",
-          "user_id"
-        ],
-        "title": "SlackImportRequest",
-        "description": "Data sent from Slack for conversation import."
       },
       "SummaryResponse": {
         "properties": {

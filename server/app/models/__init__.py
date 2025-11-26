@@ -31,7 +31,6 @@ from app.models.conversations import (
     ParseErrorResult,
     ParseResult,
     ParseSuccessResult,
-    SlackImportRequest,
 )
 
 # Idea models
@@ -67,12 +66,10 @@ __all__ = [
     "ImportedChat",
     "ConversationResponse",
     "ConversationUpdate",
-    "ConversationSummaryUpdate",
     "ImportChatGPTConversation",
     "ImportChatPrompt",
     "ImportChatCreateNew",
     "ImportChatUpdateExisting",
-    "SlackImportRequest",
     "ChatMessageData",
     "ParseSuccessResult",
     "ParseErrorResult",

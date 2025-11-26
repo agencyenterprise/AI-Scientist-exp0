@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.middleware.auth import get_current_service, get_current_user
+from app.middleware.auth import get_current_user
 from app.models import (
     ConversationResponse,
     ConversationUpdate,
@@ -29,9 +29,7 @@ from app.models import (
     ImportedConversationSummaryUpdate,
     ParseErrorResult,
     ParseSuccessResult,
-    SlackImportRequest,
 )
-from app.prompt_types import PromptTypes
 from app.services import (
     AnthropicService,
     GrokService,
@@ -325,106 +323,6 @@ def _must_summarize(
     )
     must_summarize = total_planned > ctx_tokens
     return must_summarize
-
-
-async def _process_import_background(
-    db: DatabaseManager,
-    conversation_id: int,
-    llm_provider: str,
-    llm_model: str,
-    imported_conversation_text: str,
-    messages: List[ImportedChatMessage],
-    user_id: int,
-) -> None:
-    """Run memories generation and schedule summarization/idea generation in the background."""
-    try:
-        imported_chat_keywords = await _generate_imported_chat_keywords(
-            llm_provider=llm_provider,
-            llm_model=llm_model,
-            imported_conversation_text=imported_conversation_text,
-        )
-        if not imported_chat_keywords:
-            logger.warning("No imported chat keywords generated, skipping memories generation")
-            raw_memory_results: list[dict] = []
-            formatted_memories_context: str = ""
-        else:
-            raw_memory_results, formatted_memories_context = (
-                await mem0_service.generate_project_creation_memories(
-                    imported_chat_keywords=imported_chat_keywords
-                )
-            )
-        db.store_memories_block(
-            conversation_id=conversation_id,
-            source="imported_chat",
-            memories_block=raw_memory_results,
-        )
-
-        if _must_summarize(
-            db=db,
-            llm_provider=llm_provider,
-            llm_model=llm_model,
-            messages=messages,
-            memories_block=formatted_memories_context,
-        ):
-
-            async def callback_function(summary_text: str) -> None:
-                try:
-                    await _generate_idea_consuming_yields(
-                        db=db,
-                        llm_provider=llm_provider,
-                        llm_model=llm_model,
-                        conversation_id=conversation_id,
-                        imported_conversation=summary_text,
-                        user_id=user_id,
-                    )
-                except Exception as e:
-                    logger.exception(
-                        f"Failed to generate idea after summarization for conversation {conversation_id}: {e}"
-                    )
-                    try:
-                        db.create_idea(
-                            conversation_id=conversation_id,
-                            title="Failed to Generate Idea",
-                            short_hypothesis="Generation failed",
-                            related_work="",
-                            abstract=f"Idea generation failed: {str(e)}\n\nPlease try regenerating the idea manually.",
-                            experiments=[],
-                            expected_outcome="",
-                            risk_factors_and_limitations=[],
-                            created_by_user_id=user_id,
-                        )
-                    except Exception:
-                        logger.exception("Failed to create failure placeholder idea")
-
-            asyncio.create_task(
-                summarizer_service.create_imported_chat_summary(
-                    conversation_id=conversation_id,
-                    imported_chat_messages=messages,
-                    callback_function=callback_function,
-                )
-            )
-        else:
-            asyncio.create_task(
-                _generate_idea_consuming_yields(
-                    db=db,
-                    llm_provider=llm_provider,
-                    llm_model=llm_model,
-                    conversation_id=conversation_id,
-                    imported_conversation=imported_conversation_text,
-                    user_id=user_id,
-                )
-            )
-            asyncio.create_task(
-                summarizer_service.create_imported_chat_summary(
-                    conversation_id=conversation_id,
-                    imported_chat_messages=messages,
-                    callback_function=None,
-                )
-            )
-    except Exception as e:
-        logger.exception(
-            f"Background import processing failed for conversation {conversation_id}: {e}"
-        )
 
 
 async def _generate_response_for_conversation(
@@ -958,109 +856,3 @@ async def update_conversation_summary(
     return SummaryResponse(
         summary=summary_data.summary,
     )
-
-
-@router.post("/import-slack")
-async def import_from_slack(
-    import_request: SlackImportRequest, request: Request, response: Response
-) -> Union[IdMessageResponse, ErrorResponse]:
-    """
-    Webhook endpoint for importing conversations from Slack.
-    """
-    logger.info(f"Importing conversation from Slack: {import_request.url}")
-    try:
-        db = get_database()
-
-        existing_conversation_id = db.get_conversation_id_by_url(import_request.url)
-        if existing_conversation_id:
-            return IdMessageResponse(
-                id=existing_conversation_id,
-                message="Conversation already exists",
-            )
-
-        try:
-            parse_result = await parser_service.parse_conversation(import_request.url)
-        except ChatNotFound:
-            # Handle 404 errors with specific error code for Slack integration
-            response.status_code = 400
-            return ErrorResponse(
-                error="CHAT_NOT_FOUND",
-                detail="This conversation no longer exists or has been deleted",
-            )
-
-        if not parse_result.success:
-            # Type narrowing: if success is False, it's ParseErrorResult
-            assert isinstance(parse_result, ParseErrorResult)
-            response.status_code = 400
-            return ErrorResponse(error="Parse failed", detail=parse_result.error)
-
-        assert isinstance(parse_result, ParseSuccessResult)
-        # For Slack imports, we don't have a user context, so we'll need to handle this differently
-        # This endpoint should only be accessible via service authentication
-        get_current_service(request)  # Verify this is a service call
-
-        try:
-            # Manually create DBConversation
-            conversation_id = db.create_conversation(
-                conversation=DBConversation(
-                    url=parse_result.data.url,
-                    title=parse_result.data.title,
-                    import_date=parse_result.data.import_date,
-                    imported_chat=[
-                        DBImportedChatMessage(
-                            role=msg.role,
-                            content=msg.content,
-                        )
-                        for msg in parse_result.data.content
-                    ],
-                ),
-                imported_by_user_id=import_request.user_id,
-            )
-        except Exception as e:
-            logger.exception(f"Failed to summarize Slack import {conversation_id}: {e}")
-            # Cleanup and fail import
-            try:
-                db.delete_conversation(conversation_id)
-            finally:
-                response.status_code = 500
-                return ErrorResponse(error="Import failed", detail=str(e))
-
-        db.create_idea(
-            conversation_id=conversation_id,
-            title="Generating...",
-            short_hypothesis="Generating idea...",
-            related_work="",
-            abstract="Generating idea...",
-            experiments=[],
-            expected_outcome="",
-            risk_factors_and_limitations=[],
-            created_by_user_id=import_request.user_id,
-        )
-
-        # Start background processing: memories + summarize/generate
-        llm_parameters = db.get_default_llm_parameters(PromptTypes.IDEA_GENERATION)
-        imported_conversation_text = _imported_chat_messages_to_text(parse_result.data.content)
-        try:
-            asyncio.create_task(
-                _process_import_background(
-                    db=db,
-                    conversation_id=conversation_id,
-                    llm_provider=llm_parameters.llm_provider,
-                    llm_model=llm_parameters.llm_model,
-                    imported_conversation_text=imported_conversation_text,
-                    messages=parse_result.data.content,
-                    user_id=import_request.user_id,
-                )
-            )
-        except Exception:
-            logger.exception("Failed to schedule background import processing task")
-
-        return IdMessageResponse(
-            id=conversation_id,
-            message="Conversation imported successfully",
-        )
-
-    except Exception as e:
-        logger.exception(f"Error importing conversation from extension: {e}")
-        response.status_code = 500
-        return ErrorResponse(error="Import failed", detail=str(e))
