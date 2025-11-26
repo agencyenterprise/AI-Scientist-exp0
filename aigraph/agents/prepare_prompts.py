@@ -54,7 +54,7 @@ def build_prompt_prepare_metrics(task: Task, research: str = "") -> str:
 
     ## Instructions
 
-    Propose a single evaluation metric that would be useful for analyzing the
+    Propose up to 3 evaluation metrics that would be useful for analyzing the
     performance of solutions for this research task.
 
     Note: Validation loss will be tracked separately so you don't need to
@@ -65,7 +65,7 @@ def build_prompt_prepare_metrics(task: Task, research: str = "") -> str:
       - name: The name of the metric
       - maximize: Whether higher values are better (true/false)
       - description: A brief explanation of what the metric measures. Your list
-        should contain only one metric.
+        should contain at most 3 metrics.
     """
 
 
