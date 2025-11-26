@@ -145,6 +145,7 @@ async def node_tuning_code_tuning(
         description=state.last_hyperparam.description,
         code=state.code,
         memory=memory,
+        cumulative_summary=state.cumulative_summary,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)

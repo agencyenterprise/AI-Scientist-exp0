@@ -144,6 +144,7 @@ async def node_ablation_code_ablation(
         code=state.code,
         metrics=state.metrics,
         memory=memory,
+        cumulative_summary=state.cumulative_summary,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)

@@ -27,6 +27,7 @@ class State(BaseModel):
     experiment_code: str
     plots: list[utils.Plot]
     research: str | None = None
+    cumulative_summary: str = ""
 
     # counts retry attempts
     writeup_retry_count: int = 0
@@ -102,6 +103,7 @@ async def node_writeup_generate_writeup(
         plots=state.plots,
         research=state.research,
         memory=memory,
+        cumulative_summary=state.cumulative_summary,
     )
 
     messages = [

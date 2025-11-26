@@ -94,7 +94,7 @@ def build_prompt_propose_ablation(code: str, ablations: list[str]) -> str:
 
 
 def build_prompt_code_ablation(
-    task: Task, metrics: Iterable[Metric], name: str, description: str, code: str, memory: str
+    task: Task, metrics: Iterable[Metric], name: str, description: str, code: str, memory: str, cumulative_summary: str = ""
 ) -> str:
     return f"""
     You are an experienced AI researcher. You are provided with a previously
@@ -170,6 +170,12 @@ def build_prompt_code_ablation(
     <MEMORY>
     {memory or "NA"}
     </MEMORY>
+
+    ## Previous Experiment Summaries
+
+    <PREVIOUS_SUMMARIES>
+    {cumulative_summary or "No previous experiments have been run yet."}
+    </PREVIOUS_SUMMARIES>
     """
 
 

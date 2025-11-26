@@ -167,6 +167,7 @@ def build_writeup_prompt(
     plots: Iterable[utils.Plot],
     research: str | None = None,
     memory: str = "",
+    cumulative_summary: str = "",
 ) -> str:
     return f"""
     ## Introduction
@@ -210,6 +211,12 @@ def build_writeup_prompt(
     <MEMORY>
     {memory or "NA"}
     </MEMORY>
+
+    ## Previous Experiment Summaries
+
+    <PREVIOUS_SUMMARIES>
+    {cumulative_summary or "No previous experiments have been run yet."}
+    </PREVIOUS_SUMMARIES>
     """
 
 

@@ -102,6 +102,7 @@ def build_prompt_tuning_code(
     description: str,
     code: str,
     memory: str,
+    cumulative_summary: str = "",
 ) -> str:
     return f"""
     ## Introduction
@@ -288,6 +289,12 @@ def build_prompt_tuning_code(
     <MEMORY>
     {memory or "NA"}
     </MEMORY>
+
+    ## Previous Experiment Summaries
+
+    <PREVIOUS_SUMMARIES>
+    {cumulative_summary or "No previous experiments have been run yet."}
+    </PREVIOUS_SUMMARIES>
     """
 
 

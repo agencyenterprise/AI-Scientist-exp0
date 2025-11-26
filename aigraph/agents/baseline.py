@@ -120,6 +120,7 @@ async def node_baseline_code_experiment(
         state.task,
         state.metrics,
         memory,
+        state.cumulative_summary,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -184,7 +185,7 @@ async def node_baseline_summary(
         temperature=runtime.context.temperature,
     )
 
-    graph = summary.build()
+    graph = summary.build(checkpointer=True)
     result = await graph.ainvoke(input=summary_state, context=summary_context)
     new_summary = result["new_summary"]
 

@@ -43,7 +43,7 @@ def build_prompt_baseline_metrics(task: Task) -> str:
 
 
 def build_prompt_baseline_code(
-    task: Task, metrics: Iterable[Metric], memory: str
+    task: Task, metrics: Iterable[Metric], memory: str, cumulative_summary: str = ""
 ) -> str:
     prompt = f"""
     ## Introduction
@@ -229,6 +229,12 @@ def build_prompt_baseline_code(
     <MEMORY>
     {memory or "NA"}
     </MEMORY>
+
+    ## Previous Experiment Summaries
+
+    <PREVIOUS_SUMMARIES>
+    {cumulative_summary or "No previous experiments have been run yet."}
+    </PREVIOUS_SUMMARIES>
     """
     return prompt
 
