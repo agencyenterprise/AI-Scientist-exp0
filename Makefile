@@ -1,11 +1,22 @@
-lint:
-	@echo "🔍 Linting"
-	@echo "🎨 Auto-formatting"
-	uv run black . --exclude 'workspaces|\.venv|frontend|backend/tests'
-	uv run isort . --skip-glob 'workspaces/*' --skip-glob '.venv/*'
-	uvx ruff check . --exclude workspaces,.venv,frontend,backend/tests
-	uv run mypy . --exclude '^(workspaces|\.venv|frontend|backend/tests|ai_scientist/example_code.py)'
-	uv run python3 check_inline_imports.py --exclude workspaces,frontend,backend/tests,backend/playground
+# Installation targets
+install-research:
+	$(MAKE) -C research_pipeline install
+
+install-server:
+	$(MAKE) -C server install
+
+install: install-research install-server
+	@echo "✅ All dependencies installed"
+
+# Linting targets
+lint-research:
+	$(MAKE) -C research_pipeline lint
+
+lint-server:
+	$(MAKE) -C server lint
+
+lint: lint-research lint-server
+	@echo "✅ All linting complete"
 
 lint-frontend:
 	@echo "🔍 Linting frontend..."
@@ -21,20 +32,18 @@ dev-frontend: gen-api-types
 	@echo "🚀 Starting frontend development server..."
 	cd frontend && npm run dev
 
-dev-backend: migrate-db gen-api-types
-	@echo "🚀 Starting backend development server with DEBUG logging..."
-	cd backend && LOG_LEVEL=DEBUG uv run -m uvicorn app.main:app --reload
+dev-server:
+	$(MAKE) -C server dev
 
 # OpenAPI export and TS type generation
 export-openapi:
-	@echo "📝 Exporting OpenAPI schema..."
-	cd backend && uv run export_openapi.py > openapi.json
+	$(MAKE) -C server export-openapi
 
-gen-api-types: export-openapi
-	@echo "🧬 Generating frontend API types from OpenAPI schema..."
-	cd frontend && npx openapi-typescript ../backend/openapi.json --output src/types/api.gen.ts
+gen-api-types:
+	$(MAKE) -C server gen-api-types
 
 # Database migrations
 migrate-db:
-	@echo "📊 Running database migrations..."
-	cd backend && uv run migrate.py upgrade
+	$(MAKE) -C server migrate
+
+.PHONY: install-research install-server install lint-research lint-server lint lint-frontend dev-frontend dev-server export-openapi gen-api-types migrate-db
