@@ -215,7 +215,8 @@ async def node_select_best(state: State, runtime: Runtime[Context]) -> dict[str,
     ]
 
     llms = runtime.context.llm.with_structured_output(Schema)
-    response: Schema = await llms.ainvoke({"messages": messages})  # type: ignore
+    response = await llms.ainvoke(messages)
+    response = cast(Schema, response)
 
     idea_i = state.ideas.index(response.idea)
     research = state.researches[idea_i]
