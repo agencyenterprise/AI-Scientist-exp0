@@ -38,7 +38,7 @@ def _task_to_prompt(task: Task) -> str:
     """
 
     if task.code:
-        code = f"```python\n{task.code}\n```"
+        code = f"<CODE>\n{task.code}\n</CODE>"
         return prompt + f"Code To Use:\n{code}\n"
 
     example = DATA_DIR / "code.py.txt"
@@ -46,6 +46,5 @@ def _task_to_prompt(task: Task) -> str:
         return prompt
 
     code = example.read_text()
-    code = f"```python\n{code}\n```"
+    code = f"<CODE>\n{code}\n</CODE>"
     return prompt + f"Code To Use:\n{code}\n"
-

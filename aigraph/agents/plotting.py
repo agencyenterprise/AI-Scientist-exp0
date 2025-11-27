@@ -75,13 +75,13 @@ async def node_plotting_code_plotting(
         memory += "Bug identified:\n\n"
         memory += f"{state.plotting_summary or 'NA'}\n\n"
         memory += "Previous code:\n\n"
-        memory += f"```python\n{state.plotting_code or 'NA'}\n```\n\n"
+        memory += f"<CODE>\n{state.plotting_code or 'NA'}\n</CODE>\n\n"
         memory += "Previous dependencies:\n\n"
-        memory += f"```\n{state.plotting_deps or 'NA'}\n```\n\n"
+        memory += f"<DEPENDENCIES>\n{state.plotting_deps or 'NA'}\n</DEPENDENCIES>\n\n"
         memory += "Stdout of executing the previous code:\n\n"
-        memory += f"```\n{state.plotting_stdout or 'NA'}\n```\n\n"
+        memory += f"<STDOUT>\n{state.plotting_stdout or 'NA'}\n</STDOUT>\n\n"
         memory += "Stderr of executing the previous code:\n\n"
-        memory += f"```\n{state.plotting_stderr or 'NA'}\n```\n\n"
+        memory += f"<STDERR>\n{state.plotting_stderr or 'NA'}\n</STDERR>\n\n"
 
     prompt = prompts.build_prompt_plotting_code(
         state.task,

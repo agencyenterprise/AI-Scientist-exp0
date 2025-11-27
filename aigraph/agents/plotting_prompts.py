@@ -38,11 +38,15 @@ def _task_to_prompt(task: Task) -> str:
 
 
 def build_prompt_plotting_code(
-    task: Task, code: str, memory: str = "", idea: Idea | None = None, research: str | None = None
+    task: Task,
+    code: str,
+    memory: str = "",
+    idea: Idea | None = None,
+    research: str | None = None,
 ) -> str:
     idea_section = ""
     research_section = ""
-    
+
     if idea:
         idea_section = f"""
     ## Idea Context
@@ -55,7 +59,7 @@ def build_prompt_plotting_code(
     {chr(10).join(f"- {goal}" for goal in idea.goals)}
     </IDEA>
 """
-    
+
     if research:
         research_section = f"""
     ## Research Background
@@ -64,7 +68,7 @@ def build_prompt_plotting_code(
     {research}
     </RESEARCH>
 """
-    
+
     return f"""
     ## Introduction
 
@@ -135,9 +139,7 @@ def build_prompt_plotting_code(
     This is the code that generated the data:
     
     <CODE>
-    ```python
     {code}
-    ```
     </CODE>
 
     ## Memory (Previous Attempts)
@@ -164,7 +166,7 @@ def build_prompt_plotting_output(
     {chr(10).join(f"- {goal}" for goal in idea.goals)}
     </IDEA>
 """
-    
+
     return f"""
     ## Introduction
 
@@ -190,25 +192,19 @@ def build_prompt_plotting_output(
     ## Implementation
 
     <IMPLEMENTATION>
-    ```python
     {code}
-    ```
     </IMPLEMENTATION>
 
     ## Stdout
 
     <STDOUT>
-    ```
     {stdout}
-    ```
     </STDOUT>
 
     ## Stderr
 
     <STDERR>
-    ```
     {stderr}
-    ```
     </STDERR>
     """
 

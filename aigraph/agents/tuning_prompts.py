@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING
+
 from aigraph.utils import DATA_DIR, Idea, Task
+
+if TYPE_CHECKING:
+    from aigraph.agents.tuning import State
 
 
 def _task_to_prompt(task: Task) -> str:
@@ -37,7 +42,7 @@ def _task_to_prompt(task: Task) -> str:
     """
 
     if task.code:
-        code = f"```python\n{task.code}\n```"
+        code = f"<CODE>\n{task.code}\n</CODE>"
         return prompt + f"Code To Use:\n{code}\n"
 
     example = DATA_DIR / "code.py.txt"
@@ -45,7 +50,7 @@ def _task_to_prompt(task: Task) -> str:
         return prompt
 
     code = example.read_text()
-    code = f"```python\n{code}\n```"
+    code = f"<CODE>\n{code}\n</CODE>"
     return prompt + f"Code To Use:\n{code}\n"
 
 
@@ -84,9 +89,7 @@ def build_prompt_tuning_propose(
     ## Code
     
     <CODE>
-    ```python
     {code}
-    ```
     </CODE>
 
     ## Previous Hyperparam Tuning Attempts
@@ -117,6 +120,7 @@ def build_prompt_tuning_code(
     memory: str,
     idea: Idea,
     research: str,
+    notes: list[str] | None = None,
 ) -> str:
     return f"""
     ## Introduction
@@ -294,6 +298,10 @@ def build_prompt_tuning_code(
     {research}
     </RESEARCH>
 
+    <NOTES>
+    {"\n".join(f"{i} - {note}" for i, note in enumerate(notes or [], 1)) or "No notes."}
+    </NOTES>
+
     ## Research idea
 
     <RESEARCH_IDEA>
@@ -302,9 +310,9 @@ def build_prompt_tuning_code(
 
     ## Original Code
     
-    ```python
+    <CODE>
     {code}
-    ```
+    </CODE>
 
     ## Memory
 
@@ -315,7 +323,12 @@ def build_prompt_tuning_code(
 
 
 def build_prompt_tuning_code_output(
-    task: Task, code: str, stdout: str, stderr: str, idea: Idea
+    task: Task,
+    code: str,
+    stdout: str,
+    stderr: str,
+    idea: Idea,
+    notes: list[str] | None = None,
 ) -> str:
     return f"""
     ## Introduction
@@ -340,29 +353,26 @@ def build_prompt_tuning_code_output(
     <RESEARCH_IDEA>
     {_task_to_prompt(task)}
     </RESEARCH_IDEA>
-
     ## Implementation
 
+    <NOTES>
+    {"\n".join(f"{i} - {note}" for i, note in enumerate(notes or [], 1)) or "No notes."}
+    </NOTES>
+
     <IMPLEMENTATION>
-    ```python
     {code}
-    ```
     </IMPLEMENTATION>
 
     ## Stdout
 
     <STDOUT>
-    ```
     {stdout}
-    ```
     </STDOUT>
 
     ## Stderr
 
     <STDERR>
-    ```
     {stderr}
-    ```
     </STDERR>
     """
 
@@ -442,9 +452,7 @@ def build_prompt_tuning_parser_code(code: str, memory: str = "") -> str:
     file:
 
     <ORIGINAL_CODE>
-    ```python
     {code}
-    ```
     </ORIGINAL_CODE>
 
     ## Memory
@@ -479,24 +487,62 @@ def build_prompt_tuning_parser_output(
     ## Implementation
 
     <IMPLEMENTATION>
-    ```python
     {code}
-    ```
     </IMPLEMENTATION>
 
     ## Stdout
 
     <STDOUT>
-    ```
     {stdout}
-    ```
     </STDOUT>
 
     ## Stderr
 
     <STDERR>
-    ```
     {stderr}
-    ```
     </STDERR>
+    """
+
+
+def build_prompt_create_notes(state: "State") -> str:
+    return f"""
+    ## Introduction
+
+    You are summarizing the results of a hyperparameter tuning experiment execution. Create a concise note
+    describing what was accomplished, key findings, and any important observations.
+
+    ## Tuning Code
+
+    <CODE>
+    {state.tuning_code or "N/A"}
+    </CODE>
+
+    ## Execution Summary
+
+    <SUMMARY>
+    {state.tuning_summary or "N/A"}
+    </SUMMARY>
+
+    ## Hyperparameters
+
+    <HYPERPARAMS>
+    {"\n".join(f"{i} - {hp.name}: {hp.description}" for i, hp in enumerate(state.hyperparams, 1)) or "No hyperparameters."}
+    </HYPERPARAMS>
+
+    ## Execution Output
+
+    <STDOUT>
+    {state.tuning_stdout or "N/A"}
+    </STDOUT>
+
+    <STDERR>
+    {state.tuning_stderr or "N/A"}
+    </STDERR>
+
+    ## Instructions
+
+    Write a brief note (2-3 sentences) summarizing:
+    - What hyperparameter tuning was performed
+    - Key results or findings
+    - Any notable observations or issues
     """

@@ -1,6 +1,7 @@
 import logging
+import operator
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from langchain.chat_models import BaseChatModel, init_chat_model
 from langgraph.errors import GraphRecursionError
@@ -63,6 +64,9 @@ class State(BaseModel):
     parse_is_bug: bool | None = None
     parse_summary: str | None = None
 
+    # notes accumulated from experiment output parsing
+    notes: Annotated[list[str], operator.add] = []
+
 
 class Context(BaseModel):
     model: str = "gpt-4o-mini"
@@ -123,13 +127,13 @@ async def node_tuning_code_tuning(
 
     if state.tuning_returncode is not None and state.tuning_returncode > 0:
         memory += "Previous code:\n"
-        memory += f"```python\n{state.tuning_code or ''}\n```\n\n"
+        memory += f"<CODE>\n{state.tuning_code or ''}\n</CODE>\n\n"
         memory += "Previous dependencies:\n"
-        memory += f"```\n{state.tuning_deps or 'NA'}\n```\n\n"
+        memory += f"<DEPENDENCIES>\n{state.tuning_deps or 'NA'}\n</DEPENDENCIES>\n\n"
         memory += "Stdout of executing the previous code:\n"
-        memory += f"```\n{state.tuning_stdout or 'NA'}\n```\n\n"
+        memory += f"<STDOUT>\n{state.tuning_stdout or 'NA'}\n</STDOUT>\n\n"
         memory += "Stderr of executing the previous code:\n"
-        memory += f"```\n{state.tuning_stderr or 'NA'}\n```\n\n"
+        memory += f"<STDERR>\n{state.tuning_stderr or 'NA'}\n</STDERR>\n\n"
 
     if state.tuning_is_bug is True:
         memory += "Bug identified:\n"
@@ -145,6 +149,7 @@ async def node_tuning_code_tuning(
         memory=memory,
         idea=state.idea,
         research=state.research,
+        notes=state.notes,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -204,6 +209,7 @@ async def node_tuning_parse_tuning_output(
         state.tuning_stdout or "",
         state.tuning_stderr or "",
         state.idea,
+        notes=state.notes,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -212,10 +218,14 @@ async def node_tuning_parse_tuning_output(
     logger.debug(f"tuning_is_bug: {response.is_bug}")
     logger.debug(f"tuning_summary: {response.summary[:32]!r}")
 
+    # Create note summarizing tuning results
+    note = await _create_notes(state, runtime)
+
     logger.info(f"Finished node_tuning_parse_tuning_output. Is bug: {response.is_bug}")
     return {
         "tuning_is_bug": response.is_bug,
         "tuning_summary": response.summary,
+        "notes": [note],
     }
 
 
@@ -341,6 +351,20 @@ async def node_tuning_should_retry_parser_from_output(
 
     logger.info("Going to `__end__`")
     return "__end__"
+
+
+async def _create_notes(state: State, runtime: Runtime[Context]) -> str:
+    logger.info("Creating notes for tuning experiment")
+
+    class Schema(BaseModel):
+        note: str
+
+    prompt = prompts.build_prompt_create_notes(state)
+    llms = runtime.context.llm.with_structured_output(Schema)
+    response: Schema = await llms.ainvoke(prompt)  # type: ignore
+
+    logger.debug(f"note: {response.note[:64]!r}")
+    return response.note
 
 
 def build(

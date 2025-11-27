@@ -1,6 +1,7 @@
 import logging
+import operator
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from langchain.chat_models import BaseChatModel, init_chat_model
 from langgraph.errors import GraphRecursionError
@@ -62,6 +63,9 @@ class State(BaseModel):
     parse_is_bug: bool | None = None
     parse_summary: str | None = None
 
+    # notes accumulated from experiment output parsing
+    notes: Annotated[list[str], operator.add] = []
+
 
 class Context(BaseModel):
     model: str = "gpt-4o-mini"
@@ -110,13 +114,15 @@ async def node_baseline_code_experiment(
         memory += "Bug identified:\n\n"
         memory += f"{state.experiment_summary or 'NA'}\n\n"
         memory += "Previous code:\n\n"
-        memory += f"```python\n{state.experiment_code or 'NA'}\n```\n\n"
+        memory += f"<CODE>\n{state.experiment_code or 'NA'}\n</CODE>\n\n"
         memory += "Previous dependencies:\n\n"
-        memory += f"```\n{state.experiment_deps or 'NA'}\n```\n\n"
+        memory += (
+            f"<DEPENDENCIES>\n{state.experiment_deps or 'NA'}\n</DEPENDENCIES>\n\n"
+        )
         memory += "Stdout of executing the previous code:\n\n"
-        memory += f"```\n{state.experiment_stdout or 'NA'}\n```\n\n"
+        memory += f"<STDOUT>\n{state.experiment_stdout or 'NA'}\n</STDOUT>\n\n"
         memory += "Stderr of executing the previous code:\n\n"
-        memory += f"```\n{state.experiment_stderr or 'NA'}\n```\n\n"
+        memory += f"<STDERR>\n{state.experiment_stderr or 'NA'}\n</STDERR>\n\n"
 
     prompt = prompts.build_prompt_baseline_code(
         state.task,
@@ -124,6 +130,7 @@ async def node_baseline_code_experiment(
         memory,
         state.idea,
         state.research,
+        notes=state.notes,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -184,6 +191,7 @@ async def node_baseline_parse_experiment_output(
         state.experiment_stdout or "",
         state.experiment_stderr or "",
         state.idea,
+        notes=state.notes,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -192,10 +200,14 @@ async def node_baseline_parse_experiment_output(
     logger.debug(f"experiment_is_bug: {response.is_bug}")
     logger.debug(f"experiment_summary: {response.summary[:32]!r}")
 
+    # Create note summarizing experiment results
+    note = await _create_notes(state, runtime)
+
     logger.info("Finished node_baseline_parse_experiment_output")
     return {
         "experiment_is_bug": response.is_bug,
         "experiment_summary": response.summary,
+        "notes": [note],
     }
 
 
@@ -230,13 +242,13 @@ async def node_baseline_code_metrics_parser(
         memory += "Bug identified:\n\n"
         memory += f"{state.parse_summary or 'NA'}\n\n"
         memory += "Previous code:\n\n"
-        memory += f"```python\n{state.parse_code or 'NA'}\n```\n\n"
+        memory += f"<CODE>\n{state.parse_code or 'NA'}\n</CODE>\n\n"
         memory += "Previous dependencies:\n\n"
-        memory += f"```\n{state.parse_deps or 'NA'}\n```\n\n"
+        memory += f"<DEPENDENCIES>\n{state.parse_deps or 'NA'}\n</DEPENDENCIES>\n\n"
         memory += "Stdout of executing the previous code:\n\n"
-        memory += f"```\n{state.parse_stdout or 'NA'}\n```\n\n"
+        memory += f"<STDOUT>\n{state.parse_stdout or 'NA'}\n</STDOUT>\n\n"
         memory += "Stderr of executing the previous code:\n\n"
-        memory += f"```\n{state.parse_stderr or 'NA'}\n```\n\n"
+        memory += f"<STDERR>\n{state.parse_stderr or 'NA'}\n</STDERR>\n\n"
 
     prompt = prompts.build_prompt_baseline_parser_code(
         state.experiment_code or "NA",
@@ -325,6 +337,20 @@ async def node_baseline_should_retry_parser_from_output(
 
     logger.info("Going to `__end__`")
     return "__end__"
+
+
+async def _create_notes(state: State, runtime: Runtime[Context]) -> str:
+    logger.info("Creating notes for baseline experiment")
+
+    class Schema(BaseModel):
+        note: str
+
+    prompt = prompts.build_prompt_create_notes(state)
+    llms = runtime.context.llm.with_structured_output(Schema)
+    response: Schema = await llms.ainvoke(prompt)  # type: ignore
+
+    logger.debug(f"note: {response.note[:64]!r}")
+    return response.note
 
 
 def build(

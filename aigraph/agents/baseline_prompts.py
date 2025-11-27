@@ -1,8 +1,11 @@
 import json
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
 from aigraph.agents.research_prompts import _task_to_prompt
 from aigraph.utils import Idea, Metric, Task
+
+if TYPE_CHECKING:
+    from aigraph.agents.baseline import State
 
 
 def build_prompt_baseline_metrics(task: Task, idea: Idea, research: str) -> str:
@@ -59,9 +62,14 @@ def build_prompt_baseline_metrics(task: Task, idea: Idea, research: str) -> str:
 
 
 def build_prompt_baseline_code(
-    task: Task, metrics: Iterable[Metric], memory: str, idea: Idea, research: str
+    task: Task,
+    metrics: Iterable[Metric],
+    memory: str,
+    idea: Idea,
+    research: str,
+    notes: list[str] | None = None,
 ) -> str:
-    prompt = f"""
+    return f"""
     ## Introduction
 
     You are an AI researcher who is looking to publish a paper that will
@@ -242,6 +250,10 @@ def build_prompt_baseline_code(
     {research}
     </RESEARCH>
 
+    <NOTES>
+    {"\n".join(f"{i} - {note}" for i, note in enumerate(notes or [], 1)) or "No notes."}
+    </NOTES>
+
     ## Research idea
 
     <RESEARCH IDEA>
@@ -251,9 +263,7 @@ def build_prompt_baseline_code(
     ## Evaluation metrics
 
     <EVALUATION METRICS>
-    ```json
     {json.dumps([i.model_dump(mode="json") for i in metrics], indent=2)}
-    ```
     </EVALUATION METRICS>
 
     ## Memory
@@ -262,11 +272,15 @@ def build_prompt_baseline_code(
     {memory or "NA"}
     </MEMORY>
     """
-    return prompt
 
 
 def build_prompt_baseline_code_output(
-    task: Task, code: str, stdout: str, stderr: str, idea: Idea
+    task: Task,
+    code: str,
+    stdout: str,
+    stderr: str,
+    idea: Idea,
+    notes: list[str] | None = None,
 ) -> str:
     return f"""
     ## Introduction
@@ -292,29 +306,73 @@ def build_prompt_baseline_code_output(
     {_task_to_prompt(task)}
     </RESEARCH IDEA>
 
+    <NOTES>
+    {"\n".join(f"{i} - {note}" for i, note in enumerate(notes or [], 1)) or "No notes."}
+    </NOTES>
+
     ## Implementation
 
     <IMPLEMENTATION>
-    ```python
     {code}
-    ```
     </IMPLEMENTATION>
 
     ## Stdout
 
     <STDOUT>
-    ```
     {stdout}
-    ```
     </STDOUT>
 
     ## Stderr
 
     <STDERR>
-    ```
     {stderr}
-    ```
     </STDERR>
+    """
+
+
+def build_prompt_create_notes(state: "State") -> str:
+    return f"""
+    ## Introduction
+
+    You are summarizing the results of a baseline experiment execution. Create a concise note
+    describing what was accomplished, key findings, and any important observations.
+
+    ## Experiment Code
+
+    <CODE>
+    ```python
+    {state.experiment_code or "N/A"}
+    ```
+    </CODE>
+
+    ## Execution Summary
+
+    <SUMMARY>
+    {state.experiment_summary or "N/A"}
+    </SUMMARY>
+
+    ## Metrics
+
+    <METRICS>
+    {chr(10).join(f"- {m.name}: {m.description}" for m in state.metrics)}
+    </METRICS>
+
+    ## Execution Output
+
+    <STDOUT>
+    {state.experiment_stdout or "N/A"}
+    </STDOUT>
+
+    <STDERR>
+    {state.experiment_stderr or "N/A"}
+    </STDERR>
+
+    ## Instructions
+
+    Write a brief note (2-3 sentences) summarizing:
+    - What experiment was run
+    - Key results or findings
+    - Any notable observations or issues
     """
 
 
@@ -430,24 +488,18 @@ def build_prompt_baseline_parser_output(
     ## Implementation
 
     <IMPLEMENTATION>
-    ```python
     {code}
-    ```
     </IMPLEMENTATION>
 
     ## Stdout
 
     <STDOUT>
-    ```
     {stdout}
-    ```
     </STDOUT>
 
     ## Stderr
 
     <STDERR>
-    ```
     {stderr}
-    ```
     </STDERR>
     """
