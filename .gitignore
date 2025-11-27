@@ -1,5 +1,5 @@
 .langgraph_api
-!./aigraph/scripts
+.data
 
 # Local PDF backups (cleaned up periodically)
 local_pdf_backups/
