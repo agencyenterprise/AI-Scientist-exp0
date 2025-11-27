@@ -1,5 +1,6 @@
 import logging
 import operator as op
+import uuid
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -11,7 +12,7 @@ from langgraph.types import Checkpointer, Send
 from pydantic import BaseModel
 
 from aigraph import utils
-from aigraph.agents import experiment, ideas
+from aigraph.agents import experiment, ideas, reviewer
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 class Context(BaseModel):
     model: str = "gpt-4o-mini"
     temperature: float = 0.0
+    max_iterations: int = 3
 
     @property
     def llm(self) -> BaseChatModel:
@@ -31,7 +33,9 @@ class State(BaseModel):
     task: utils.Task
 
     # state
+    iteration: int = 0
     experiments: Annotated[list[experiment.State], op.add] = []
+    reviews: Annotated[list[reviewer.ReviewOutput], op.add] = []
 
 
 async def node_ideas(state: State, runtime: Runtime[Context]) -> list[Send]:
@@ -58,13 +62,15 @@ async def node_ideas(state: State, runtime: Runtime[Context]) -> list[Send]:
 
     sends: list[Send] = []
     for i, idea in enumerate(result.ideas, start=1):
+        id = uuid.uuid4()
         sends.append(
             Send(
                 "node_experiment",
                 experiment.State(
+                    id=id,
                     idea=idea,
                     task=state.task,
-                    cwd=state.cwd / f"idea_{i:03d}",
+                    cwd=state.cwd / f"experiment_{state.iteration:03d}_{id}",
                 ),
             )
         )
@@ -88,8 +94,69 @@ async def node_experiment(
     result = await graph.ainvoke(input=state, context=experiment_context)
     result = experiment.State.model_validate(result)
 
+    file = state.cwd / "state.json"
+    file.write_text(result.model_dump_json(indent=2))
+
     logger.info("Finished node_experiment")
     return {"experiments": [result]}
+
+
+async def node_review(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
+    logger.info("Starting node_review")
+
+    review_state = reviewer.State(
+        task=state.task,
+        experiments=state.experiments,
+    )
+    review_context = reviewer.Context(
+        model=runtime.context.model,
+        temperature=runtime.context.temperature,
+    )
+
+    graph = reviewer.build(checkpointer=True)
+    result = await graph.ainvoke(input=review_state, context=review_context)
+    result = reviewer.State.model_validate(result)
+    assert result.review is not None
+
+    for e in result.review.done:
+        logger.info("Experiment %d is done", e.id)
+    for e in result.review.drop:
+        logger.debug(f"Experiment {e.id} is dropped")
+    for e in result.review.retry:
+        logger.info("Experiment %d is retry", e.id)
+
+    return {"reviews": [result.review], "iteration": state.iteration + 1}
+
+
+async def node_retry(state: State, runtime: Runtime[Context]) -> list[Send]:
+    logger.info("Starting node_retry")
+    assert state.reviews is not None
+    assert len(state.reviews) > 0
+
+    if state.iteration > runtime.context.max_iterations:
+        logger.info("Max iterations reached")
+        return [Send(END, {})]
+
+    last = state.reviews[-1]
+    iteration = state.iteration
+
+    map = {exp.id: exp for exp in state.experiments}
+
+    sends: list[Send] = []
+    for e in last.retry:
+        sends.append(
+            Send(
+                "node_experiment",
+                experiment.State(
+                    id=e.id,
+                    idea=map[e.id].idea,
+                    task=state.task,
+                    cwd=state.cwd / f"experiment_{iteration:03d}_{e.id}",
+                ),
+            )
+        )
+
+    return sends
 
 
 def build(
@@ -100,9 +167,11 @@ def build(
     # Add nodes
     builder.add_node("node_ideas", node_ideas)
     builder.add_node("node_experiment", node_experiment)
+    builder.add_node("node_review", node_review)
 
     # Add edges
     builder.add_conditional_edges(START, node_ideas, ["node_experiment"])
-    builder.add_edge("node_experiment", END)
+    builder.add_edge("node_experiment", "node_review")
+    builder.add_conditional_edges("node_review", node_retry, ["node_experiment", END])
 
     return builder.compile(name="graph_all", checkpointer=checkpointer)  # type: ignore

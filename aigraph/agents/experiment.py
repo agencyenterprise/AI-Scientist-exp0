@@ -1,5 +1,6 @@
 import logging
 import operator
+import uuid
 from pathlib import Path
 from typing import Annotated, Any, cast
 
@@ -25,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 
 class State(BaseModel):
+    # the unique identifier of the experiment
+    id: uuid.UUID
+
     cwd: Path
     task: utils.Task
     idea: utils.Idea
