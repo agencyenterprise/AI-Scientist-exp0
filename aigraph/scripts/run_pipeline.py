@@ -7,6 +7,7 @@ from typing import Annotated
 import aiosqlite
 from langchain_core.runnables import RunnableConfig
 from langfuse.langchain import CallbackHandler
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliPositionalArg
 
@@ -68,7 +69,8 @@ class Args(BaseSettings):
         context = pipeline.Context(model=self.model, temperature=self.temperature)
 
         async with aiosqlite.connect(self.checkpoint_db) as conn:
-            graph = pipeline.build(conn)
+            checkpointer = AsyncSqliteSaver(conn=conn)
+            graph = pipeline.build(checkpointer=checkpointer)
             result = await graph.ainvoke(input=state, context=context, config=config)
             print(json.dumps(result, indent=2, sort_keys=True, default=str))
 
