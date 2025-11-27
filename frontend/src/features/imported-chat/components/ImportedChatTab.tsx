@@ -1,13 +1,13 @@
 "use client";
 
 import React, { memo, useEffect, useRef, useState } from "react";
-import { Markdown } from "@/components/Markdown";
+import { Markdown } from "@/shared/components/Markdown";
 
 import type { ConversationDetail } from "@/types";
 import type { ErrorResponse } from "@/types";
-import { config } from "@/lib/config";
-import { extractSummary } from "@/lib/api-adapters";
-import type { UpdateSummaryRequest } from "@/lib/api-adapters";
+import { config } from "@/shared/lib/config";
+import { extractSummary } from "@/shared/lib/api-adapters";
+import type { UpdateSummaryRequest } from "@/shared/lib/api-adapters";
 
 interface ImportedChatTabProps {
   conversation: ConversationDetail;
