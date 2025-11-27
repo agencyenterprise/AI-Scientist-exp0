@@ -2,9 +2,12 @@
 
 import React, { useCallback, useMemo } from "react";
 import type { SearchResult, SearchStats } from "@/types";
-import { ConversationCard, toSearchMatchFromHit } from "@/components/ConversationCard";
-import { useDashboard } from "@/app/(dashboard)/DashboardContext";
-import type { Conversation } from "@/lib/api-adapters";
+import {
+  ConversationCard,
+  toSearchMatchFromHit,
+} from "@/features/conversation/components/ConversationCard";
+import { useDashboard } from "@/features/dashboard/contexts/DashboardContext";
+import type { Conversation } from "@/shared/lib/api-adapters";
 
 interface SearchResultsProps {
   results: SearchResult[];

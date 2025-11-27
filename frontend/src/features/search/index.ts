@@ -5,5 +5,5 @@
  * fuzzy matching, and content type indicators.
  */
 
-export { SearchBox } from "./SearchBox";
-export { SearchResults } from "./SearchResults";
+export { SearchBox } from "./components/SearchBox";
+export { SearchResults } from "./components/SearchResults";
