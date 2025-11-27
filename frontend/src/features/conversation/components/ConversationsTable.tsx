@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import type { Conversation } from "@/lib/api-adapters";
+import type { Conversation } from "@/shared/lib/api-adapters";
 
 interface ConversationsTableProps {
   conversations: Conversation[];

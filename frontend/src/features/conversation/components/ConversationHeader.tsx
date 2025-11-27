@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useDashboard } from "@/app/(dashboard)/DashboardContext";
 import { createPortal } from "react-dom";
 
-import { config } from "@/lib/config";
+import { config } from "@/shared/lib/config";
 import type { ConversationDetail, ConversationUpdateResponse, ErrorResponse } from "@/types";
-import { convertApiConversationDetail, isErrorResponse } from "@/lib/api-adapters";
+import { convertApiConversationDetail, isErrorResponse } from "@/shared/lib/api-adapters";
 
 interface ConversationHeaderProps {
   conversation: ConversationDetail;
@@ -23,7 +22,6 @@ export function ConversationHeader({
   viewMode,
   onViewModeChange,
 }: ConversationHeaderProps) {
-  const { isSidebarCollapsed } = useDashboard();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -136,7 +134,7 @@ export function ConversationHeader({
         <div className="px-6 py-2">
           <div className="flex items-center justify-between">
             {/* Title Section - Left Side */}
-            <div className={`flex-1 min-w-0 pl-10 sm:pl-0 ${isSidebarCollapsed ? "md:pl-10" : ""}`}>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2">
                 {isEditingTitle ? (
                   <>

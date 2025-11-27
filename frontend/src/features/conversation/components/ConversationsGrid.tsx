@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { useDashboard } from "@/app/(dashboard)/DashboardContext";
+import { useDashboard } from "@/features/dashboard/contexts/DashboardContext";
 
-import type { Conversation } from "@/lib/api-adapters";
-import { ConversationCard } from "@/components/ConversationCard";
+import type { Conversation } from "@/shared/lib/api-adapters";
+import { ConversationCard } from "@/features/conversation/components/ConversationCard";
 
 interface ConversationsGridProps {
   conversations: Conversation[];

@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 
-import type { Conversation } from "@/lib/api-adapters";
+import type { Conversation } from "@/shared/lib/api-adapters";
 import type { SearchResult as SearchHit } from "@/types";
 
 interface SearchMatch {
@@ -306,7 +306,9 @@ export function ConversationCard({
                   {searchMatch.snippetMarkdown}
                 </ReactMarkdown>
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">{searchMatch.createdByUserName}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {searchMatch.createdByUserName}
+              </div>
             </>
           )}
           {searchMatch?.contentType !== "imported_chat" && importedChatMatch && (
@@ -351,7 +353,10 @@ export function ConversationCard({
         </div>
         <div className="flex items-center gap-3 whitespace-nowrap">
           <span title={new Date(conversation.updatedAt).toISOString()}>Updated {updatedRel}</span>
-          <span className="text-muted-foreground/60" title={new Date(conversation.importDate).toISOString()}>
+          <span
+            className="text-muted-foreground/60"
+            title={new Date(conversation.importDate).toISOString()}
+          >
             Imported {importedRel}
           </span>
         </div>
