@@ -52,6 +52,8 @@ from app.services.s3_service import S3Service, get_s3_service
 
 logger = logging.getLogger(__name__)
 
+THINKING_TAG_PATTERN = re.compile(r"<thinking>.*?</thinking>\s*", re.IGNORECASE | re.DOTALL)
+
 
 class LangChainLLMService(BaseLLMService, ABC):
     """Shared LangChain implementation that works across providers."""
@@ -95,6 +97,12 @@ class LangChainLLMService(BaseLLMService, ABC):
         if llm_model not in self._model_cache:
             self._model_cache[llm_model] = self._build_chat_model(model_id=llm_model)
         return self._model_cache[llm_model]
+
+    def strip_reasoning_tags(self, *, text: str) -> str:
+        """Remove provider-specific reasoning markers such as <thinking> blocks."""
+        if not text:
+            return ""
+        return THINKING_TAG_PATTERN.sub("", text).strip()
 
     def _model_with_token_limit(
         self, llm_model: str, max_output_tokens: int
@@ -520,6 +528,7 @@ class LangChainChatWithIdeaStream:
 
                 final_message = cast(AIMessage, response)
                 final_text = self.service._message_to_text(message=final_message)
+                final_text = self.service.strip_reasoning_tags(text=final_text)
                 if final_text:
                     assistant_response = final_text
                     yield StreamStatusEvent("status", ChatStatus.GENERATING_RESPONSE.value)
