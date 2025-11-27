@@ -6,6 +6,14 @@ export enum ImportState {
   Generating = "generating",
 }
 
+// Conflict item from API
+export interface ConflictItem {
+  id: number;
+  title: string;
+  updated_at: string;
+  url: string;
+}
+
 export type SSEContent = { type: "content"; data: string };
 export type SSEState = { type: "state"; data: ImportState };
 export type SSEProgress = {

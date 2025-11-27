@@ -104,7 +104,9 @@ export function ConflictResolution({
           className="w-full p-4 text-left border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
         >
           <div className="font-medium text-foreground">Go to selected conversation</div>
-          <div className="text-sm text-muted-foreground">Open the conversation page in a new tab</div>
+          <div className="text-sm text-muted-foreground">
+            Open the conversation page in a new tab
+          </div>
         </button>
 
         <button
@@ -121,7 +123,9 @@ export function ConflictResolution({
           className="w-full p-4 text-left border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
         >
           <div className="font-medium text-foreground">Create a new conversation for this URL</div>
-          <div className="text-sm text-muted-foreground">Start fresh without changing existing ones</div>
+          <div className="text-sm text-muted-foreground">
+            Start fresh without changing existing ones
+          </div>
         </button>
 
         <button
