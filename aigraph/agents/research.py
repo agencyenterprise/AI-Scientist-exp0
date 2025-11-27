@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 
 
 class State(BaseModel):
+    """State for deep research using external API.
+    
+    Attributes:
+        cwd: Working directory (unused internally).
+             Passed through but not referenced in node.
+        task: Converted to prompt for deep research API.
+              _task_to_prompt() formats it as HumanMessage for deep_researcher.
+        research: Stores final_report from deep researcher.
+                  Accessed via result["final_report"] and passed to baseline.
+    """
     # inputs
     cwd: Path
     task: utils.Task

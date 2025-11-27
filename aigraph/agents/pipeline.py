@@ -1,3 +1,4 @@
+import json
 import logging
 import operator as op
 import uuid
@@ -28,6 +29,21 @@ class Context(BaseModel):
 
 
 class State(BaseModel):
+    """Main orchestrator state for the research pipeline.
+
+    Attributes:
+        cwd: Root directory for all experiment outputs.
+             Combined with iteration + UUID to create unique experiment folders.
+        task: Research task passed to all sub-agents.
+              Injected into ideas.State and experiment.State via Send.
+        iteration: Tracks retry loop count for failed experiments.
+                   Compared against max_iterations in node_retry to stop retrying.
+        experiments: Collects results from parallel experiment runs.
+                     Aggregated via op.add reducer, passed to reviewer for evaluation.
+        reviews: Stores reviewer decisions (done/drop/retry) per iteration.
+                 Last review's retry list determines which experiments to re-run.
+    """
+
     # inputs
     cwd: Path
     task: utils.Task
@@ -86,6 +102,9 @@ async def node_experiment(
     """Runs experiment graph."""
     logger.info("Starting node_experiment")
 
+    file = state.cwd / "idea.json"
+    file.write_text(state.idea.model_dump_json(indent=2))
+
     graph = experiment.build(checkpointer=True)
     experiment_context = experiment.Context(
         model=runtime.context.model,
@@ -96,6 +115,10 @@ async def node_experiment(
 
     file = state.cwd / "state.json"
     file.write_text(result.model_dump_json(indent=2))
+
+    if result.state_research:
+        file = state.cwd / "research.json"
+        file.write_text(json.dumps(result.state_research.research, indent=2))
 
     logger.info("Finished node_experiment")
     return {"experiments": [result]}

@@ -19,6 +19,43 @@ logger = logging.getLogger(__name__)
 
 
 class State(BaseModel):
+    """State for plotting and visualization stage.
+
+    Attributes:
+        cwd: Directory to save PNG plots.
+             glob("*.png") finds generated plots for analysis.
+        task: Context for plot design.
+              Included in code and analysis prompts.
+        code: Experiment code to understand data format.
+              Input to prompt so LLM knows what data files exist.
+        idea: Guides what visualizations are relevant.
+              Fed to prompts for hypothesis-relevant plots.
+        research: Background for plot interpretation.
+                  Included in prompts for context-aware visualization.
+        plots: Output list with path + LLM analysis.
+               Each PNG sent to node_plotting_analyze_single_plot with base64 image.
+        plotting_retry_count: Tracks retry attempts for plotting code.
+                              Compared against max (5) to prevent infinite loops.
+        plotting_plan: LLM-generated plan for plotting approach.
+                       Used for debugging.
+        plotting_code: Generated plotting code to create visualizations.
+                       Written to plotting.py and executed.
+        plotting_deps: Python dependencies for plotting code.
+                        Installed before execution.
+        plotting_stdout: Standard output from plotting execution.
+                         Used to detect bugs.
+        plotting_stderr: Standard error from plotting execution.
+                          Used to detect bugs.
+        plotting_returncode: Exit code from plotting execution.
+                              Non-zero indicates failure.
+        plotting_filename: Filename where plotting code was saved.
+                            Used for debugging.
+        plotting_is_bug: Whether plotting output indicates a bug.
+                          True triggers re-generation.
+        plotting_summary: LLM-generated summary of plotting output.
+                          Included in memory for retry attempts.
+    """
+
     # inputs
     cwd: Path
     task: utils.Task

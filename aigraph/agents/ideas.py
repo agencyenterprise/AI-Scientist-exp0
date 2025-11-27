@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 
 
 class State(BaseModel):
+    """State for generating research ideas.
+
+    Attributes:
+        cwd: Working directory (unused internally).
+             Passed through but not referenced in node.
+        task: Input to LLM prompt for idea generation.
+              Fed to build_prompt_generate_ideas() to ask LLM for ideas.
+        ideas: Output list of generated research ideas.
+               Returned from structured output, each becomes an experiment.State.
+    """
+
     # inputs
     cwd: Path
     task: utils.Task

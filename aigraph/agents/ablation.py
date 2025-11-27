@@ -18,6 +18,71 @@ logger = logging.getLogger(__name__)
 
 
 class State(BaseModel):
+    """State for ablation studies stage.
+
+    Attributes:
+        cwd: Directory for saving ablation.py and outputs.
+             Passed to utils.exec_code() to run ablation script.
+        task: Context for ablation study design.
+              Included in all LLM prompts.
+        code: Tuned code to modify for ablations.
+              Input to build_prompt_code_ablation() as base.
+        idea: Guides which components to ablate.
+              Fed to prompts for hypothesis-relevant ablations.
+        research: Background for LLM decisions.
+                  Included in prompts for informed ablation design.
+        ablations: List of already-run ablations.
+                   Passed to propose prompt to avoid duplicates.
+        last_ablation: Current ablation being tested.
+                       Used in code prompt to specify what to disable/modify.
+        ablation_retry_count: Tracks retry attempts for ablation code.
+                              Compared against max (5) to prevent infinite loops.
+        ablation_code: Generated ablation code with component modifications.
+                       Written to ablation.py and executed.
+        ablation_plan: LLM-generated plan for ablation approach.
+                       Used for debugging.
+        ablation_deps: Python dependencies for ablation code.
+                       Installed before execution.
+        ablation_returncode: Exit code from ablation execution.
+                              Non-zero indicates failure.
+        ablation_stdout: Standard output from ablation execution.
+                          Used to detect bugs and extract results.
+        ablation_stderr: Standard error from ablation execution.
+                          Used to detect bugs.
+        ablation_filename: Filename where ablation code was saved.
+                            Used for debugging.
+        ablation_is_bug: Whether ablation output indicates a bug.
+                          True triggers re-generation with error context.
+        ablation_summary: LLM-generated summary of ablation output.
+                          Included in memory for retry attempts.
+        parser_retry_count: Tracks retry attempts for parser code.
+                            Compared against max (5) to prevent infinite loops.
+        parser_plan: LLM-generated plan for parser code.
+                     Used for debugging.
+        parser_code: Generated parser code to extract ablation metrics.
+                      Written to ablation_parser.py and executed.
+        parser_deps: Python dependencies for parser code.
+                      Installed before execution.
+        parser_stdout: Standard output from parser execution.
+                        Contains extracted metrics, passed to writeup for results.
+        parser_stderr: Standard error from parser execution.
+                       Used to detect bugs.
+        parser_returncode: Exit code from parser execution.
+                           Non-zero indicates failure.
+        parser_filename: Filename where parser code was saved.
+                          Used for debugging.
+        parse_is_bug: Whether parser output indicates a bug.
+                       True triggers re-generation with error context.
+        parse_summary: LLM-generated summary of parser output.
+                       Included in memory for retry attempts.
+        parse_valid_metrics_received: Whether parser successfully extracted metrics.
+                                       Used for validation.
+        parse_metric_names: List of metric names extracted from parser output.
+                            Used for validation and reporting.
+        notes: Full experiment history for writeup.
+               Extended with new note, final list used in judge prompt.
+    """
+
     # inputs
     cwd: Path
     task: utils.Task

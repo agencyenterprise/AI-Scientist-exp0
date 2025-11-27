@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 class Args(BaseSettings):
     cwd: CliPositionalArg[Path]
     task: CliPositionalArg[Path]
+    idea: CliPositionalArg[Path]
+    research: CliPositionalArg[Path]
     code: CliPositionalArg[Path]
 
     thread_id: Annotated[
@@ -53,20 +55,31 @@ class Args(BaseSettings):
         if self.verbose:
             log.init()
 
-        logger.info("thread_id:", self.thread_id)
+        configurable: dict[str, str] = {}
+        if self.thread_id:
+            logger.info("thread_id:", self.thread_id)
+            configurable["thread_id"] = self.thread_id
         if self.checkpoint_id:
             logger.info("checkpoint_id:", self.checkpoint_id)
+            configurable["checkpoint_id"] = self.checkpoint_id
+
+        config = RunnableConfig(
+            callbacks=[CallbackHandler()],
+            configurable=configurable,
+        )
 
         task = utils.Task.model_validate_json(self.task.read_text())
-        code_content = self.code.read_text()
+        idea = utils.Idea.model_validate_json(self.idea.read_text())
+        research = self.research.read_text()
+        code = self.code.read_text()
 
-        configurable = {"thread_id": self.thread_id}
-        if self.checkpoint_id:
-            configurable["checkpoint_id"] = self.checkpoint_id
-        config = RunnableConfig(
-            callbacks=[CallbackHandler()], configurable=configurable
+        state = tuning.State(
+            cwd=self.cwd,
+            task=task,
+            idea=idea,
+            research=research,
+            code=code,
         )
-        state = tuning.State(cwd=self.cwd, task=task, code=code_content)
         context = tuning.Context(model=self.model, temperature=self.temperature)
 
         async with aiosqlite.connect(self.checkpoint_db) as conn:

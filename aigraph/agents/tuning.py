@@ -18,6 +18,67 @@ logger = logging.getLogger(__name__)
 
 
 class State(BaseModel):
+    """State for hyperparameter tuning stage.
+
+    Attributes:
+        cwd: Directory for saving tuning.py and outputs.
+             Passed to utils.exec_code() to run tuning script.
+        task: Context for hyperparameter selection.
+              Included in propose and code prompts.
+        code: Baseline code to modify with tuning.
+              Input to build_prompt_tuning_code() as base to modify.
+        idea: Guides which aspects to tune.
+              Fed to prompts for idea-relevant hyperparam selection.
+        research: Background for LLM decisions.
+                  Included in prompts for informed tuning choices.
+        hyperparams: List of already-tuned parameters.
+                     Passed to propose prompt to avoid duplicates.
+        last_hyperparam: Current hyperparam being tuned.
+                         Used in code prompt to specify what to tune this iteration.
+        tuning_retry_count: Tracks retry attempts for tuning code.
+                            Compared against max (5) to prevent infinite loops.
+        tuning_code: Generated tuning code with hyperparameter modifications.
+                     Written to tuning.py and executed.
+        tuning_plan: LLM-generated plan for tuning approach.
+                     Used for debugging.
+        tuning_deps: Python dependencies for tuning code.
+                     Installed before execution.
+        tuning_returncode: Exit code from tuning execution.
+                           Non-zero indicates failure.
+        tuning_stdout: Standard output from tuning execution.
+                        Used to detect bugs and extract results.
+        tuning_stderr: Standard error from tuning execution.
+                       Used to detect bugs.
+        tuning_filename: Filename where tuning code was saved.
+                         Used for debugging.
+        tuning_is_bug: Whether tuning output indicates a bug.
+                        True triggers re-generation with previous stdout/stderr.
+        tuning_summary: LLM-generated summary of tuning output.
+                        Included in memory for retry attempts.
+        parser_retry_count: Tracks retry attempts for parser code.
+                            Compared against max (5) to prevent infinite loops.
+        parser_plan: LLM-generated plan for parser code.
+                     Used for debugging.
+        parser_code: Generated parser code to extract tuning results.
+                      Written to tuning_parser.py and executed.
+        parser_deps: Python dependencies for parser code.
+                      Installed before execution.
+        parser_stdout: Standard output from parser execution.
+                        Contains extracted metrics in structured format.
+        parser_stderr: Standard error from parser execution.
+                       Used to detect bugs.
+        parser_returncode: Exit code from parser execution.
+                           Non-zero indicates failure.
+        parser_filename: Filename where parser code was saved.
+                          Used for debugging.
+        parse_is_bug: Whether parser output indicates a bug.
+                       True triggers re-generation with error context.
+        parse_summary: LLM-generated summary of parser output.
+                       Included in memory for retry attempts.
+        notes: Accumulated learnings from baseline + tuning.
+               Extended with new note after successful parse.
+    """
+
     # inputs
     cwd: Path
     task: utils.Task
@@ -258,13 +319,13 @@ async def node_tuning_code_metrics_parser(
         memory += "Bug identified:\n\n"
         memory += f"{state.parse_summary or 'NA'}\n\n"
         memory += "Previous code:\n\n"
-        memory += f"```python\n{state.parser_code or 'NA'}\n```\n\n"
+        memory += f"<CODE>\n{state.parser_code or 'NA'}\n</CODE>\n\n"
         memory += "Previous dependencies:\n\n"
-        memory += f"```\n{state.parser_deps or 'NA'}\n```\n\n"
+        memory += f"<DEPENDENCIES>\n{state.parser_deps or 'NA'}\n</DEPENDENCIES>\n\n"
         memory += "Stdout of executing the previous code:\n\n"
-        memory += f"```\n{state.parser_stdout or 'NA'}\n```\n\n"
+        memory += f"<STDOUT>\n{state.parser_stdout or 'NA'}\n</STDOUT>\n\n"
         memory += "Stderr of executing the previous code:\n\n"
-        memory += f"```\n{state.parser_stderr or 'NA'}\n```\n\n"
+        memory += f"<STDERR>\n{state.parser_stderr or 'NA'}\n</STDERR>\n\n"
 
     prompt = prompts.build_prompt_tuning_parser_code(state.tuning_code, memory=memory)
 
