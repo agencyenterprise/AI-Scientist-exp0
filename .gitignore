@@ -1,6 +1,7 @@
 .langgraph_api
 configure_pod.sh
 /.docker/
+.data
 
 # Local PDF backups (cleaned up periodically)
 local_pdf_backups/

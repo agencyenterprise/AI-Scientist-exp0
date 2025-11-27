@@ -34,7 +34,6 @@ def _task_to_prompt(task: Task) -> str:
 
     Risk Factors and Limitations:
     {"\n".join(f"- {risk}" for risk in task.risk_factors_and_limitations)}
-
     """
 
     if task.code:

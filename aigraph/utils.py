@@ -56,6 +56,13 @@ class Task(BaseModel):
     ]
 
 
+class Idea(BaseModel):
+    name: str
+    description: str
+    plan: str
+    goals: list[str]
+
+
 class MetricData(BaseModel):
     dataset_name: str
     final_value: float
