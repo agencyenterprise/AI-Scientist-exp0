@@ -1,6 +1,7 @@
 import logging
+import operator
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from langchain.chat_models import BaseChatModel, init_chat_model
 from langgraph.graph import END, START, StateGraph
@@ -34,6 +35,8 @@ class State(BaseModel):
     state_plotting: plotting.State | None = None
     state_writeup: writeup.State | None = None
 
+    notes: Annotated[list[str], operator.add] = []
+
 
 class Context(BaseModel):
     model: str = "gpt-4o-mini"
@@ -42,6 +45,13 @@ class Context(BaseModel):
     @property
     def llm(self) -> BaseChatModel:
         return init_chat_model(model=self.model, temperature=self.temperature)
+
+
+async def node_setup(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
+    logger.info("Starting node_setup")
+    state.cwd.mkdir(parents=True, exist_ok=True)
+    logger.info("Finished node_setup")
+    return {}
 
 
 async def node_research(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
@@ -79,7 +89,7 @@ async def node_baseline(state: State, runtime: Runtime[Context]) -> dict[str, An
     result = baseline.State.model_validate(result)
 
     logger.info("Finished node_baseline")
-    return {"state_baseline": result}
+    return {"state_baseline": result, "notes": result.notes}
 
 
 async def node_tuning(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
@@ -94,6 +104,7 @@ async def node_tuning(state: State, runtime: Runtime[Context]) -> dict[str, Any]
         code=state.state_baseline.experiment_code,
         idea=state.idea,
         research=state.state_baseline.research,
+        notes=state.notes,
     )
 
     tuning_context = tuning.Context(
@@ -106,7 +117,7 @@ async def node_tuning(state: State, runtime: Runtime[Context]) -> dict[str, Any]
     result = tuning.State.model_validate(result)
 
     logger.info("Finished node_tuning")
-    return {"state_tuning": result}
+    return {"state_tuning": result, "notes": result.notes}
 
 
 async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
@@ -121,6 +132,7 @@ async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, An
         code=state.state_tuning.tuning_code,
         idea=state.idea,
         research=state.state_tuning.research,
+        notes=state.notes,
     )
 
     ablation_context = ablation.Context(
@@ -133,7 +145,7 @@ async def node_ablation(state: State, runtime: Runtime[Context]) -> dict[str, An
     result = ablation.State.model_validate(result)
 
     logger.info("Finished node_ablation")
-    return {"state_ablation": result}
+    return {"state_ablation": result, "notes": result.notes}
 
 
 async def node_plotting(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
@@ -204,6 +216,7 @@ def build(
     builder = StateGraph(state_schema=State, context_schema=Context)
 
     # Add nodes
+    builder.add_node("node_setup", node_setup)
     builder.add_node("node_research", node_research)
     builder.add_node("node_baseline", node_baseline)
     builder.add_node("node_tuning", node_tuning)
@@ -212,7 +225,8 @@ def build(
     builder.add_node("node_writeup", node_writeup)
 
     # Add edges
-    builder.add_edge(START, "node_research")
+    builder.add_edge(START, "node_setup")
+    builder.add_edge("node_setup", "node_research")
     builder.add_edge("node_research", "node_baseline")
     builder.add_edge("node_baseline", "node_tuning")
     builder.add_edge("node_tuning", "node_ablation")

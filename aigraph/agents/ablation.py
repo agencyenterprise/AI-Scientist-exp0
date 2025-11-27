@@ -1,6 +1,7 @@
 import logging
+import operator
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from langchain.chat_models import BaseChatModel, init_chat_model
 from langgraph.errors import GraphRecursionError
@@ -66,6 +67,9 @@ class State(BaseModel):
     parse_valid_metrics_received: bool | None = None
     parse_metric_names: list[utils.MetricValue] = []
 
+    # notes accumulated from experiment output parsing
+    notes: Annotated[list[str], operator.add] = []
+
 
 class Context(BaseModel):
     model: str = "gpt-4o-mini"
@@ -128,13 +132,13 @@ async def node_ablation_code_ablation(
         memory += "Bug identified:\n\n"
         memory += f"{state.ablation_summary or 'NA'}\n\n"
         memory += "Previous code:\n\n"
-        memory += f"```python\n{state.ablation_code or 'NA'}\n```\n\n"
+        memory += f"<CODE>\n{state.ablation_code or 'NA'}\n</CODE>\n\n"
         memory += "Previous dependencies:\n\n"
-        memory += f"```\n{state.ablation_deps or 'NA'}\n```\n\n"
+        memory += f"<DEPENDENCIES>\n{state.ablation_deps or 'NA'}\n</DEPENDENCIES>\n\n"
         memory += "Stdout of executing the previous code:\n\n"
-        memory += f"```\n{state.ablation_stdout or 'NA'}\n```\n\n"
+        memory += f"<STDOUT>\n{state.ablation_stdout or 'NA'}\n</STDOUT>\n\n"
         memory += "Stderr of executing the previous code:\n\n"
-        memory += f"```\n{state.ablation_stderr or 'NA'}\n```\n\n"
+        memory += f"<STDERR>\n{state.ablation_stderr or 'NA'}\n</STDERR>\n\n"
 
     assert state.last_ablation, "last_ablation is required"
 
@@ -145,6 +149,7 @@ async def node_ablation_code_ablation(
         memory=memory,
         idea=state.idea,
         research=state.research,
+        notes=state.notes,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -204,6 +209,7 @@ async def node_ablation_parse_ablation_output(
         state.ablation_stdout or "",
         state.ablation_stderr or "",
         state.idea,
+        notes=state.notes,
     )
 
     llms = runtime.context.llm.with_structured_output(Schema)
@@ -212,12 +218,16 @@ async def node_ablation_parse_ablation_output(
     logger.debug(f"ablation_is_bug: {response.is_bug}")
     logger.debug(f"ablation_summary: {response.summary[:32]!r}")
 
+    # Create note summarizing ablation results
+    note = await _create_notes(state, runtime)
+
     logger.info(
         f"Finished node_ablation_parse_ablation_output. Is bug: {response.is_bug}"
     )
     return {
         "ablation_is_bug": response.is_bug,
         "ablation_summary": response.summary,
+        "notes": [note],
     }
 
 
@@ -253,13 +263,13 @@ async def node_ablation_code_metrics_parser(
         memory += "Bug identified:\n\n"
         memory += f"{state.parse_summary or 'NA'}\n\n"
         memory += "Previous code:\n\n"
-        memory += f"```python\n{state.parser_code or 'NA'}\n```\n\n"
+        memory += f"<CODE>\n{state.parser_code or 'NA'}\n</CODE>\n\n"
         memory += "Previous dependencies:\n\n"
-        memory += f"```\n{state.parser_deps or 'NA'}\n```\n\n"
+        memory += f"<DEPENDENCIES>\n{state.parser_deps or 'NA'}\n</DEPENDENCIES>\n\n"
         memory += "Stdout of executing the previous code:\n\n"
-        memory += f"```\n{state.parser_stdout or 'NA'}\n```\n\n"
+        memory += f"<STDOUT>\n{state.parser_stdout or 'NA'}\n</STDOUT>\n\n"
         memory += "Stderr of executing the previous code:\n\n"
-        memory += f"```\n{state.parser_stderr or 'NA'}\n```\n\n"
+        memory += f"<STDERR>\n{state.parser_stderr or 'NA'}\n</STDERR>\n\n"
 
     prompt = prompts.build_prompt_ablation_parser_code(
         state.ablation_code, memory=memory
@@ -349,6 +359,20 @@ async def node_ablation_should_retry_parser_from_output(
 
     logger.info("Going to `__end__`")
     return "__end__"
+
+
+async def _create_notes(state: State, runtime: Runtime[Context]) -> str:
+    logger.info("Creating notes for ablation experiment")
+
+    class Schema(BaseModel):
+        note: str
+
+    prompt = prompts.build_prompt_create_notes(state)
+    llms = runtime.context.llm.with_structured_output(Schema)
+    response: Schema = await llms.ainvoke(prompt)  # type: ignore
+
+    logger.debug(f"note: {response.note[:64]!r}")
+    return response.note
 
 
 def build(

@@ -85,11 +85,11 @@ async def node_writeup_generate_writeup(
         memory += "Bug identified:\n\n"
         memory += f"{state.compile_summary or 'NA'}\n\n"
         memory += "Previous LaTeX content:\n\n"
-        memory += f"```latex\n{state.latex_content or 'NA'}\n```\n\n"
+        memory += f"<LATEX>\n{state.latex_content or 'NA'}\n</LATEX>\n\n"
         memory += "Stdout of compilation:\n\n"
-        memory += f"```\n{state.compile_stdout or 'NA'}\n```\n\n"
+        memory += f"<STDOUT>\n{state.compile_stdout or 'NA'}\n</STDOUT>\n\n"
         memory += "Stderr of compilation:\n\n"
-        memory += f"```\n{state.compile_stderr or 'NA'}\n```\n\n"
+        memory += f"<STDERR>\n{state.compile_stderr or 'NA'}\n</STDERR>\n\n"
 
     system = prompts.build_writeup_system_message(
         task=state.task,
