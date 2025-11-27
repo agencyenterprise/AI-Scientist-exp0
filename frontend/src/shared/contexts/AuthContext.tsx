@@ -9,7 +9,7 @@
 import { createContext, useContext, useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { AuthContextValue, AuthState } from "@/types/auth";
-import * as authApi from "@/lib/auth-api";
+import * as authApi from "@/shared/lib/auth-api";
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
