@@ -252,7 +252,7 @@ export function getContentTypeLabel(contentType: string): string {
 // Sort mapping helpers
 // =========================================================================
 import type { SearchSortBy } from "@/types";
-import type { SortKey } from "@/app/(dashboard)/DashboardContext";
+import type { SortKey } from "@/features/dashboard/contexts/DashboardContext";
 
 /**
  * Map dashboard SortKey to backend SearchSortBy param.
