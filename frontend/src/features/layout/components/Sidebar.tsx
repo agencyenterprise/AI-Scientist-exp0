@@ -3,7 +3,7 @@
 import React, { useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
-import type { Conversation } from "@/lib/api-adapters";
+import type { Conversation } from "@/shared/lib/api-adapters";
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -153,9 +153,7 @@ export function Sidebar({
                   key={conversation.id}
                   onClick={() => onConversationSelect(conversation)}
                   className={`px-4 py-2 cursor-pointer transition-all duration-150 relative hover:bg-muted ${
-                    isSelected
-                      ? "bg-primary/10 border-r-2 border-primary"
-                      : ""
+                    isSelected ? "bg-primary/10 border-r-2 border-primary" : ""
                   }`}
                 >
                   {/* Loading indicator overlay */}
@@ -173,10 +171,14 @@ export function Sidebar({
                     </h3>
                   </div>
                   <div className="flex justify-between items-center mt-1">
-                    <span className={`text-xs text-muted-foreground ${isLoadingThis ? "opacity-50" : ""}`}>
+                    <span
+                      className={`text-xs text-muted-foreground ${isLoadingThis ? "opacity-50" : ""}`}
+                    >
                       {conversation.userName}
                     </span>
-                    <span className={`text-xs text-muted-foreground ${isLoadingThis ? "opacity-50" : ""}`}>
+                    <span
+                      className={`text-xs text-muted-foreground ${isLoadingThis ? "opacity-50" : ""}`}
+                    >
                       {new Date(conversation.createdAt).toLocaleDateString()}
                     </span>
                   </div>
