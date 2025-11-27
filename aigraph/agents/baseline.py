@@ -18,6 +18,63 @@ logger = logging.getLogger(__name__)
 
 
 class State(BaseModel):
+    """State for baseline experiment implementation.
+
+    Attributes:
+        cwd: Directory for saving baseline.py and outputs.
+             Passed to utils.exec_code() to run generated Python.
+        task: Provides context for code generation.
+              Included in all LLM prompts for task-relevant code.
+        idea: Guides what baseline should implement.
+              Fed to prompt builders for idea-specific implementation.
+        research: Background knowledge for LLM prompts.
+                  Appended to prompts so LLM knows related work.
+        metrics: LLM-defined success metrics to compute.
+                 Generated first, then referenced in code generation prompt.
+        experiment_retry_count: Tracks retry attempts for experiment code.
+                                Compared against max (5) to prevent infinite loops.
+        experiment_plan: LLM-generated plan before coding.
+                        Used for debugging and understanding approach.
+        experiment_code: Generated baseline implementation code.
+                         Written to baseline.py and executed.
+        experiment_deps: Python dependencies for experiment code.
+                          Installed before execution.
+        experiment_stdout: Standard output from experiment execution.
+                           Used to detect bugs and extract results.
+        experiment_stderr: Standard error from experiment execution.
+                            Used to detect bugs and errors.
+        experiment_returncode: Exit code from experiment execution.
+                                Non-zero indicates failure.
+        experiment_filename: Filename where experiment code was saved.
+                             Used for debugging.
+        experiment_is_bug: Whether experiment output indicates a bug.
+                           True triggers re-generation with error context in memory.
+        experiment_summary: LLM-generated summary of experiment output.
+                            Included in memory for retry attempts.
+        parser_retry_count: Tracks retry attempts for parser code.
+                            Compared against max (5) to prevent infinite loops.
+        parse_plan: LLM-generated plan for parser code.
+                    Used for debugging.
+        parse_code: Generated parser code to extract metrics.
+                     Written to baseline_parser.py and executed.
+        parse_deps: Python dependencies for parser code.
+                     Installed before execution.
+        parse_stdout: Standard output from parser execution.
+                      Contains extracted metrics in structured format.
+        parse_stderr: Standard error from parser execution.
+                      Used to detect bugs.
+        parse_returncode: Exit code from parser execution.
+                           Non-zero indicates failure.
+        parse_filename: Filename where parser code was saved.
+                        Used for debugging.
+        parse_is_bug: Whether parser output indicates a bug.
+                      True triggers re-generation with error context.
+        parse_summary: LLM-generated summary of parser output.
+                       Included in memory for retry attempts.
+        notes: Learnings extracted after successful run.
+               Created by _create_notes() LLM call, appended to state.
+    """
+
     # inputs
     cwd: Path
     task: utils.Task

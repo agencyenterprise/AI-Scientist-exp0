@@ -30,6 +30,17 @@ class ReviewOutput(BaseModel):
 
 
 class State(BaseModel):
+    """State for reviewing and evaluating experiments.
+
+    Attributes:
+        task: Evaluation criteria for experiments.
+              Included in review prompt for task-relevant judgment.
+        experiments: All experiment states to judge.
+                      Serialized and fed to build_prompt_review() for LLM evaluation.
+        review: Output: done (accept), drop (discard), retry (rerun).
+                Each list contains {id, reasoning}, used by pipeline to route.
+    """
+
     task: utils.Task
     experiments: list[experiment.State]
 

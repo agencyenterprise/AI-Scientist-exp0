@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 class Args(BaseSettings):
     cwd: CliPositionalArg[Path]
     task: CliPositionalArg[Path]
+    idea: CliPositionalArg[Path]
+    research: CliPositionalArg[Path]
     experiment_code: CliPositionalArg[Path]
     parser_code: CliPositionalArg[Path]
     plots: CliPositionalArg[Path]
@@ -55,28 +57,35 @@ class Args(BaseSettings):
         if self.verbose:
             log.init()
 
-        logger.info("thread_id:", self.thread_id)
+        configurable: dict[str, str] = {}
+        if self.thread_id:
+            logger.info("thread_id:", self.thread_id)
+            configurable["thread_id"] = self.thread_id
         if self.checkpoint_id:
             logger.info("checkpoint_id:", self.checkpoint_id)
+            configurable["checkpoint_id"] = self.checkpoint_id
+
+        config = RunnableConfig(
+            callbacks=[CallbackHandler()],
+            configurable=configurable,
+        )
 
         task = utils.Task.model_validate_json(self.task.read_text())
-        exp_code_content = self.experiment_code.read_text()
-        parse_code_content = self.parser_code.read_text()
-        plots = json.loads(self.plots.read_text())
-        plots = [utils.Plot.model_validate(p) for p in plots]
+        idea = utils.Idea.model_validate_json(self.idea.read_text())
+        research = self.research.read_text()
+        experiment_code = self.experiment_code.read_text()
+        parser_code = self.parser_code.read_text()
+        plots_data = json.loads(self.plots.read_text())
+        plots = [utils.Plot.model_validate(p) for p in plots_data]
 
-        configurable = {"thread_id": self.thread_id}
-        if self.checkpoint_id:
-            configurable["checkpoint_id"] = self.checkpoint_id
-        config = RunnableConfig(
-            callbacks=[CallbackHandler()], configurable=configurable
-        )
         state = writeup.State(
             cwd=self.cwd,
             task=task,
-            experiment_code=exp_code_content,
-            parser_code=parse_code_content,
-            plots=[utils.Plot.model_validate(p) for p in plots],
+            idea=idea,
+            research=research,
+            experiment_code=experiment_code,
+            parser_code=parser_code,
+            plots=plots,
         )
         context = writeup.Context(model=self.model, temperature=self.temperature)
 

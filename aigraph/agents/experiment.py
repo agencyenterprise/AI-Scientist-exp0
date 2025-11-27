@@ -26,6 +26,35 @@ logger = logging.getLogger(__name__)
 
 
 class State(BaseModel):
+    """Sub-orchestrator state for a single experiment.
+
+    Attributes:
+        id: Unique ID for tracking across retries.
+            Used in node_retry to map failed experiments to their original idea.
+        cwd: Parent directory for all stage outputs.
+             mkdir(parents=True) in setup, passed to all child stages.
+        task: Passed to all child stages.
+              Injected into each sub-agent's State constructor.
+        idea: The specific hypothesis to test.
+              Passed to all stages for context-aware code generation.
+        state_research: Stores complete state from research stage.
+                       Asserted for required fields before passing to next stage.
+        state_baseline: Stores complete state from baseline stage.
+                        Asserted for required fields before passing to next stage.
+        state_tuning: Stores complete state from tuning stage.
+                      Asserted for required fields before passing to next stage.
+        state_ablation: Stores complete state from ablation stage.
+                        Asserted for required fields before passing to next stage.
+        state_plotting: Stores complete state from plotting stage.
+                        Asserted for required fields before passing to next stage.
+        state_writeup: Stores complete state from writeup stage.
+                        Asserted for required fields before passing to next stage.
+        notes: Accumulated learnings passed between stages.
+               Extended via op.add reducer from baseline → tuning → ablation.
+        review: Final judge verdict (passed/failed).
+                Set by node_judge using LLM evaluation of all outputs.
+    """
+
     # the unique identifier of the experiment
     id: uuid.UUID
 

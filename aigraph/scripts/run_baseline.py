@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 class Args(BaseSettings):
     cwd: CliPositionalArg[Path]
     task: CliPositionalArg[Path]
+    idea: CliPositionalArg[Path]
+    research: CliPositionalArg[Path]
 
     thread_id: Annotated[
         str,
@@ -52,12 +54,12 @@ class Args(BaseSettings):
         if self.verbose:
             log.init()
 
-        logger.info("thread_id:", self.thread_id)
+        configurable: dict[str, str] = {}
+        if self.thread_id:
+            logger.info("thread_id:", self.thread_id)
+            configurable["thread_id"] = self.thread_id
         if self.checkpoint_id:
             logger.info("checkpoint_id:", self.checkpoint_id)
-
-        configurable = {"thread_id": self.thread_id}
-        if self.checkpoint_id:
             configurable["checkpoint_id"] = self.checkpoint_id
 
         config = RunnableConfig(
@@ -66,14 +68,22 @@ class Args(BaseSettings):
         )
 
         task = utils.Task.model_validate_json(self.task.read_text())
-        state = baseline.State(cwd=self.cwd, task=task)
+        idea = utils.Idea.model_validate_json(self.idea.read_text())
+        research = self.research.read_text()
+
+        state = baseline.State(
+            cwd=self.cwd,
+            task=task,
+            idea=idea,
+            research=research,
+        )
         context = baseline.Context(model=self.model, temperature=self.temperature)
 
         async with aiosqlite.connect(self.checkpoint_db) as conn:
             checkpointer = AsyncSqliteSaver(conn=conn)
             graph = baseline.build(checkpointer=checkpointer)
             result = await graph.ainvoke(input=state, context=context, config=config)
-            print(json.dumps(result, indent=2, sort_keys=True))
+            print(json.dumps(result, indent=2, sort_keys=True, default=str))
 
 
 if __name__ == "__main__":

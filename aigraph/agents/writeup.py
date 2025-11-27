@@ -18,6 +18,41 @@ logger = logging.getLogger(__name__)
 
 
 class State(BaseModel):
+    """State for paper writeup and LaTeX compilation.
+
+    Attributes:
+        cwd: Directory to save template.tex and PDF.
+             shutil.copy() template here, utils.compile() runs pdflatex.
+        task: Provides paper context/goals.
+              Included in system message for paper structure.
+        idea: Main hypothesis for abstract/intro.
+              Fed to system message for paper framing.
+        parser_code: Shows how metrics were computed.
+                     Included in prompt so LLM can explain methodology.
+        parser_stdout: Actual results to report.
+                       Fed to prompt as data source for results section.
+        experiment_code: Method section reference.
+                          Included in prompt for implementation details.
+        plots: Figures + captions for results section.
+               Each plot's path and analysis fed to prompt.
+        research: Related work/citations source.
+                  Included in prompt for background section.
+        writeup_retry_count: Tracks retry attempts for writeup generation.
+                             Compared against max (5) to prevent infinite loops.
+        latex_content: Generated paper content.
+                        Written to template.tex, compiled with pdflatex.
+        compile_stdout: Standard output from LaTeX compilation.
+                         Used to detect compilation errors.
+        compile_stderr: Standard error from LaTeX compilation.
+                         Used to detect compilation errors.
+        compile_returncode: Exit code from LaTeX compilation.
+                             Non-zero indicates failure.
+        compile_is_bug: Whether compilation output indicates a bug.
+                         True triggers re-generation with compile errors.
+        compile_summary: LLM-generated summary of compilation output.
+                         Included in memory for retry attempts.
+    """
+
     # inputs
     cwd: Path
     task: utils.Task
