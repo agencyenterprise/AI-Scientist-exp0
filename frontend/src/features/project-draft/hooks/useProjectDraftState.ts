@@ -152,26 +152,13 @@ export function useProjectDraftState({
   const handleConfirmCreateProject = async (): Promise<void> => {
     setIsCreatingProject(true);
     try {
-      const response = await fetch(
-        `${config.apiUrl}/conversations/${conversation.id}/idea/research-run`,
-        {
-          method: "POST",
-          credentials: "include",
-        }
-      );
-
-      if (!response.ok) {
-        let errorMessage = "Failed to launch project";
-        try {
-          const errorResult = await response.json();
-          errorMessage = errorResult.detail || errorResult.error || errorMessage;
-        } catch {
-          // Ignore JSON parse errors and use default message
-        }
-        throw new Error(errorMessage);
-      }
-
+      await apiFetch(`/conversations/${conversation.id}/idea/research-run`, {
+        method: "POST",
+      });
       setIsCreateModalOpen(false);
+    } catch (error) {
+      // Re-throw to let the caller handle the error
+      throw error;
     } finally {
       setIsCreatingProject(false);
     }
