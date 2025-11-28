@@ -51,7 +51,7 @@ class Stage1Baseline(Stage):
             ],
             "Evaluation Metric(s)": agent.evaluation_metrics or "",
         }
-        instructions |= agent._prompt_impl_guideline
+        instructions |= agent.prompt_impl_guideline
         instructions |= agent._prompt_environment
         prompt["Instructions"] = instructions
 

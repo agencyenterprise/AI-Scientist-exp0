@@ -163,17 +163,22 @@ Your research idea:\n\n
         task_desc = self._get_task_desc_str()
 
         if stage.slug == Stage3Plotting.MAIN_STAGE_SLUG:
-            if isinstance(self.task_desc.experiments, list):
-                if isinstance(self.task_desc.experiments[0], str):
-                    experiment_str = "\n".join(cast(List[str], self.task_desc.experiments))
-                elif isinstance(self.task_desc.experiments[0], dict):
-                    experiments_list = cast(List[Dict[str, str]], self.task_desc.experiments)
+            experiments = self.task_desc.experiments
+            experiment_str: Optional[str] = None
+
+            if isinstance(experiments, list) and experiments:
+                if isinstance(experiments[0], str):
+                    experiment_str = "\n".join(cast(List[str], experiments))
+                elif isinstance(experiments[0], dict):
+                    experiments_list = cast(List[Dict[str, str]], experiments)
                     experiment_str = "\n".join(
                         [f"{k}: {v}" for d in experiments_list for k, v in d.items()]
                     )
-            elif isinstance(self.task_desc.experiments, str):
-                experiment_str = self.task_desc.experiments
-            task_desc += "Experiment Plan: " + experiment_str + "\n"
+            elif isinstance(experiments, str):
+                experiment_str = experiments
+
+            if experiment_str is not None:
+                task_desc += "Experiment Plan: " + experiment_str + "\n"
         elif stage.slug == Stage4Ablation.MAIN_STAGE_SLUG:
             if isinstance(self.task_desc.risk_factors_and_limitations, list):
                 risk_factors_str = "\n".join(self.task_desc.risk_factors_and_limitations)
@@ -317,16 +322,13 @@ Your research idea:\n\n
 
         main_stage_num = stage.number
 
-        def _emit(event: BaseEvent) -> None:
-            self.event_callback(event)
-
         ctx = StageContext(
             cfg=self.cfg,
             task_desc=self._curate_task_desc(stage),
             stage_name=stage.name,
             journal=journal,
             workspace_dir=self.workspace_dir,
-            event_callback=_emit,
+            event_callback=self.event_callback,
             best_nodes_by_stage={},
         )
         # Delegate main stage completion to the Stage implementation
