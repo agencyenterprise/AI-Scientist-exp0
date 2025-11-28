@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useMemo } from "react";
@@ -156,7 +157,7 @@ export function Markdown({ children, className }: MarkdownProps) {
             {children}
           </h6>
         ),
-        // eslint-disable-next-line @next/next/no-img-element, @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         img: (props: any) => (
           <img
             {...props}
