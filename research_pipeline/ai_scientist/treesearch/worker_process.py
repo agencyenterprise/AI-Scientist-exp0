@@ -9,6 +9,7 @@ from typing import Callable, Optional
 from ai_scientist.llm import query
 
 from .codegen_agent import MinimalAgent
+from .events import BaseEvent, RunLogEvent
 from .gpu_manager import GPUSpec, get_gpu_specs
 from .interpreter import ExecutionResult, Interpreter
 from .journal import Node
@@ -138,30 +139,29 @@ def _create_child_node(
     seed_eval: bool,
     new_ablation_idea: AblationIdea | None,
     new_hyperparam_idea: HyperparamTuningIdea | None,
-    emit: Callable[[str, dict[str, object]], None],
+    event_callback: Callable[[BaseEvent], None],
 ) -> Node:
     if seed_eval:
         assert parent_node is not None, "parent_node must be provided for seed evaluation"
-        emit("ai.run.log", {"message": "Running multi-seed evaluation", "level": "info"})
-        child_node = worker_agent._generate_seed_node(parent_node)
+        event_callback(RunLogEvent(message="Running multi-seed evaluation", level="info"))
+        child_node = worker_agent.generate_seed_node(parent_node)
         child_node.parent = parent_node
         child_node.plot_code = parent_node.plot_code
         return child_node
 
     if parent_node is None:
-        emit("ai.run.log", {"message": "Generating new implementation code", "level": "info"})
+        event_callback(RunLogEvent(message="Generating new implementation code", level="info"))
         child_node = Stage1Baseline.draft(worker_agent)
-        emit("ai.run.log", {"message": "Code generation complete", "level": "info"})
+        event_callback(RunLogEvent(message="Code generation complete", level="info"))
         return child_node
 
     if parent_node.is_buggy:
-        emit(
-            "ai.run.log",
-            {"message": "Debugging failed node (attempt to fix bugs)", "level": "info"},
+        event_callback(
+            RunLogEvent(message="Debugging failed node (attempt to fix bugs)", level="info")
         )
-        child_node = worker_agent._debug(parent_node)
+        child_node = worker_agent.debug(parent_node)
         child_node.parent = parent_node
-        emit("ai.run.log", {"message": "Fix attempt generated", "level": "info"})
+        event_callback(RunLogEvent(message="Fix attempt generated", level="info"))
         return child_node
 
     if new_hyperparam_idea is not None and new_ablation_idea is None:
@@ -215,7 +215,7 @@ def _improve_existing_implementation(
     }
 
     improve_instructions: dict[str, str | list[str]] = {}
-    improve_instructions |= worker_agent._prompt_impl_guideline
+    improve_instructions |= worker_agent.prompt_impl_guideline
     prompt["Instructions"] = improve_instructions
 
     plan, code = worker_agent.plan_and_code_query(prompt=prompt)
@@ -234,20 +234,18 @@ def _execute_experiment(
     child_node: Node,
     cfg: AppConfig,
     process_interpreter: Interpreter,
-    emit: Callable[[str, dict[str, object]], None],
+    event_callback: Callable[[BaseEvent], None],
 ) -> ExecutionResult:
     logger.info(f"→ Executing experiment code (timeout: {cfg.exec.timeout}s)...")
     logger.debug("Starting first interpreter: executing experiment code")
-    emit("ai.run.log", {"message": "Executing experiment code on GPU...", "level": "info"})
+    event_callback(RunLogEvent(message="Executing experiment code on GPU...", level="info"))
     exec_result = process_interpreter.run(code=child_node.code, reset_session=True)
     process_interpreter.cleanup_session()
     logger.info(f"✓ Code execution completed in {exec_result.exec_time:.1f}s")
-    emit(
-        "ai.run.log",
-        {
-            "message": f"Code execution completed ({exec_result.exec_time:.1f}s)",
-            "level": "info",
-        },
+    event_callback(
+        RunLogEvent(
+            message=f"Code execution completed ({exec_result.exec_time:.1f}s)", level="info"
+        )
     )
     return exec_result
 
@@ -262,10 +260,10 @@ def _analyze_results_and_metrics(
     process_interpreter: Interpreter,
     seed_eval: bool,
     exec_result: ExecutionResult,
-    emit: Callable[[str, dict[str, object]], None],
+    event_callback: Callable[[BaseEvent], None],
 ) -> None:
     logger.info("→ Analyzing results and extracting metrics...")
-    emit("ai.run.log", {"message": "Analyzing results and extracting metrics", "level": "info"})
+    event_callback(RunLogEvent(message="Analyzing results and extracting metrics", level="info"))
     worker_agent.parse_exec_result(
         node=child_node,
         exec_result=exec_result,
@@ -278,7 +276,7 @@ def _analyze_results_and_metrics(
         working_dir=working_dir,
         process_interpreter=process_interpreter,
         seed_eval=seed_eval,
-        emit=emit,
+        event_callback=event_callback,
     )
     logger.info(f"✓ Metrics extracted. Buggy: {child_node.is_buggy}")
 
@@ -320,10 +318,10 @@ def _execute_plotting_with_retries(
     process_interpreter: Interpreter,
     seed_eval: bool,
     best_stage3_plot_code: str | None,
-    emit: Callable[[str, dict[str, object]], None],
+    event_callback: Callable[[BaseEvent], None],
 ) -> str:
     logger.info("→ Generating visualization plots...")
-    emit("ai.run.log", {"message": "Generating visualization plots", "level": "info"})
+    event_callback(RunLogEvent(message="Generating visualization plots", level="info"))
     retry_count = 0
     plotting_code = ""
     while True:
@@ -334,7 +332,7 @@ def _execute_plotting_with_retries(
             seed_eval=seed_eval,
             best_stage3_plot_code=best_stage3_plot_code,
         )
-        emit("ai.run.log", {"message": "Executing plotting code", "level": "info"})
+        event_callback(RunLogEvent(message="Executing plotting code", level="info"))
         plot_exec_result = process_interpreter.run(
             code=plotting_code,
             reset_session=True,
@@ -344,15 +342,11 @@ def _execute_plotting_with_retries(
         if child_node.plot_exc_type and retry_count < 3:
             term_lines = child_node.plot_term_out or []
             tail = "".join(term_lines[-50:]) if isinstance(term_lines, list) else str(term_lines)
-            emit(
-                "ai.run.log",
-                {
-                    "message": (
-                        f"Plotting error ({child_node.plot_exc_type}); "
-                        f"retrying {retry_count + 1}/3. Tail of output:\n{tail}"
-                    ),
-                    "level": "warn",
-                },
+            event_callback(
+                RunLogEvent(
+                    message=f"Plotting error ({child_node.plot_exc_type}); retrying {retry_count + 1}/3. Tail of output:\n{tail}",
+                    level="warn",
+                )
             )
             retry_count += 1
             continue
@@ -366,7 +360,7 @@ def _move_experiment_artifacts(
     child_node: Node,
     working_dir: str,
     plotting_code: str,
-    emit: Callable[[str, dict[str, object]], None],
+    event_callback: Callable[[BaseEvent], None],
 ) -> None:
     plots_dir = Path(working_dir)
     logger.debug(f"Checking plots_dir: {plots_dir}, exists={plots_dir.exists()}")
@@ -377,17 +371,13 @@ def _move_experiment_artifacts(
     plot_count = len(list(plots_dir.glob("*.png")))
     logger.debug(f"Found {plot_count} plot files in working directory")
     if plot_count > 0:
-        emit(
-            "ai.run.log",
-            {"message": f"✓ Generated {plot_count} plot file(s)", "level": "info"},
-        )
+        event_callback(RunLogEvent(message=f"✓ Generated {plot_count} plot file(s)", level="info"))
     else:
-        emit(
-            "ai.run.log",
-            {
-                "message": ("No plot files (*.png) found in working directory after plotting"),
-                "level": "warn",
-            },
+        event_callback(
+            RunLogEvent(
+                message="No plot files (*.png) found in working directory after plotting",
+                level="warn",
+            )
         )
         logger.warning(f"No plot files found in {plots_dir} after plotting code execution")
 
@@ -453,33 +443,24 @@ def _run_vlm_analysis(
     *,
     worker_agent: MinimalAgent,
     child_node: Node,
-    emit: Callable[[str, dict[str, object]], None],
+    event_callback: Callable[[BaseEvent], None],
 ) -> None:
     try:
         logger.info(f"→ Analyzing {len(child_node.plots)} plots with Vision Language Model...")
-        emit(
-            "ai.run.log",
-            {
-                "message": (f"Analyzing {len(child_node.plots)} generated plots with VLM"),
-                "level": "info",
-            },
+        event_callback(
+            RunLogEvent(
+                message=f"Analyzing {len(child_node.plots)} generated plots with VLM", level="info"
+            )
         )
         analyze_plots_with_vlm(agent=worker_agent, node=child_node)
         logger.info(f"✓ VLM analysis complete. Valid plots: {not child_node.is_buggy_plots}")
-        emit("ai.run.log", {"message": "✓ Plot analysis complete", "level": "info"})
+        event_callback(RunLogEvent(message="✓ Plot analysis complete", level="info"))
     except Exception as e:
         tb = traceback.format_exc()
-        emit(
-            "ai.run.log",
-            {
-                "message": f"Plot analysis failed with exception: {str(e)}",
-                "level": "warn",
-            },
+        event_callback(
+            RunLogEvent(message=f"Plot analysis failed with exception: {str(e)}", level="warn")
         )
-        emit(
-            "ai.run.log",
-            {"message": f"Plot analysis traceback:\n{tb}", "level": "warn"},
-        )
+        event_callback(RunLogEvent(message=f"Plot analysis traceback:\n{tb}", level="warn"))
 
 
 def _run_plotting_and_vlm(
@@ -492,7 +473,7 @@ def _run_plotting_and_vlm(
     process_interpreter: Interpreter,
     seed_eval: bool,
     best_stage3_plot_code: str | None,
-    emit: Callable[[str, dict[str, object]], None],
+    event_callback: Callable[[BaseEvent], None],
 ) -> None:
     logger.debug(
         f"Starting plotting for node {child_node.id}: "
@@ -507,25 +488,21 @@ def _run_plotting_and_vlm(
             process_interpreter=process_interpreter,
             seed_eval=seed_eval,
             best_stage3_plot_code=best_stage3_plot_code,
-            emit=emit,
+            event_callback=event_callback,
         )
         _move_experiment_artifacts(
             cfg=cfg,
             child_node=child_node,
             working_dir=working_dir,
             plotting_code=plotting_code,
-            emit=emit,
+            event_callback=event_callback,
         )
     except Exception as e:
         tb = traceback.format_exc()
-        emit(
-            "ai.run.log",
-            {"message": f"Plotting failed with exception: {str(e)}", "level": "warn"},
+        event_callback(
+            RunLogEvent(message=f"Plotting failed with exception: {str(e)}", level="warn")
         )
-        emit(
-            "ai.run.log",
-            {"message": f"Plotting traceback:\n{tb}", "level": "warn"},
-        )
+        event_callback(RunLogEvent(message=f"Plotting traceback:\n{tb}", level="warn"))
     logger.debug(
         "Before VLM check: "
         f"plots={len(child_node.plots) if child_node.plots else 0}, "
@@ -548,7 +525,7 @@ def _run_plotting_and_vlm(
     _run_vlm_analysis(
         worker_agent=worker_agent,
         child_node=child_node,
-        emit=emit,
+        event_callback=event_callback,
     )
 
 
@@ -561,19 +538,18 @@ def parse_and_assign_metrics(
     working_dir: str,
     process_interpreter: Interpreter,
     seed_eval: bool,
-    emit: Callable[[str, dict[str, object]], None],
+    event_callback: Callable[[BaseEvent], None],
 ) -> None:
     """Generate/execute metrics parsing code and assign structured metrics to the node."""
     try:
         working_path = Path(working_dir)
         data_files = list(working_path.glob("*.npy"))
         if not data_files:
-            emit(
-                "ai.run.log",
-                {
-                    "message": "No .npy files found in working directory. Data may not have been saved properly.",
-                    "level": "warn",
-                },
+            event_callback(
+                RunLogEvent(
+                    message="No .npy files found in working directory. Data may not have been saved properly.",
+                    level="warn",
+                )
             )
 
         # Prepare or reuse metrics parsing code
@@ -664,15 +640,11 @@ def parse_and_assign_metrics(
         # Emit validation outcome
         if child_node.is_buggy:
             bug_summary = (child_node.analysis or "Unknown error")[:150]
-            emit(
-                "ai.run.log",
-                {"message": f"Implementation has bugs: {bug_summary}", "level": "warn"},
+            event_callback(
+                RunLogEvent(message=f"Implementation has bugs: {bug_summary}", level="warn")
             )
         else:
-            emit(
-                "ai.run.log",
-                {"message": "Implementation passed validation", "level": "info"},
-            )
+            event_callback(RunLogEvent(message="Implementation passed validation", level="info"))
     except Exception:
         # On any unexpected error while parsing metrics, mark as worst
         child_node.metric = WorstMetricValue()
@@ -687,22 +659,14 @@ def process_node(
     evaluation_metrics: str,
     memory_summary: str,
     stage_name: str,
+    seed_eval: bool,
+    event_callback: Callable[[BaseEvent], None],
     gpu_id: Optional[int] = None,
     new_ablation_idea: Optional[AblationIdea] = None,
     new_hyperparam_idea: Optional[HyperparamTuningIdea] = None,
     best_stage3_plot_code: Optional[str] = None,
-    seed_eval: bool = False,
-    event_callback: Optional[Callable[[str, dict[str, object]], None]] = None,
 ) -> dict[str, object]:
     _ensure_worker_log_level(cfg=cfg)
-
-    def emit(event_type: str, data: dict[str, object]) -> None:
-        if event_callback:
-            try:
-                data["stage"] = stage_name
-                event_callback(event_type, data)
-            except Exception:
-                pass
 
     process_id = multiprocessing.current_process().name
     workspace, working_dir = _prepare_workspace(cfg=cfg, process_id=process_id)
@@ -730,14 +694,14 @@ def process_node(
             seed_eval=seed_eval,
             new_ablation_idea=new_ablation_idea,
             new_hyperparam_idea=new_hyperparam_idea,
-            emit=emit,
+            event_callback=event_callback,
         )
 
         exec_result = _execute_experiment(
             child_node=child_node,
             cfg=cfg,
             process_interpreter=process_interpreter,
-            emit=emit,
+            event_callback=event_callback,
         )
 
         _analyze_results_and_metrics(
@@ -749,7 +713,7 @@ def process_node(
             process_interpreter=process_interpreter,
             seed_eval=seed_eval,
             exec_result=exec_result,
-            emit=emit,
+            event_callback=event_callback,
         )
 
         if not child_node.is_buggy:
@@ -763,7 +727,7 @@ def process_node(
                     process_interpreter=process_interpreter,
                     seed_eval=seed_eval,
                     best_stage3_plot_code=best_stage3_plot_code,
-                    emit=emit,
+                    event_callback=event_callback,
                 )
             elif child_node.is_buggy_plots is None:
                 # If plotting/VLM is skipped (e.g., Stage 1), treat plots as non-buggy

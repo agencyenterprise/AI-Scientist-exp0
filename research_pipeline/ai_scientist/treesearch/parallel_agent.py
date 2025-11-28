@@ -99,10 +99,6 @@ class ParallelAgent:
             "tried_hyperparams": set(),
         }
 
-    def _emit_event(self, event: BaseEvent) -> None:
-        """Emit structured events to outer UI/logging."""
-        self.event_callback(event)
-
     def _define_global_metrics(self) -> str:
         """Define the run-wide evaluation metric specification via LLM."""
         prompt = {
@@ -217,7 +213,7 @@ class ParallelAgent:
                     new_hyperparam_idea=new_hyperparam_idea,
                     best_stage3_plot_code=best_stage3_plot_code,
                     seed_eval=seed_eval,
-                    event_callback=None,
+                    event_callback=self.event_callback,
                 )
             )
 
@@ -260,7 +256,7 @@ class ParallelAgent:
     def _select_parallel_nodes(self) -> List[Optional[Node]]:
         """Select nodes to process in parallel using a mix of exploration and exploitation."""
         # Emit that we're selecting nodes
-        self._emit_event(
+        self.event_callback(
             RunLogEvent(
                 message=f"🔍 Selecting nodes to process for iteration {len(self.journal)}...",
                 level="info",
@@ -326,7 +322,7 @@ class ParallelAgent:
             # Stage-specific selection: Ablation Studies
             logger.debug(f"self.stage_name: {self.stage_name}")
             if self.stage_name and self.stage_name.startswith("4_"):
-                self._emit_event(
+                self.event_callback(
                     RunLogEvent(
                         message=f"🧪 Running ablation study variation #{len(self.journal) + 1}",
                         level="info",
@@ -398,7 +394,7 @@ class ParallelAgent:
         if improve_count > 0:
             activity_types.append(f"{improve_count} improving")
         activity_str = ", ".join(activity_types) if activity_types else "processing"
-        self._emit_event(
+        self.event_callback(
             RunLogEvent(
                 message=f"📤 Submitting {num_nodes} node(s): {activity_str}",
                 level="info",
@@ -406,17 +402,17 @@ class ParallelAgent:
         )
 
         if draft_count > 0:
-            self._emit_event(
+            self.event_callback(
                 RunLogEvent(message=f"Generating {draft_count} new implementation(s)", level="info")
             )
         if debug_count > 0:
-            self._emit_event(
+            self.event_callback(
                 RunLogEvent(
                     message=f"Debugging {debug_count} failed implementation(s)", level="info"
                 )
             )
         if improve_count > 0:
-            self._emit_event(
+            self.event_callback(
                 RunLogEvent(
                     message=f"Improving {improve_count} working implementation(s)", level="info"
                 )
@@ -502,7 +498,7 @@ class ParallelAgent:
                     new_hyperparam_idea=new_hyperparam_idea,
                     best_stage3_plot_code=best_stage3_plot_code,
                     seed_eval=seed_eval,
-                    event_callback=None,
+                    event_callback=self.event_callback,
                 )
             )
 
@@ -540,7 +536,7 @@ class ParallelAgent:
                 logger.debug("Added result node to journal")
 
                 if result_node.is_buggy:
-                    self._emit_event(
+                    self.event_callback(
                         RunLogEvent(
                             message=f"Node {i + 1}/{len(futures)} completed (buggy, will retry)",
                             level="info",
@@ -548,7 +544,7 @@ class ParallelAgent:
                     )
                 else:
                     metric_str = str(result_node.metric)[:50] if result_node.metric else "N/A"
-                    self._emit_event(
+                    self.event_callback(
                         RunLogEvent(
                             message=f"Node {i + 1}/{len(futures)} completed successfully (metric: {metric_str})",
                             level="info",
@@ -557,7 +553,7 @@ class ParallelAgent:
 
             except TimeoutError:
                 logger.warning("Worker process timed out, couldn't get the result")
-                self._emit_event(
+                self.event_callback(
                     RunLogEvent(
                         message=f"Node {i + 1}/{len(futures)} timed out after {self.timeout}s",
                         level="warn",

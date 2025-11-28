@@ -115,7 +115,7 @@ class MinimalAgent:
         return env_prompt
 
     @property
-    def _prompt_impl_guideline(self) -> dict[str, list[str]]:
+    def prompt_impl_guideline(self) -> dict[str, list[str]]:
         # High-level implementation requirements the generated code must follow
         impl_guideline = [
             "CRITICAL GPU REQUIREMENTS - Your code MUST include ALL of these:",
@@ -238,7 +238,7 @@ class MinimalAgent:
     # Response format is fully specified by PlanAndCodeSchema and the FunctionSpec
     # schemas used elsewhere; no additional response-format helpers are needed here.
 
-    def _debug(self, parent_node: Node) -> Node:
+    def debug(self, parent_node: Node) -> Node:
         # Build a debugging prompt combining previous code, outputs, and feedback
         prompt: PromptType = {
             "Introduction": (
@@ -260,12 +260,12 @@ class MinimalAgent:
                 "Don't suggest to do EDA.",
             ],
         }
-        debug_instructions |= self._prompt_impl_guideline
+        debug_instructions |= self.prompt_impl_guideline
         prompt["Instructions"] = debug_instructions
         plan, code = self.plan_and_code_query(prompt)
         return Node(plan=plan, code=code, parent=parent_node)
 
-    def _generate_seed_node(self, parent_node: Node) -> Node:
+    def generate_seed_node(self, parent_node: Node) -> Node:
         return Node(
             plan="Seed node",
             code=parent_node.code,
