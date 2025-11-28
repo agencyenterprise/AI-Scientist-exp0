@@ -8,7 +8,7 @@ from langchain.chat_models import BaseChatModel, init_chat_model
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
-from langgraph.types import Checkpointer
+from langgraph.types import Checkpointer, Overwrite
 from pydantic import BaseModel
 
 from aigraph import utils
@@ -310,7 +310,7 @@ async def node_summarize(
     result = cast(Schema, result)
 
     logger.info(f"Finished node_summarize for experiment {state.id}")
-    return {"notes": [result.summary]}
+    return {"notes": Overwrite([result.summary])}
 
 
 async def node_judge(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
@@ -355,6 +355,7 @@ def build(
     builder.add_node("node_ablation", node_ablation)
     builder.add_node("node_plotting", node_plotting)
     builder.add_node("node_writeup", node_writeup)
+    builder.add_node("node_summarize", node_summarize)
     builder.add_node("node_judge", node_judge)
 
     # Add edges
@@ -365,7 +366,8 @@ def build(
     builder.add_edge("node_tuning", "node_ablation")
     builder.add_edge("node_ablation", "node_plotting")
     builder.add_edge("node_plotting", "node_writeup")
-    builder.add_edge("node_writeup", "node_judge")
+    builder.add_edge("node_writeup", "node_summarize")
+    builder.add_edge("node_summarize", "node_judge")
     builder.add_edge("node_judge", END)
 
     return builder.compile(name="graph_experiment", checkpointer=checkpointer)  # type: ignore
