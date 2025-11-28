@@ -1,6 +1,33 @@
 from aigraph import utils
 
 
+def build_prompt_summarize_notes(task: utils.Task, notes: list[str]) -> str:
+    """Build prompt for summarizing experiment notes."""
+    return f"""
+    Summarize these experiment notes into a concise summary.
+    Keep key findings, errors, and learnings. Be brief but complete.
+
+    ## Task Context
+
+    <TASK>
+    Title: {task.title}
+    </TASK>
+
+    ## Notes
+
+    <NOTES>
+    {chr(10).join(f"- {note}" for note in notes)}
+    </NOTES>
+
+    ## Instructions
+
+    Provide a condensed summary (max 500 words) that preserves:
+    - Key findings and results
+    - Errors encountered and their resolutions
+    - Important learnings for future experiments
+    """
+
+
 def build_prompt_evaluate(
     idea: utils.Idea,
     code: str,

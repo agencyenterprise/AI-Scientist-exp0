@@ -5,15 +5,14 @@ import uuid
 from pathlib import Path
 from typing import Annotated, Any
 
+from aigraph import utils
+from aigraph.agents import experiment, ideas, reviewer
 from langchain.chat_models import BaseChatModel, init_chat_model
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
 from langgraph.types import Checkpointer, Send
 from pydantic import BaseModel
-
-from aigraph import utils
-from aigraph.agents import experiment, ideas, reviewer
 
 logger = logging.getLogger(__name__)
 
@@ -24,42 +23,42 @@ class Context(BaseModel):
     max_iterations: int = 3
 
     # Stage: ideas
-    stage_ideas_model: str | None = None
+    stage_ideas_model: str = "gpt-4.1"
     stage_ideas_temperature: float = 0.7
     stage_ideas_num_ideas: int = 5
 
     # Stage: baseline
-    stage_baseline_model: str | None = None
+    stage_baseline_model: str = "gpt-4.1"
     stage_baseline_temperature: float = 0.0
     stage_baseline_max_retries: int = 5
 
     # Stage: tuning
-    stage_tuning_model: str | None = None
+    stage_tuning_model: str = "gpt-4.1"
     stage_tuning_temperature: float = 0.0
     stage_tuning_max_retries: int = 5
 
     # Stage: ablation
-    stage_ablation_model: str | None = None
+    stage_ablation_model: str = "gpt-4.1"
     stage_ablation_temperature: float = 0.0
     stage_ablation_max_retries: int = 5
 
     # Stage: plotting
-    stage_plotting_model: str | None = None
+    stage_plotting_model: str = "gpt-4.1"
     stage_plotting_temperature: float = 0.0
     stage_plotting_max_retries: int = 5
 
     # Stage: writeup
-    stage_writeup_model: str | None = None
+    stage_writeup_model: str = "gpt-4.1"
     stage_writeup_temperature: float = 0.0
     stage_writeup_max_retries: int = 5
 
     # Stage: reviewer
-    stage_reviewer_model: str | None = None
+    stage_reviewer_model: str = "gpt-4.1"
     stage_reviewer_temperature: float = 0.0
 
     # Stage: research (open_deep_research)
-    stage_research_model: str = "openai:gpt-4.1"
-    stage_research_final_report_model: str = "openai:gpt-4.1"
+    stage_research_model: str = "gpt-4.1"
+    stage_research_final_report_model: str = "gpt-4.1"
 
     @property
     def llm(self) -> BaseChatModel:
@@ -260,7 +259,8 @@ def build(
 
     # Add edges
     builder.add_conditional_edges(START, node_ideas, ["node_experiment"])
-    builder.add_edge("node_experiment", "node_review")
+    builder.add_edge("node_experiment", "node_summarize")
+    builder.add_edge("node_summarize", "node_review")
     builder.add_conditional_edges("node_review", node_retry, ["node_experiment", END])
 
     return builder.compile(name="graph_all", checkpointer=checkpointer)  # type: ignore

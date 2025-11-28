@@ -290,6 +290,29 @@ async def node_writeup(state: State, runtime: Runtime[Context]) -> dict[str, Any
     return {"state_writeup": result}
 
 
+async def node_summarize(
+    state: State,
+    runtime: Runtime[Context],
+) -> dict[str, Any]:
+    """Summarize notes for a single experiment."""
+    logger.info(f"Starting node_summarize for experiment {state.id}")
+
+    class Schema(BaseModel):
+        summary: str
+
+    prompt = prompts.build_prompt_summarize_notes(
+        task=state.task,
+        notes=state.notes,
+    )
+
+    llm = runtime.context.llm.with_structured_output(Schema)
+    result = await llm.ainvoke(prompt)
+    result = cast(Schema, result)
+
+    logger.info(f"Finished node_summarize for experiment {state.id}")
+    return {"notes": [result.summary]}
+
+
 async def node_judge(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
     logger.info("Starting node_judge")
 
