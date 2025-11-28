@@ -15,10 +15,10 @@
   --primary-500: #14b8a6;
   --primary-600: #0d9488;
   --primary-700: #0f766e;
-  --primary:  oklch(0.205 0 0);
+  --primary:  oklch(20.5% 0 0deg);
   --primary-hover: var(--primary-700);
-  --primary-foreground:  oklch(0.985 0 0);
-  --ring:  oklch(0.708 0 0);
+  --primary-foreground:  oklch(98.5% 0 0deg);
+  --ring:  oklch(70.8% 0 0deg);
 
   /* Semantic */
   --success: #10b981;
@@ -30,38 +30,39 @@
 
   /* Neutrals */
   --surface: #fff;
-  --muted:  oklch(0.97 0 0);
-  --muted-foreground:  oklch(0.556 0 0);
-  --border:  oklch(0.922 0 0);
+  --muted:  oklch(97% 0 0deg);
+  --muted-foreground:  oklch(55.6% 0 0deg);
+  --border:  oklch(92.2% 0 0deg);
   --radius:  0.625rem;
-  --card:  oklch(1 0 0);
-  --card-foreground:  oklch(0.145 0 0);
-  --popover:  oklch(1 0 0);
-  --popover-foreground:  oklch(0.145 0 0);
-  --secondary:  oklch(0.97 0 0);
-  --secondary-foreground:  oklch(0.205 0 0);
-  --accent:  oklch(0.97 0 0);
-  --accent-foreground:  oklch(0.205 0 0);
-  --destructive:  oklch(0.577 0.245 27.325);
-  --input:  oklch(0.922 0 0);
-  --chart-1:  oklch(0.646 0.222 41.116);
-  --chart-2:  oklch(0.6 0.118 184.704);
-  --chart-3:  oklch(0.398 0.07 227.392);
-  --chart-4:  oklch(0.828 0.189 84.429);
-  --chart-5:  oklch(0.769 0.188 70.08);
-  --sidebar:  oklch(0.985 0 0);
-  --sidebar-foreground:  oklch(0.145 0 0);
-  --sidebar-primary:  oklch(0.205 0 0);
-  --sidebar-primary-foreground:  oklch(0.985 0 0);
-  --sidebar-accent:  oklch(0.97 0 0);
-  --sidebar-accent-foreground:  oklch(0.205 0 0);
-  --sidebar-border:  oklch(0.922 0 0);
-  --sidebar-ring:  oklch(0.708 0 0);
-  --background:  oklch(1 0 0);
-  --foreground:  oklch(0.145 0 0);
+  --card:  oklch(100% 0 0deg);
+  --card-foreground:  oklch(14.5% 0 0deg);
+  --popover:  oklch(100% 0 0deg);
+  --popover-foreground:  oklch(14.5% 0 0deg);
+  --secondary:  oklch(97% 0 0deg);
+  --secondary-foreground:  oklch(20.5% 0 0deg);
+  --accent:  oklch(97% 0 0deg);
+  --accent-foreground:  oklch(20.5% 0 0deg);
+  --destructive:  oklch(57.7% 0.245 27.325deg);
+  --input:  oklch(92.2% 0 0deg);
+  --chart-1:  oklch(64.6% 0.222 41.116deg);
+  --chart-2:  oklch(60% 0.118 184.704deg);
+  --chart-3:  oklch(39.8% 0.07 227.392deg);
+  --chart-4:  oklch(82.8% 0.189 84.429deg);
+  --chart-5:  oklch(76.9% 0.188 70.08deg);
+  --sidebar:  oklch(98.5% 0 0deg);
+  --sidebar-foreground:  oklch(14.5% 0 0deg);
+  --sidebar-primary:  oklch(20.5% 0 0deg);
+  --sidebar-primary-foreground:  oklch(98.5% 0 0deg);
+  --sidebar-accent:  oklch(97% 0 0deg);
+  --sidebar-accent-foreground:  oklch(20.5% 0 0deg);
+  --sidebar-border:  oklch(92.2% 0 0deg);
+  --sidebar-ring:  oklch(70.8% 0 0deg);
+  --background:  oklch(100% 0 0deg);
+  --foreground:  oklch(14.5% 0 0deg);
 }
 
 /* Dark mode is only activated via the .dark class, not system preference */
+
 /* To enable dark mode, add class="dark" to the <html> element */
 
 body {
@@ -180,12 +181,16 @@ body {
   --sidebar-accent-foreground: #f1f5f9; /* slate-100 */
   --sidebar-border: #334155; /* slate-700 */
   --sidebar-ring: #38bdf8; /* sky-400 */
+
+  /* Scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: rgb(125 211 252 / 45%) rgb(15 23 42 / 60%);
 }
 
 /* Custom scrollbar - orchestrator style */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(125, 211, 252, 0.45) rgba(15, 23, 42, 0.6);
+  scrollbar-color: rgb(125 211 252 / 45%) rgb(15 23 42 / 60%);
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -193,41 +198,36 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgb(15 23 42 / 60%);
   border-radius: 999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.6), rgba(29, 78, 216, 0.6));
+  background: linear-gradient(180deg, rgb(56 189 248 / 60%), rgb(29 78 216 / 60%));
   border-radius: 999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.8), rgba(29, 78, 216, 0.8));
+  background: linear-gradient(180deg, rgb(56 189 248 / 80%), rgb(29 78 216 / 80%));
 }
 
 /* Apply custom scrollbar globally in dark mode */
-.dark {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(125, 211, 252, 0.45) rgba(15, 23, 42, 0.6);
-}
-
 .dark ::-webkit-scrollbar {
   width: 6px;
 }
 
 .dark ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgb(15 23 42 / 60%);
   border-radius: 999px;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.6), rgba(29, 78, 216, 0.6));
+  background: linear-gradient(180deg, rgb(56 189 248 / 60%), rgb(29 78 216 / 60%));
   border-radius: 999px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.8), rgba(29, 78, 216, 0.8));
+  background: linear-gradient(180deg, rgb(56 189 248 / 80%), rgb(29 78 216 / 80%));
 }
 
 /* Dark mode link styling */
@@ -243,6 +243,7 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -252,15 +253,19 @@ body {
   /* Primary gradient button - orchestrator style */
   .btn-primary-gradient {
     @apply inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold text-white transition;
+
     background: linear-gradient(to right, #0ea5e9, #3b82f6, #22d3ee);
-    box-shadow: 0 18px 40px -18px rgba(56, 189, 248, 0.65);
+    box-shadow: 0 18px 40px -18px rgb(56 189 248 / 65%);
   }
+
   .btn-primary-gradient:hover {
     background: linear-gradient(to right, #38bdf8, #60a5fa, #67e8f9);
   }
+
   .btn-primary-gradient:focus {
     @apply outline-none ring-2 ring-sky-300 ring-offset-2 ring-offset-slate-950;
   }
+
   .btn-primary-gradient:disabled {
     @apply opacity-40 cursor-not-allowed;
   }
@@ -276,9 +281,11 @@ body {
   .btn-filter {
     @apply px-2 py-1 text-xs rounded border transition;
   }
+
   .btn-filter-inactive {
     @apply bg-muted text-foreground/80 border-border hover:bg-secondary;
   }
+
   .btn-filter-active {
     @apply bg-foreground text-background border-foreground;
   }
@@ -316,9 +323,11 @@ body {
   .view-tab {
     @apply px-2.5 py-1 text-xs font-medium rounded-sm transition-colors disabled:opacity-50;
   }
+
   .view-tab-inactive {
     @apply text-foreground/80 hover:bg-secondary;
   }
+
   .view-tab-active {
     @apply bg-primary/10 text-primary border border-primary/30;
   }
