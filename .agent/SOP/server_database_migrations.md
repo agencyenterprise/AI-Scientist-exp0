@@ -1,14 +1,14 @@
-# SOP: Backend Database Migrations
+# SOP: Server Database Migrations
 
 ## Related Documentation
-- [Backend Architecture](../System/backend_architecture.md)
+- [Server Architecture](../System/server_architecture.md)
 - [Project Architecture](../System/project_architecture.md)
 
 ---
 
 ## Overview
 
-This SOP covers creating and running database migrations using Alembic for the FastAPI backend. Use this procedure when you need to:
+This SOP covers creating and running database migrations using Alembic for the FastAPI server. Use this procedure when you need to:
 - Add new database tables
 - Modify existing table schemas
 - Add indexes or constraints
@@ -29,7 +29,7 @@ This SOP covers creating and running database migrations using Alembic for the F
 ### 1. Check Current Migration Status
 
 ```bash
-cd backend
+cd server
 python migrate.py current
 ```
 
@@ -103,10 +103,10 @@ python migrate.py history
 
 | File | Purpose |
 |------|---------|
-| `backend/migrate.py` | Migration CLI tool |
-| `backend/alembic.ini` | Alembic configuration |
-| `backend/database_migrations/env.py` | Migration environment setup |
-| `backend/database_migrations/versions/` | Migration scripts directory |
+| `server/migrate.py` | Migration CLI tool |
+| `server/alembic.ini` | Alembic configuration |
+| `server/database_migrations/env.py` | Migration environment setup |
+| `server/database_migrations/versions/` | Migration scripts directory |
 
 ---
 
@@ -205,7 +205,7 @@ After running a migration:
    psql -h localhost -U postgres -d your_db -c "\d my_table"
    ```
 
-3. Test the backend still starts:
+3. Test the server still starts:
    ```bash
-   uvicorn app.main:app --reload
+   uv run uvicorn app.main:app --reload
    ```

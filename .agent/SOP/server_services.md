@@ -1,14 +1,14 @@
-# SOP: Backend Services
+# SOP: Server Services
 
 ## Related Documentation
-- [Backend Architecture](../System/backend_architecture.md)
+- [Server Architecture](../System/server_architecture.md)
 - [Project Architecture](../System/project_architecture.md)
 
 ---
 
 ## Overview
 
-This SOP covers creating new services in the FastAPI backend. Use this procedure when you need to:
+This SOP covers creating new services in the FastAPI server. Use this procedure when you need to:
 - Add business logic that spans multiple routes
 - Integrate with external APIs
 - Create reusable functionality
@@ -28,10 +28,10 @@ This SOP covers creating new services in the FastAPI backend. Use this procedure
 
 ### 1. Create the Service File
 
-Create a new file in `backend/app/services/`:
+Create a new file in `server/app/services/`:
 
 ```python
-# backend/app/services/my_service.py
+# server/app/services/my_service.py
 from typing import Optional, List, Dict, Any
 import logging
 
@@ -68,7 +68,7 @@ class MyService:
 
 ### 2. Export the Service
 
-Add to `backend/app/services/__init__.py`:
+Add to `server/app/services/__init__.py`:
 
 ```python
 from .my_service import MyService
@@ -84,7 +84,7 @@ __all__ = [
 Initialize at module level for singleton pattern:
 
 ```python
-# backend/app/api/my_feature.py
+# server/app/api/my_feature.py
 from app.services import MyService, OtherService
 
 # Initialize services at module level
@@ -106,7 +106,7 @@ For services that need database access, create a mixin:
 ### 1. Create the Mixin
 
 ```python
-# backend/app/services/database/my_table.py
+# server/app/services/database/my_table.py
 from typing import List, Optional, Dict, Any
 import psycopg2.extras
 
@@ -201,7 +201,7 @@ class MyTableMixin:
 ### 2. Add Mixin to DatabaseManager
 
 ```python
-# backend/app/services/database/__init__.py
+# server/app/services/database/__init__.py
 from .base import BaseDatabaseManager
 from .my_table import MyTableMixin
 # ... other imports
@@ -210,7 +210,7 @@ class DatabaseManager(
     BaseDatabaseManager,
     MyTableMixin,  # Add your mixin
     ConversationsMixin,
-    ProjectDraftsMixin,
+    IdeasMixin,
     # ... other mixins
 ):
     """Combined database manager with all mixins."""
@@ -236,7 +236,7 @@ def get_database() -> DatabaseManager:
 For services integrating with external APIs:
 
 ```python
-# backend/app/services/external_api_service.py
+# server/app/services/external_api_service.py
 import httpx
 from typing import Optional, Dict, Any
 from app.config import settings
@@ -294,15 +294,46 @@ class ExternalApiService:
 
 ---
 
+## LLM Service Pattern
+
+For services that interact with LLMs:
+
+```python
+# server/app/services/my_llm_service.py
+from typing import AsyncGenerator
+from app.services.langchain_llm_service import LangChainLLMService
+
+
+class MyLLMService(LangChainLLMService):
+    """Service extending LangChain LLM capabilities."""
+
+    async def generate_custom_output(
+        self,
+        llm_model: str,
+        input_text: str,
+    ) -> AsyncGenerator[str, None]:
+        """Generate custom output with streaming."""
+        system_prompt = "You are a helpful assistant."
+
+        async for chunk in self._stream_completion(
+            llm_model=llm_model,
+            system_prompt=system_prompt,
+            user_message=input_text,
+        ):
+            yield chunk
+```
+
+---
+
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `backend/app/services/` | Service classes directory |
-| `backend/app/services/__init__.py` | Service exports and `get_database()` |
-| `backend/app/services/database/` | Database mixin classes |
-| `backend/app/services/database/base.py` | Base database manager |
-| `backend/app/config.py` | Configuration settings |
+| `server/app/services/` | Service classes directory |
+| `server/app/services/__init__.py` | Service exports and `get_database()` |
+| `server/app/services/database/` | Database mixin classes |
+| `server/app/services/database/base.py` | Base database manager |
+| `server/app/config.py` | Configuration settings |
 
 ---
 
@@ -312,8 +343,8 @@ class ExternalApiService:
 |--------------|----------|---------|
 | Business Logic | `app/services/my_service.py` | Class with methods |
 | Database Access | `app/services/database/my_table.py` | Mixin class |
-| LLM Integration | `app/services/openai_service.py` | Async class |
-| External API | `app/services/linear_service.py` | HTTP client class |
+| LLM Integration | `app/services/langchain_llm_service.py` | Async class |
+| External API | `app/services/mem0_service.py` | HTTP client class |
 | File Processing | `app/services/pdf_service.py` | Utility class |
 
 ---
@@ -347,7 +378,7 @@ class ExternalApiService:
 
 3. Run existing tests:
    ```bash
-   pytest tests/ -v
+   make test
    ```
 
 4. Test via API endpoint:

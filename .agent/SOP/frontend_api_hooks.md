@@ -397,11 +397,13 @@ export function MyFeatureList() {
 
 | File | Purpose |
 |------|---------|
-| `src/hooks/useMyFeature.ts` | Main feature hook |
-| `src/hooks/useSearch.ts` | Example search hook with debouncing |
-| `src/hooks/useAuth.ts` | Authentication hook |
-| `src/types/` | Type definitions |
-| `src/lib/config.ts` | API configuration |
+| `src/features/[feature]/hooks/` | Feature-specific hooks |
+| `src/shared/hooks/useAuth.ts` | Authentication hook |
+| `src/shared/hooks/useSearch.ts` | Search hook with debouncing |
+| `src/shared/providers/QueryProvider.tsx` | React Query configuration |
+| `src/shared/lib/config.ts` | API configuration |
+| `src/shared/lib/api-adapters.ts` | Anti-corruption layer for API responses |
+| `src/types/api.gen.ts` | Auto-generated OpenAPI types |
 
 ---
 
@@ -522,3 +524,193 @@ const fetchWithCache = useCallback(async (key: string) => {
 5. Verify debouncing for search hooks (network tab)
 
 6. Test mutations update state correctly
+
+---
+
+## React Query Integration
+
+The frontend uses React Query for server state management via `QueryProvider`:
+
+### QueryProvider Configuration
+
+```typescript
+// shared/providers/QueryProvider.tsx
+"use client"
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000, // 1 minute
+      refetchOnWindowFocus: false,
+    },
+  },
+})
+
+export function QueryProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  )
+}
+```
+
+### Using React Query in Hooks
+
+```typescript
+// features/conversation/hooks/useConversations.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { config } from "@/shared/lib/config"
+
+export function useConversations() {
+  return useQuery({
+    queryKey: ["conversations"],
+    queryFn: async () => {
+      const response = await fetch(`${config.apiUrl}/conversations`, {
+        credentials: "include",
+      })
+      if (!response.ok) throw new Error("Failed to fetch")
+      return response.json()
+    },
+  })
+}
+
+export function useDeleteConversation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`${config.apiUrl}/conversations/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      if (!response.ok) throw new Error("Failed to delete")
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    },
+  })
+}
+```
+
+---
+
+## Streaming Hook Pattern
+
+For Server-Sent Events (SSE) streaming responses:
+
+```typescript
+// features/project-draft/hooks/useChatStreaming.ts
+import { useState, useCallback, useRef } from "react"
+import { config } from "@/shared/lib/config"
+
+interface UseChatStreamingReturn {
+  isStreaming: boolean
+  streamMessage: (message: string) => Promise<void>
+  cancelStream: () => void
+}
+
+export function useChatStreaming(
+  onChunk: (chunk: string) => void,
+  onComplete: () => void
+): UseChatStreamingReturn {
+  const [isStreaming, setIsStreaming] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  const streamMessage = useCallback(async (message: string) => {
+    setIsStreaming(true)
+    abortControllerRef.current = new AbortController()
+
+    try {
+      const response = await fetch(`${config.apiUrl}/chat/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ message }),
+        signal: abortControllerRef.current.signal,
+      })
+
+      if (!response.ok) throw new Error("Stream request failed")
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) throw new Error("No response body")
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        onChunk(chunk)
+      }
+
+      onComplete()
+    } catch (error) {
+      if ((error as Error).name !== "AbortError") {
+        console.error("Streaming error:", error)
+      }
+    } finally {
+      setIsStreaming(false)
+    }
+  }, [onChunk, onComplete])
+
+  const cancelStream = useCallback(() => {
+    abortControllerRef.current?.abort()
+    setIsStreaming(false)
+  }, [])
+
+  return { isStreaming, streamMessage, cancelStream }
+}
+```
+
+---
+
+## Context-Based Hook Pattern
+
+For shared state across components using React Context:
+
+```typescript
+// features/conversation/hooks/useConversationActions.ts
+import { useCallback } from "react"
+import { useConversation } from "../context/ConversationContext"
+import { config } from "@/shared/lib/config"
+
+export function useConversationActions() {
+  const { selectedConversation, setSelectedConversation } = useConversation()
+
+  const updateTitle = useCallback(async (newTitle: string) => {
+    if (!selectedConversation) return
+
+    const response = await fetch(
+      `${config.apiUrl}/conversations/${selectedConversation.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title: newTitle }),
+      }
+    )
+
+    if (!response.ok) throw new Error("Failed to update")
+
+    const updated = await response.json()
+    setSelectedConversation(updated)
+    return updated
+  }, [selectedConversation, setSelectedConversation])
+
+  const deleteConversation = useCallback(async () => {
+    if (!selectedConversation) return
+
+    await fetch(`${config.apiUrl}/conversations/${selectedConversation.id}`, {
+      method: "DELETE",
+      credentials: "include",
+    })
+
+    setSelectedConversation(null)
+  }, [selectedConversation, setSelectedConversation])
+
+  return { updateTitle, deleteConversation }
+}

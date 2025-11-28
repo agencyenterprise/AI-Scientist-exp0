@@ -14,16 +14,16 @@ The frontend is a Next.js application providing a web interface for conversation
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| Next.js | 15.5.4 | React framework with App Router |
+| Next.js | 15.4.7 | React framework with App Router |
 | React | 19.1.0 | UI library |
 | TypeScript | 5.x | Type-safe JavaScript |
 | Tailwind CSS | 4.x | Utility-first CSS (PostCSS plugin) |
 | shadcn/ui | - | Component library (new-york style) |
-| Zustand | - | Feature-level state management |
-| React Query | - | Server state management |
+| React Context | - | Feature-level state management |
+| React Query | 5.90.10 | Server state management |
 | react-hook-form | - | Form state management |
-| Zod | 4.x | Schema validation |
-| Lucide React | - | Icon library |
+| Zod | 4.1.13 | Schema validation |
+| Lucide React | 0.554.0 | Icon library |
 
 ### Key Capabilities
 - Import conversations from ChatGPT, Claude, and Grok share URLs
@@ -42,41 +42,80 @@ The project follows a **feature-based architecture**. The `app/` directory conta
 
 ```
 frontend/
-├── app/                    # Next.js App Router (routes only)
-│   ├── layout.tsx
-│   ├── globals.css
-│   ├── login/
-│   └── (dashboard)/
+├── src/
+│   ├── app/                       # Next.js App Router (routes only)
+│   │   ├── layout.tsx            # Root layout with AuthProvider & QueryProvider
+│   │   ├── globals.css
+│   │   ├── login/
+│   │   │   └── page.tsx
+│   │   └── (dashboard)/
+│   │       ├── layout.tsx
+│   │       ├── page.tsx
+│   │       ├── conversations/
+│   │       │   ├── page.tsx
+│   │       │   └── [id]/
+│   │       │       └── page.tsx
+│   │
+│   ├── features/                  # Feature-based organization
+│   │   ├── conversation/          # Conversation management
+│   │   ├── conversation-import/   # Import from ChatGPT, Claude, Grok
+│   │   ├── project-draft/         # Project draft generation (30+ components)
+│   │   ├── input-pipeline/        # Hypothesis creation form
+│   │   ├── model-selector/        # Model selection UI
+│   │   ├── search/                # Search functionality
+│   │   ├── dashboard/             # Dashboard components
+│   │   ├── layout/                # Layout components (Sidebar)
+│   │   ├── imported-chat/         # Imported chat display
+│   │   └── user-profile/          # User profile dropdown
+│   │
+│   ├── shared/                    # Shared across features
+│   │   ├── components/
+│   │   │   ├── ui/               # shadcn/ui components (auto-generated)
+│   │   │   ├── Header.tsx
+│   │   │   ├── FileUpload.tsx
+│   │   │   ├── FileAttachment.tsx
+│   │   │   ├── Markdown.tsx
+│   │   │   └── ProtectedRoute.tsx
+│   │   ├── contexts/
+│   │   │   └── AuthContext.tsx
+│   │   ├── providers/
+│   │   │   └── QueryProvider.tsx
+│   │   ├── hooks/
+│   │   │   ├── useAuth.ts
+│   │   │   └── useSearch.ts
+│   │   └── lib/
+│   │       ├── api-adapters.ts   # Anti-corruption layer for API responses
+│   │       ├── auth-api.ts
+│   │       ├── config.ts
+│   │       ├── fileUtils.ts
+│   │       ├── searchUtils.ts
+│   │       └── utils.ts
+│   │
+│   └── types/
+│       ├── api.gen.ts            # Auto-generated OpenAPI types
+│       ├── index.ts
+│       ├── auth.ts
+│       └── search.ts
 │
-├── features/               # Feature-based organization
-│   ├── auth/              # Authentication feature
-│   ├── conversations/     # Conversation management
-│   ├── project-drafts/    # Project draft generation
-│   ├── search/            # Search functionality
-│   └── dashboard/         # Main dashboard
-│
-├── shared/                 # Shared across multiple features
-│   ├── components/        # Shared UI components
-│   ├── hooks/             # Shared hooks
-│   ├── types/             # Shared types
-│   └── utils/             # Shared utilities
-│
-├── lib/                    # External service integrations & utilities
-│   ├── utils.ts           # Utility functions (cn, etc.)
-│   ├── config.ts          # Environment configuration
-│   └── api-client.ts      # API client setup
-│
-├── providers/              # Context providers
-│   └── auth-provider.tsx
-│
-├── clients/                # API clients
-│   └── backend-client.ts
-│
-├── components/             # shadcn/ui components (auto-generated)
-│   └── ui/
-│
-└── public/                 # Static assets
+├── public/
+├── package.json
+└── next.config.ts
 ```
+
+### Features Overview
+
+| Feature | Path | Description |
+|---------|------|-------------|
+| `conversation` | `src/features/conversation/` | Conversation views, cards, header, title editor |
+| `conversation-import` | `src/features/conversation-import/` | Import from ChatGPT, Claude, Grok URLs |
+| `project-draft` | `src/features/project-draft/` | Project drafting with chat, diff viewer, sections (30+ components) |
+| `input-pipeline` | `src/features/input-pipeline/` | Hypothesis creation form with model selection |
+| `model-selector` | `src/features/model-selector/` | Model selection dropdown UI |
+| `search` | `src/features/search/` | Vector-based semantic search |
+| `dashboard` | `src/features/dashboard/` | Dashboard-specific components |
+| `layout` | `src/features/layout/` | Sidebar navigation |
+| `imported-chat` | `src/features/imported-chat/` | Imported chat tab display |
+| `user-profile` | `src/features/user-profile/` | User profile dropdown |
 
 ### Feature Structure Template
 
@@ -87,12 +126,12 @@ features/[feature]/
 ├── components/             # Feature-specific components
 │   ├── ui/                # Feature-specific UI components
 │   └── forms/             # Feature-specific forms
-├── hooks/                  # React Query hooks for data operations
-├── stores/                 # Zustand stores (if needed)
-├── types/                  # Feature-specific types (or use entity files)
+├── hooks/                  # Custom hooks for data/state operations
+├── contexts/               # React Context (if needed for shared state)
+├── types/                  # Feature-specific types (or co-locate with entities)
 ├── utils/                  # Feature-specific utilities
-├── repositories/           # Data access layer
-└── constants.ts            # Feature-specific constants
+├── schemas/                # Zod validation schemas
+└── index.ts                # Barrel exports
 ```
 
 **Important**: Prefer entity files over separate `types/` folders. Types should be co-located with their domain entities.
@@ -126,16 +165,17 @@ features/[feature]/
 
 ```typescript
 // shadcn/ui components
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Button } from "@/shared/components/ui/button"
+import { Input } from "@/shared/components/ui/input"
 
 // Feature imports
-import { useConversations } from "@/features/conversations/hooks/use-conversations"
-import { ConversationCard } from "@/features/conversations/components/conversation-card"
+import { useConversationActions } from "@/features/conversation/hooks/useConversationActions"
+import { ConversationCard } from "@/features/conversation/components/ConversationCard"
 
 // Shared imports
-import { cn } from "@/lib/utils"
-import { useAuth } from "@/features/auth/hooks/use-auth"
+import { cn } from "@/shared/lib/utils"
+import { useAuth } from "@/shared/hooks/useAuth"
+import { AuthContext } from "@/shared/contexts/AuthContext"
 ```
 
 ---
@@ -183,52 +223,113 @@ export function MyComponent({ className, children }: MyComponentProps) {
 - Use React's `useState` and `useReducer`
 - For simple, component-scoped state
 
-### Feature-Level State
-- Use **Zustand** stores in `features/[feature]/stores/`
-- **Important**: Do NOT create convenience hooks - use the store directly
+### Feature-Level State (React Context)
+- Use **React Context** in `features/[feature]/contexts/` or `shared/contexts/`
+- Create a Provider component and a custom hook for consuming the context
 
 ```typescript
-// features/dashboard/stores/dashboard-store.ts
-import { create } from "zustand"
+// features/conversation/context/ConversationContext.tsx
+"use client"
 
-interface DashboardState {
-  sidebarCollapsed: boolean
-  toggleSidebar: () => void
+import { createContext, useContext, useState, ReactNode } from "react"
+
+interface ConversationContextValue {
+  selectedConversation: Conversation | null
+  setSelectedConversation: (conv: Conversation | null) => void
+  isEditing: boolean
+  setIsEditing: (editing: boolean) => void
 }
 
-export const useDashboardStore = create<DashboardState>((set) => ({
-  sidebarCollapsed: false,
-  toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-}))
+const ConversationContext = createContext<ConversationContextValue | null>(null)
 
-// Usage - access store directly, no wrapper hook
-const { sidebarCollapsed, toggleSidebar } = useDashboardStore()
+export function ConversationProvider({ children }: { children: ReactNode }) {
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+
+  return (
+    <ConversationContext.Provider value={{
+      selectedConversation,
+      setSelectedConversation,
+      isEditing,
+      setIsEditing,
+    }}>
+      {children}
+    </ConversationContext.Provider>
+  )
+}
+
+export function useConversation() {
+  const context = useContext(ConversationContext)
+  if (!context) {
+    throw new Error("useConversation must be used within ConversationProvider")
+  }
+  return context
+}
 ```
 
-### Server State
-- Use **React Query** hooks in `features/[feature]/hooks/`
-- Follow the `use-[type-name].ts` naming pattern
+### Shared Context Example (AuthContext)
 
 ```typescript
-// features/conversations/hooks/use-conversations.ts
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+// shared/contexts/AuthContext.tsx
+"use client"
 
-export function useConversations() {
-  return useQuery({
-    queryKey: ["conversations"],
-    queryFn: fetchConversations,
-  })
+import { createContext, useContext, useState, useEffect, ReactNode } from "react"
+
+interface AuthContextValue {
+  user: User | null
+  isAuthenticated: boolean
+  isLoading: boolean
+  login: () => Promise<void>
+  logout: () => Promise<void>
 }
 
-export function useDeleteConversation() {
-  const queryClient = useQueryClient()
+const AuthContext = createContext<AuthContextValue | null>(null)
 
-  return useMutation({
-    mutationFn: deleteConversation,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["conversations"] })
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    checkAuthStatus()
+  }, [])
+
+  // ... implementation
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider")
+  }
+  return context
+}
+```
+
+### Server State (React Query)
+- Use **React Query** via `QueryProvider` in `shared/providers/`
+- Configuration with sensible defaults
+
+```typescript
+// shared/providers/QueryProvider.tsx
+"use client"
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000, // 1 minute
+      refetchOnWindowFocus: false,
     },
-  })
+  },
+})
+
+export function QueryProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  )
 }
 ```
 
@@ -350,32 +451,76 @@ export function CreateProjectForm() {
 
 ### When Creating New Features
 
-1. Create feature folder in `features/`
+1. Create feature folder in `src/features/`
 2. Follow the feature structure template
-3. Use kebab-case for all files and folders
+3. Use kebab-case for folder names
 4. Define types in entity files, not separate `types/` folders
-5. Create repositories for data access
-6. Use React Query hooks for server state
-7. Use Zustand stores for complex local state
+5. Use React Context for shared feature state
+6. Use custom hooks for data fetching and state operations
+7. Co-locate related components, hooks, and utilities
 
 ### Component Development
 
 1. Start with shadcn/ui components when possible
-2. Create feature-specific components in `features/[feature]/components/`
-3. Create shared components in `shared/components/`
-4. Use the `cn()` utility for conditional classes
+2. Create feature-specific components in `src/features/[feature]/components/`
+3. Create shared components in `src/shared/components/`
+4. Use the `cn()` utility from `@/shared/lib/utils` for conditional classes
 5. Co-locate styles with components using Tailwind
 
 ### Adding a New Page
 
-1. Create file in `app/` following App Router conventions
+1. Create file in `src/app/` following App Router conventions
 2. Use `"use client"` directive for client components
 3. Import feature components, don't put logic in page files
 4. Keep pages thin - they should compose feature components
 
 ---
 
-## 8. Migration Guide
+## 8. Type Generation (OpenAPI)
+
+The frontend uses auto-generated TypeScript types from the backend OpenAPI spec.
+
+### Type Generation Workflow
+
+```bash
+# Generate types from backend OpenAPI spec
+npm run gen:api-types
+
+# Or during build (automatic via prebuild hook)
+openapi-typescript ../backend/openapi.json --output src/types/api.gen.ts
+```
+
+### Anti-Corruption Layer
+
+The `api-adapters.ts` file converts backend API responses (snake_case) to frontend types (camelCase):
+
+```typescript
+// shared/lib/api-adapters.ts
+import type { components } from "@/types/api.gen"
+
+// Re-export types with frontend-friendly names
+export type Conversation = components["schemas"]["Conversation"]
+export type ProjectDraft = components["schemas"]["ProjectDraft"]
+
+// Type guard for error responses
+export function isErrorResponse(response: unknown): response is ErrorResponse {
+  return typeof response === "object" && response !== null && "error" in response
+}
+
+// Adapter functions for API responses
+export function adaptConversation(data: ApiConversation): Conversation {
+  return {
+    id: data.id,
+    title: data.title,
+    createdAt: data.created_at,
+    // ... transform snake_case to camelCase
+  }
+}
+```
+
+---
+
+## 9. Migration Guide
 
 ### When to Migrate
 
@@ -383,10 +528,8 @@ Identify code that needs migration when you see:
 
 | Pattern | Issue | Target |
 |---------|-------|--------|
-| `components/FeatureName/` | Components grouped by feature in wrong location | `features/[feature]/components/` |
-| `contexts/SomeContext.tsx` | React Context for feature state | Zustand store in `features/[feature]/stores/` |
-| `hooks/useSomething.ts` | Global hooks folder | `features/[feature]/hooks/` or `shared/hooks/` |
-| `useFeatureName.ts` (camelCase) | Wrong naming convention | `use-feature-name.ts` (kebab-case) |
+| `components/FeatureName/` | Components grouped by feature in wrong location | `src/features/[feature]/components/` |
+| `hooks/useSomething.ts` | Global hooks folder | `src/features/[feature]/hooks/` or `src/shared/hooks/` |
 | `types/feature.ts` | Separate types folder | Co-locate with entity or `[feature].types.ts` |
 | Custom form handling | Not using shadcn/ui Form | Migrate to react-hook-form + shadcn/ui |
 
@@ -403,67 +546,25 @@ components/
 │   └── components/ProjectDraftHeader.tsx
 
 # After
-features/project-drafts/
+src/features/project-draft/
 ├── components/
-│   ├── project-draft.tsx
-│   ├── project-draft-header.tsx
+│   ├── ProjectDraft.tsx
+│   ├── ProjectDraftHeader.tsx
 │   └── forms/
 ├── hooks/
-│   └── use-project-draft-state.ts
+│   └── useProjectDraftState.ts
 └── types/
-    └── project-draft.types.ts
+    └── types.ts
 ```
 
 Steps:
-1. Create feature folder: `features/project-drafts/`
-2. Move components, renaming to kebab-case
-3. Move hooks to `features/project-drafts/hooks/`
+1. Create feature folder: `src/features/project-draft/`
+2. Move components to `components/` subfolder
+3. Move hooks to `hooks/` subfolder
 4. Update all imports throughout the codebase
 5. Delete old component folder
 
-#### 2. Converting Context to Zustand
-
-```typescript
-// Before: contexts/DashboardContext.tsx
-const DashboardContext = createContext<DashboardContextValue>(...)
-
-export function DashboardProvider({ children }) {
-  const [conversations, setConversations] = useState([])
-  // ...
-}
-
-// After: features/dashboard/stores/dashboard-store.ts
-import { create } from "zustand"
-
-export const useDashboardStore = create((set) => ({
-  conversations: [],
-  setConversations: (conversations) => set({ conversations }),
-  // ...
-}))
-```
-
-Steps:
-1. Create store in `features/[feature]/stores/`
-2. Move state and actions to Zustand store
-3. Replace `useContext(DashboardContext)` with `useDashboardStore()`
-4. Remove Provider wrapper from layout
-5. Delete old context file
-
-#### 3. Renaming Hooks to Kebab-Case
-
-```bash
-# Before
-hooks/useAuth.ts
-hooks/useSearch.ts
-
-# After
-features/auth/hooks/use-auth.ts
-features/search/hooks/use-search.ts
-# OR if truly shared:
-shared/hooks/use-auth.ts
-```
-
-#### 4. Migrating Forms to shadcn/ui
+#### 2. Migrating Forms to shadcn/ui
 
 ```typescript
 // Before: Custom form handling
@@ -509,15 +610,13 @@ function MyForm() {
 
 2. **Medium Priority** (when working in the area):
    - Migrate components to features when modifying them
-   - Convert contexts to Zustand when adding new state
 
 3. **Low Priority** (dedicated refactoring):
-   - Bulk rename files to kebab-case
    - Migrate all forms to shadcn/ui pattern
 
 ---
 
-## 9. Configuration Files
+## 10. Configuration Files
 
 | File | Purpose |
 |------|---------|
@@ -551,11 +650,13 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID="..."
 
 ---
 
-## 10. Scripts
+## 11. Scripts
 
 ```bash
 npm run dev          # Start dev server with Turbopack
-npm run build        # Production build
+npm run build        # Production build (runs prebuild type generation)
 npm run lint         # Run ESLint
+npm run lint:fix     # Run ESLint with auto-fix
 npm run format       # Run Prettier
+npm run gen:api-types # Generate TypeScript types from backend OpenAPI spec
 ```

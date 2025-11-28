@@ -21,7 +21,7 @@ Key capabilities:
 |----------|-------------|
 | [Project Architecture](System/project_architecture.md) | Overall system architecture, project structure, tech stack |
 | [Frontend Architecture](System/frontend_architecture.md) | Next.js frontend: feature-based architecture, conventions, migration guide |
-| [Backend Architecture](System/backend_architecture.md) | FastAPI backend: API routes, services, database schema, LLM integrations |
+| [Server Architecture](System/server_architecture.md) | FastAPI server: API routes, services, database schema, LLM integrations |
 | [Orchestrator Architecture](System/orchestrator_architecture.md) | Next.js orchestrator: event processing, RunPod, MongoDB, state machine |
 
 ### Root-Level Documentation
@@ -32,12 +32,12 @@ Key capabilities:
 
 ### Standard Operating Procedures (SOPs)
 
-#### Backend SOPs
+#### Server SOPs
 | Document | Description |
 |----------|-------------|
-| [Database Migrations](SOP/backend_database_migrations.md) | Creating and running Alembic migrations |
-| [API Routes](SOP/backend_api_routes.md) | Adding FastAPI routes with authentication |
-| [Services](SOP/backend_services.md) | Creating services and database mixins |
+| [Database Migrations](SOP/server_database_migrations.md) | Creating and running Alembic migrations |
+| [API Routes](SOP/server_api_routes.md) | Adding FastAPI routes with authentication |
+| [Services](SOP/server_services.md) | Creating services and database mixins |
 
 #### Frontend SOPs
 | Document | Description |
@@ -63,12 +63,12 @@ Key capabilities:
 ├── System/             # System & architecture documentation
 │   ├── project_architecture.md      # Overall project
 │   ├── frontend_architecture.md     # Frontend details
-│   ├── backend_architecture.md      # Backend details
+│   ├── server_architecture.md       # Server details
 │   └── orchestrator_architecture.md # Orchestrator details
 ├── SOP/                # Standard operating procedures
-│   ├── backend_database_migrations.md
-│   ├── backend_api_routes.md
-│   ├── backend_services.md
+│   ├── server_database_migrations.md
+│   ├── server_api_routes.md
+│   ├── server_services.md
 │   ├── frontend_pages.md
 │   ├── frontend_features.md
 │   ├── frontend_api_hooks.md

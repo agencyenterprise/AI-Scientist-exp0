@@ -1,17 +1,17 @@
-# SOP: Backend API Routes
+# SOP: Server API Routes
 
 ## Related Documentation
-- [Backend Architecture](../System/backend_architecture.md)
+- [Server Architecture](../System/server_architecture.md)
 - [Project Architecture](../System/project_architecture.md)
 
 ---
 
 ## Overview
 
-This SOP covers creating new API routes in the FastAPI backend. Use this procedure when you need to:
+This SOP covers creating new API routes in the FastAPI server. Use this procedure when you need to:
 - Add new REST endpoints
 - Create new feature modules
-- Expose backend functionality via HTTP
+- Expose server functionality via HTTP
 
 ---
 
@@ -27,10 +27,10 @@ This SOP covers creating new API routes in the FastAPI backend. Use this procedu
 
 ### 1. Create the Route Module
 
-Create a new file in `backend/app/api/`:
+Create a new file in `server/app/api/`:
 
 ```python
-# backend/app/api/my_feature.py
+# server/app/api/my_feature.py
 from fastapi import APIRouter, Request, Response
 from app.middleware.auth import get_current_user
 from app.services import get_database
@@ -44,10 +44,10 @@ db = get_database()
 
 ### 2. Define Request/Response Models
 
-Create or update models in `backend/app/models/`:
+Create or update models in `server/app/models/`:
 
 ```python
-# backend/app/models/my_feature.py
+# server/app/models/my_feature.py
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
@@ -66,7 +66,7 @@ class MyFeatureResponse(BaseModel):
 
 ### 3. Export Models
 
-Add exports to `backend/app/models/__init__.py`:
+Add exports to `server/app/models/__init__.py`:
 
 ```python
 from app.models.my_feature import MyFeatureRequest, MyFeatureResponse
@@ -83,7 +83,7 @@ __all__ = [
 Add endpoints to your route module:
 
 ```python
-# backend/app/api/my_feature.py
+# server/app/api/my_feature.py
 
 @router.get("/")
 async def list_features(request: Request) -> List[MyFeatureResponse]:
@@ -135,7 +135,7 @@ async def delete_feature(feature_id: int, request: Request) -> None:
 
 ### 5. Register the Router
 
-Add the router to `backend/app/routes.py`:
+Add the router to `server/app/routes.py`:
 
 ```python
 from app.api.my_feature import router as my_feature_router
@@ -147,10 +147,10 @@ router.include_router(my_feature_router)
 
 ### 6. Add Database Methods (if needed)
 
-Create a new mixin in `backend/app/services/database/`:
+Create a new mixin in `server/app/services/database/`:
 
 ```python
-# backend/app/services/database/my_feature.py
+# server/app/services/database/my_feature.py
 from typing import List, Optional, Dict, Any
 
 class MyFeatureMixin:
@@ -182,7 +182,7 @@ class MyFeatureMixin:
 
 ### 7. Include Mixin in DatabaseManager
 
-Update `backend/app/services/database/__init__.py`:
+Update `server/app/services/database/__init__.py`:
 
 ```python
 from .my_feature import MyFeatureMixin
@@ -201,11 +201,11 @@ class DatabaseManager(
 
 | File | Purpose |
 |------|---------|
-| `backend/app/api/` | Route modules directory |
-| `backend/app/routes.py` | Central router registration |
-| `backend/app/models/` | Pydantic request/response models |
-| `backend/app/middleware/auth.py` | Authentication utilities |
-| `backend/app/services/database/` | Database mixins |
+| `server/app/api/` | Route modules directory |
+| `server/app/routes.py` | Central router registration |
+| `server/app/models/` | Pydantic request/response models |
+| `server/app/middleware/auth.py` | Authentication utilities |
+| `server/app/services/database/` | Database mixins |
 
 ---
 
@@ -220,17 +220,6 @@ from app.middleware.auth import get_current_user
 async def protected_route(request: Request):
     user = get_current_user(request)
     # user.id, user.email, user.name available
-```
-
-### Service Authentication (API Key)
-
-```python
-from app.middleware.auth import get_current_service
-
-@router.post("/webhook")
-async def webhook(request: Request):
-    service = get_current_service(request)
-    # service.name, service.permissions available
 ```
 
 ### Optional Authentication
@@ -262,10 +251,10 @@ async def public_route(request: Request):
 
 ## Verification
 
-1. Start the backend:
+1. Start the server:
    ```bash
-   cd backend
-   uvicorn app.main:app --reload
+   cd server
+   make dev
    ```
 
 2. Check the endpoint appears in OpenAPI docs:
@@ -279,5 +268,5 @@ async def public_route(request: Request):
 
 4. Run tests if available:
    ```bash
-   pytest tests/test_my_feature.py
+   make test
    ```

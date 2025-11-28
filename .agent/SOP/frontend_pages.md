@@ -149,15 +149,18 @@ For authenticated routes, ensure you're inside `(dashboard)` group which uses `P
 
 ```typescript
 // frontend/src/app/(dashboard)/layout.tsx (already exists)
-import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { ProtectedRoute } from "@/shared/components/ProtectedRoute"
+import { Header } from "@/shared/components/Header"
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <ProtectedRoute>
-      <DashboardProvider>
-        {/* Layout content */}
-        {children}
-      </DashboardProvider>
+      <div className="flex flex-col h-screen">
+        <Header />
+        <main className="flex-1 overflow-auto">
+          {children}
+        </main>
+      </div>
     </ProtectedRoute>
   )
 }
@@ -191,9 +194,11 @@ src/app/
 
 ```
 src/app/(dashboard)/
-├── page.tsx                    # /
-├── conversations/[id]/page.tsx # /conversations/:id
-└── settings/page.tsx           # /settings
+├── page.tsx                    # / (dashboard home with CreateHypothesisForm)
+├── conversations/
+│   ├── page.tsx               # /conversations (list view)
+│   └── [id]/
+│       └── page.tsx           # /conversations/:id (detail view)
 ```
 
 ### Nested Dynamic Routes
@@ -215,10 +220,10 @@ src/app/(dashboard)/
 
 | File | Purpose |
 |------|---------|
-| `src/app/layout.tsx` | Root layout with AuthProvider |
-| `src/app/(dashboard)/layout.tsx` | Dashboard layout with DashboardContext |
-| `src/app/(dashboard)/DashboardContext.tsx` | Shared dashboard state |
-| `src/components/ProtectedRoute.tsx` | Route protection component |
+| `src/app/layout.tsx` | Root layout with AuthProvider & QueryProvider |
+| `src/app/(dashboard)/layout.tsx` | Dashboard layout with Header |
+| `src/shared/contexts/AuthContext.tsx` | Authentication state |
+| `src/shared/components/ProtectedRoute.tsx` | Route protection component |
 
 ---
 
@@ -248,10 +253,10 @@ export default function MyPage() {
 ```typescript
 "use client"
 
-import { useAuthContext } from "@/contexts/AuthContext"
+import { useAuth } from "@/shared/hooks/useAuth"
 
 export default function MyPage() {
-  const { user, isAuthenticated, logout } = useAuthContext()
+  const { user, isAuthenticated, logout } = useAuth()
 
   if (!isAuthenticated) {
     return <div>Please log in</div>

@@ -318,14 +318,43 @@ Current features in the codebase:
 
 | Feature | Path | Description |
 |---------|------|-------------|
-| `input-pipeline` | `src/features/input-pipeline/` | Hypothesis creation form |
-| `project-draft` | `src/features/project-draft/` | Project drafting with diff viewer |
-| `import-modal` | `src/features/import-modal/` | Import modal with streaming |
-| `imported-chat` | `src/features/imported-chat/` | Imported chat display |
-| `search` | `src/features/search/` | Search functionality |
-| `layout` | `src/features/layout/` | Layout components (Sidebar) |
-| `conversation` | `src/features/conversation/` | Conversation views and cards |
-| `dashboard` | `src/features/dashboard/` | Dashboard components |
+| `conversation` | `src/features/conversation/` | Conversation views, cards, header, title editor |
+| `conversation-import` | `src/features/conversation-import/` | Import from ChatGPT, Claude, Grok URLs |
+| `project-draft` | `src/features/project-draft/` | Project drafting with chat, diff viewer (30+ components) |
+| `input-pipeline` | `src/features/input-pipeline/` | Hypothesis creation form with model selection |
+| `model-selector` | `src/features/model-selector/` | Model selection dropdown UI |
+| `search` | `src/features/search/` | Vector-based semantic search |
+| `dashboard` | `src/features/dashboard/` | Dashboard-specific components |
+| `layout` | `src/features/layout/` | Sidebar navigation |
+| `imported-chat` | `src/features/imported-chat/` | Imported chat tab display |
+| `user-profile` | `src/features/user-profile/` | User profile dropdown |
+
+### Project-Draft Feature (Component Decomposition Example)
+
+The `project-draft` feature demonstrates a well-modularized component structure with 30+ components:
+
+**Main Components:**
+- `ProjectDraft.tsx` - Main feature container
+- `ChatMessage.tsx` - Individual chat message display
+- `ChatInputArea.tsx` - Chat input with file upload
+- `ChatMarkdown.tsx` - Markdown rendering for chat
+- `ChatStreamingMessage.tsx` - Streaming message indicator
+- `DiffViewer.tsx` - Side-by-side diff display
+
+**Section Components:**
+- `AbstractSection.tsx` - Abstract content section
+- `HypothesisSection.tsx` - Hypothesis display
+- `RelatedWorkSection.tsx` - Related work references
+- `ExpectedOutcomeSection.tsx` - Expected outcomes
+- `ExperimentsSection.tsx` - Experiment descriptions
+- `RiskFactorsSection.tsx` - Risk factors
+
+**Hooks:**
+- `useChatMessages.ts` - Chat message state management
+- `useChatStreaming.ts` - SSE streaming for chat responses
+- `useChatFileUpload.ts` - File upload handling
+- `useVersionManagement.ts` - Version history management
+- `useProjectDraftState.ts` - Overall feature state
 
 ---
 

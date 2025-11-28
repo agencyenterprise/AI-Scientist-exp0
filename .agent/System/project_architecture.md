@@ -36,7 +36,7 @@ AE-Scientist/
 │   ├── perform_writeup.py    # Paper generation
 │   └── perform_llm_review.py # Paper review
 │
-├── backend/                   # FastAPI web server
+├── server/                    # FastAPI web server
 │   ├── app/                  # API routes, models, services
 │   └── database_migrations/  # Alembic migrations
 │
@@ -199,24 +199,23 @@ workspaces/
 - Real-time streaming chat
 - Vector-based semantic search
 
-### Backend (`/backend`)
+### Server (`/server`)
 
-**Tech Stack**: FastAPI + PostgreSQL + pgvector + Alembic
+**Tech Stack**: FastAPI + PostgreSQL + Alembic + LangChain
 
 | Directory | Purpose |
 |-----------|---------|
 | `app/api/` | REST API routes |
-| `app/models/` | Database models |
+| `app/models/` | Pydantic models |
 | `app/services/` | Business logic services |
-| `app/middleware/` | Auth, CORS middleware |
+| `app/middleware/` | Auth middleware |
 | `database_migrations/` | Alembic schema migrations |
 
 **API Routes**:
 | Prefix | Purpose |
 |--------|---------|
 | `/api/auth` | Google OAuth, session management |
-| `/api/conversations` | Conversation CRUD, chat, files |
-| `/api/search` | Vector-based semantic search |
+| `/api/conversations` | Conversation import, CRUD, ideas |
 | `/api/llm-defaults` | LLM model configuration |
 | `/api/llm-prompts` | System prompt management |
 
@@ -227,10 +226,9 @@ workspaces/
 
 **Database Tables**:
 - `users`, `user_sessions` - Authentication
-- `conversations`, `imported_chat_messages` - Imported chats
-- `project_drafts`, `project_draft_versions` - AI-generated projects
+- `conversations` - Imported chats
+- `ideas`, `idea_versions` - AI-generated research ideas
 - `chat_messages`, `chat_summaries` - Live chat
-- `search_chunks` - Vector embeddings (pgvector)
 - `file_attachments` - S3 file references
 
 ---
@@ -281,8 +279,8 @@ AWS_S3_BUCKET_NAME=...
 # Start PostgreSQL for full deployment
 docker-compose up -d
 
-# Build and run backend
-cd backend && docker build -t ae-scientist-backend .
+# Build and run server
+cd server && docker build -t ae-scientist-server .
 
 # Build and run frontend
 cd frontend && docker build -t ae-scientist-frontend .
@@ -304,7 +302,7 @@ cd frontend && docker build -t ae-scientist-frontend .
 | Layer | Technologies |
 |-------|--------------|
 | Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS |
-| Backend | FastAPI, SQLAlchemy, PostgreSQL, pgvector |
+| Server | FastAPI, PostgreSQL, Alembic, LangChain |
 | Auth | Google OAuth 2.0, session cookies |
 | Storage | AWS S3 |
 
