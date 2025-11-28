@@ -14,7 +14,7 @@ interface ViewModeTabsProps {
 const VIEW_MODE_CONFIG: Array<{ mode: ViewMode; label: string; title: string }> = [
   { mode: "chat", label: "Chat", title: "Show Imported Chat" },
   { mode: "split", label: "Split", title: "Split View" },
-  { mode: "project", label: "Project", title: "Show Project Draft" },
+  { mode: "project", label: "Hypothesis", title: "Show Research Hypothesis" },
 ];
 
 export function ViewModeTabs({ viewMode, pendingView, onViewChange }: ViewModeTabsProps) {

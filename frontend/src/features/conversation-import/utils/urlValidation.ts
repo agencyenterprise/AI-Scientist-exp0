@@ -59,7 +59,7 @@ export function getStateMessage(
           ? `Summarizing conversation (${summaryProgress}%)...`
           : "Summarizing conversation...";
       case ImportState.Generating:
-        return "Generating project draft...";
+        return "Generating research hypothesis...";
       default:
         return "Processing...";
     }

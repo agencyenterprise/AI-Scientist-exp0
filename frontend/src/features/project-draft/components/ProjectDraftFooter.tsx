@@ -57,7 +57,7 @@ export function ProjectDraftFooter({
             "opacity-50 cursor-not-allowed": isGenerating,
           })}
         >
-          <span>Launch Project</span>
+          <span>Launch Hypothesis</span>
         </button>
       </div>
     </>

@@ -61,7 +61,7 @@ export function ImportStreamingCard({
                 Updating conversation with latest content...
               </div>
               <div className="text-xs text-muted-foreground">
-                Your existing project draft will be preserved.
+                Your existing research hypothesis will be preserved.
               </div>
             </div>
           </div>
@@ -71,7 +71,7 @@ export function ImportStreamingCard({
             value={streamingContent}
             readOnly
             className="w-full h-64 p-3 bg-muted border border-border rounded-md text-sm font-mono resize-none text-foreground"
-            placeholder="Analyzing conversation and generating project draft..."
+            placeholder="Analyzing conversation and generating research hypothesis..."
           />
         )}
       </div>

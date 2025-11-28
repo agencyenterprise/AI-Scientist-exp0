@@ -232,7 +232,7 @@ export function SearchResults({
         {/* Welcome Message */}
         <h2 className="text-2xl font-bold text-foreground mb-4">Search Your Knowledge Base</h2>
         <p className="text-muted-foreground text-lg max-w-xl">
-          Find information across all your conversations, imported chats, and project drafts
+          Find information across all your conversations, imported chats, and research hypotheses
         </p>
       </div>
     );

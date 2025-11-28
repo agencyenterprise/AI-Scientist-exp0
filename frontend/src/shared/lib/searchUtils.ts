@@ -242,7 +242,7 @@ export function getContentTypeLabel(contentType: string): string {
     case "chat_message":
       return "Chat Message";
     case "project_draft":
-      return "Project Draft";
+      return "Research Hypothesis";
     default:
       return contentType.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
   }
