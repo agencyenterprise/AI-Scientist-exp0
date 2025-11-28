@@ -150,8 +150,31 @@ export function useProjectDraftState({
   };
 
   const handleConfirmCreateProject = async (): Promise<void> => {
-    // Project creation functionality removed (Linear integration removed)
-    setIsCreateModalOpen(false);
+    setIsCreatingProject(true);
+    try {
+      const response = await fetch(
+        `${config.apiUrl}/conversations/${conversation.id}/idea/research-run`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        let errorMessage = "Failed to launch project";
+        try {
+          const errorResult = await response.json();
+          errorMessage = errorResult.detail || errorResult.error || errorMessage;
+        } catch {
+          // Ignore JSON parse errors and use default message
+        }
+        throw new Error(errorMessage);
+      }
+
+      setIsCreateModalOpen(false);
+    } finally {
+      setIsCreatingProject(false);
+    }
   };
 
   // Load initial data
