@@ -38,9 +38,10 @@ class State(BaseModel):
 
 
 class Context(BaseModel):
-    """Context for research stage (placeholder for consistency)."""
+    """Context for research stage."""
 
-    pass
+    research_model: str = "gpt-4.1"
+    final_report_model: str = "gpt-4.1"
 
 
 async def node_research(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
@@ -51,7 +52,13 @@ async def node_research(state: State, runtime: Runtime[Context]) -> dict[str, An
 
     result = await researcher.deep_researcher.ainvoke(
         messages,
-        config={"configurable": {"allow_clarification": False}},
+        config={
+            "configurable": {
+                "allow_clarification": False,
+                "research_model": runtime.context.research_model,
+                "final_report_model": runtime.context.final_report_model,
+            }
+        },
     )
 
     logger.debug(f"deep_research: {result['final_report'][:32]!r}")

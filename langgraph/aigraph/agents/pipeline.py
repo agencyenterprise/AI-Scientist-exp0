@@ -57,6 +57,10 @@ class Context(BaseModel):
     stage_reviewer_model: str | None = None
     stage_reviewer_temperature: float = 0.0
 
+    # Stage: research (open_deep_research)
+    stage_research_model: str = "openai:gpt-4.1"
+    stage_research_final_report_model: str = "openai:gpt-4.1"
+
     @property
     def llm(self) -> BaseChatModel:
         return init_chat_model(model=self.model, temperature=self.temperature)
@@ -164,6 +168,9 @@ async def node_experiment(
         stage_writeup_model=runtime.context.stage_writeup_model,
         stage_writeup_temperature=runtime.context.stage_writeup_temperature,
         stage_writeup_max_retries=runtime.context.stage_writeup_max_retries,
+        # research
+        stage_research_model=runtime.context.stage_research_model,
+        stage_research_final_report_model=runtime.context.stage_research_final_report_model,
     )
     result = await graph.ainvoke(input=state, context=experiment_context)
     result = experiment.State.model_validate(result)

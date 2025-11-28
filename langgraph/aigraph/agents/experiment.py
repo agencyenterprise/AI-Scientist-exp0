@@ -80,29 +80,33 @@ class Context(BaseModel):
     temperature: float = 0.0
 
     # Stage: baseline
-    stage_baseline_model: str | None = None
+    stage_baseline_model: str = "gpt-4.1"
     stage_baseline_temperature: float = 0.0
     stage_baseline_max_retries: int = 5
 
     # Stage: tuning
-    stage_tuning_model: str | None = None
+    stage_tuning_model: str = "gpt-4.1"
     stage_tuning_temperature: float = 0.0
     stage_tuning_max_retries: int = 5
 
     # Stage: ablation
-    stage_ablation_model: str | None = None
+    stage_ablation_model: str = "gpt-4.1"
     stage_ablation_temperature: float = 0.0
     stage_ablation_max_retries: int = 5
 
     # Stage: plotting
-    stage_plotting_model: str | None = None
+    stage_plotting_model: str = "gpt-4.1"
     stage_plotting_temperature: float = 0.0
     stage_plotting_max_retries: int = 5
 
     # Stage: writeup
-    stage_writeup_model: str | None = None
+    stage_writeup_model: str = "gpt-4.1"
     stage_writeup_temperature: float = 0.0
     stage_writeup_max_retries: int = 5
+
+    # Stage: research (open_deep_research)
+    stage_research_model: str = "gpt-4.1"
+    stage_research_final_report_model: str = "gpt-4.1"
 
     @property
     def llm(self) -> BaseChatModel:
@@ -119,9 +123,18 @@ async def node_setup(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
 async def node_research(state: State, runtime: Runtime[Context]) -> dict[str, Any]:
     logger.info("Starting node_research")
 
-    research_state = research.State(cwd=state.cwd, task=state.task)
+    research_state = research.State(
+        cwd=state.cwd,
+        task=state.task,
+    )
+
+    research_context = research.Context(
+        research_model=runtime.context.stage_research_model,
+        final_report_model=runtime.context.stage_research_final_report_model,
+    )
+
     graph = research.build(checkpointer=True)
-    result = await graph.ainvoke(input=research_state)
+    result = await graph.ainvoke(input=research_state, context=research_context)
     result = research.State.model_validate(result)
 
     logger.info("Finished node_research")

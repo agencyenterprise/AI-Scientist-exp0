@@ -84,6 +84,10 @@ class Args(BaseSettings):
     stage_reviewer_model: Annotated[str, Field(default='gpt-5')]
     stage_reviewer_temperature: Annotated[float, Field(default=0.0)]
 
+    # Stage: research (open_deep_research)
+    stage_research_model: Annotated[str, Field(default='openai:gpt-4.1')]
+    stage_research_final_report_model: Annotated[str, Field(default='openai:gpt-4.1')]
+
     async def cli_cmd(self) -> None:
         self.cwd.mkdir(parents=True, exist_ok=True)
 
@@ -137,6 +141,9 @@ class Args(BaseSettings):
             # reviewer
             stage_reviewer_model=self.stage_reviewer_model,
             stage_reviewer_temperature=self.stage_reviewer_temperature,
+            # research
+            stage_research_model=self.stage_research_model,
+            stage_research_final_report_model=self.stage_research_final_report_model,
         )
 
         async with aiosqlite.connect(self.checkpoint_db) as conn:
