@@ -42,7 +42,7 @@ export function CreateProjectModal({
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-foreground">Create Linear Project</h3>
+            <h3 className="text-lg font-medium text-foreground">Create Hypothesis</h3>
             <button
               type="button"
               onClick={handleClose}
@@ -56,7 +56,7 @@ export function CreateProjectModal({
           {/* Content */}
           <div className="mb-6">
             <p className="text-sm text-muted-foreground mb-4">
-              This will create a new project in Linear using your current project draft.
+              This will create a new research hypothesis based on your current work.
             </p>
 
             {/* Warning */}
@@ -70,7 +70,7 @@ export function CreateProjectModal({
                   <div className="mt-1 text-sm text-muted-foreground">
                     <p>
                       Once created, this conversation will be locked and you won&apos;t be able to
-                      modify the project draft or continue the AI chat. This action cannot be
+                      modify the research hypothesis or continue the AI chat. This action cannot be
                       undone.
                     </p>
                   </div>
@@ -97,12 +97,12 @@ export function CreateProjectModal({
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating Project...
+                Creating Hypothesis...
               </>
             ) : (
               <>
                 <Plus className="w-4 h-4 mr-2" />
-                Create Project
+                Create Hypothesis
               </>
             )}
           </button>
