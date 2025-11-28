@@ -1580,6 +1580,16 @@ export interface components {
              */
             message: string;
         };
+        /** ResearchRunAcceptedResponse */
+        ResearchRunAcceptedResponse: {
+            /** Run Id */
+            run_id: string;
+            /**
+             * Status
+             * @default ok
+             */
+            status: string;
+        };
         /** RunFinishedPayload */
         RunFinishedPayload: {
             /** Run Id */
@@ -1622,25 +1632,6 @@ export interface components {
             /** Run Id */
             run_id: string;
             event: components["schemas"]["StageProgressEvent"];
-        };
-        /** SubmitIdeaResponse */
-        SubmitIdeaResponse: {
-            /** Run Id */
-            run_id: string;
-            /** Status */
-            status: string;
-            /** Pod Id */
-            pod_id: string | null;
-            /** Pod Name */
-            pod_name: string | null;
-            /** Gpu Type */
-            gpu_type: string | null;
-            /** Public Ip */
-            public_ip: string | null;
-            /** Ssh Port */
-            ssh_port: string | null;
-            /** Pod Host Id */
-            pod_host_id: string | null;
         };
         /**
          * SummaryResponse
@@ -2782,7 +2773,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SubmitIdeaResponse"];
+                    "application/json": components["schemas"]["ResearchRunAcceptedResponse"];
                 };
             };
             /** @description Validation Error */

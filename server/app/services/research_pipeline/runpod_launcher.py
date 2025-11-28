@@ -4,6 +4,7 @@ Launches the research pipeline on RunPod and injects refined ideas/configuration
 
 import base64
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, cast
 
 import requests
+from omegaconf import OmegaConf
 
 
 class RunPodError(Exception):
@@ -177,8 +179,10 @@ class RunPodEnvironment:
     telemetry_webhook_token: str
 
 
+logger = logging.getLogger(__name__)
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
-PIPELINE_DIR = REPO_ROOT / "research_pipeline"
+CONFIG_TEMPLATE_PATH = Path(__file__).resolve().parent / "bfts_config_template.yaml"
 RUNPOD_SETUP_SCRIPT_PATH = Path(__file__).resolve().parent / "runpod_repo_setup.sh"
 
 
@@ -203,33 +207,32 @@ def _load_runpod_environment() -> RunPodEnvironment:
         openai_api_key=_require("OPENAI_API_KEY"),
         hf_token=_require("HF_TOKEN"),
         database_url=_require("DATABASE_URL"),
-        telemetry_webhook_url=os.environ.get("TELEMETRY_WEBHOOK_URL", ""),
-        telemetry_webhook_token=os.environ.get("TELEMETRY_WEBHOOK_TOKEN", ""),
+        telemetry_webhook_url=_require("TELEMETRY_WEBHOOK_URL"),
+        telemetry_webhook_token=_require("TELEMETRY_WEBHOOK_TOKEN"),
     )
 
 
-def _prepare_config_text(
-    *, template_path: Path, idea_filename: str, telemetry: dict[str, str]
-) -> str:
-    config_text = template_path.read_text(encoding="utf-8")
-    marker = "desc_file:"
-    lines = config_text.splitlines()
-    replaced = False
-    for idx, line in enumerate(lines):
-        if line.strip().startswith(marker):
-            lines[idx] = f"{marker} {idea_filename}"
-            replaced = True
-            break
-    if not replaced:
-        lines.append(f"{marker} {idea_filename}")
-    config_text = "\n".join(lines)
+def _prepare_config_text(*, idea_filename: str, telemetry: dict[str, str]) -> str:
+    if not CONFIG_TEMPLATE_PATH.exists():
+        raise RuntimeError(
+            "Pipeline config template missing at "
+            f"{CONFIG_TEMPLATE_PATH}. Ensure the file exists."
+        )
+    config = OmegaConf.load(CONFIG_TEMPLATE_PATH)
+    logger.info(
+        "Preparing pipeline config from %s with desc_file=%s",
+        CONFIG_TEMPLATE_PATH,
+        idea_filename,
+    )
+    config.desc_file = idea_filename
     if telemetry:
-        config_text += "\ntelemetry:\n"
-        for key, value in telemetry.items():
-            config_text += f"  {key}: {json.dumps(value)}\n"
-    if not config_text.endswith("\n"):
-        config_text += "\n"
-    return config_text
+        config.telemetry = telemetry
+    else:
+        config.telemetry = None
+    config_yaml = OmegaConf.to_yaml(config)
+    if not config_yaml.endswith("\n"):
+        config_yaml += "\n"
+    return config_yaml
 
 
 def _encode_multiline(value: str) -> str:
@@ -305,32 +308,24 @@ def launch_research_pipeline_run(
     if not runpod_api_key:
         raise RuntimeError("RUNPOD_API_KEY environment variable is required.")
     env = _load_runpod_environment()
-    config_path = PIPELINE_DIR / config_name
-    if not config_path.exists():
-        raise FileNotFoundError(f"Config template not found: {config_path}")
 
     idea_filename = f"{run_id}_idea.json"
-    config_filename = f"{run_id}_config.yaml"
+    config_filename = config_name
     telemetry_block: dict[str, str] = {
         "database_url": env.database_url,
         "run_id": run_id,
+        "webhook_url": env.telemetry_webhook_url,
+        "webhook_token": env.telemetry_webhook_token,
     }
-    has_webhook = bool(env.telemetry_webhook_url and env.telemetry_webhook_token)
-    if has_webhook:
-        telemetry_block["webhook_url"] = env.telemetry_webhook_url
-        telemetry_block["webhook_token"] = env.telemetry_webhook_token
-    elif env.telemetry_webhook_url or env.telemetry_webhook_token:
-        logger.warning(
-            "Telemetry webhook requires both TELEMETRY_WEBHOOK_URL and "
-            "TELEMETRY_WEBHOOK_TOKEN. Skipping webhook injection."
-        )
+    logger.info(
+        "Launching research pipeline run_id=%s with config=%s (telemetry url=%s)",
+        run_id,
+        config_filename,
+        env.telemetry_webhook_url,
+    )
 
     idea_text = json.dumps(idea, indent=2)
-    config_text = _prepare_config_text(
-        template_path=config_path,
-        idea_filename=idea_filename,
-        telemetry=telemetry_block,
-    )
+    config_text = _prepare_config_text(idea_filename=idea_filename, telemetry=telemetry_block)
     idea_b64 = _encode_multiline(idea_text)
     config_b64 = _encode_multiline(config_text)
 
@@ -348,7 +343,8 @@ def launch_research_pipeline_run(
         "GIT_SSH_KEY_B64": github_key_b64,
         "REPO_NAME": "AE-Scientist",
         "REPO_ORG": "agencyenterprise",
-        "REPO_BRANCH": "main",
+        # "REPO_BRANCH": "main",
+        "REPO_BRANCH": "feature/aut-220-ae-scientist-api-research-pipeline",
         "OPENAI_API_KEY": env.openai_api_key,
         "HF_TOKEN": env.hf_token,
     }

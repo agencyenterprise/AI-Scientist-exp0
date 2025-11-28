@@ -1662,7 +1662,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SubmitIdeaResponse"
+                  "$ref": "#/components/schemas/ResearchRunAcceptedResponse"
                 }
               }
             }
@@ -3097,6 +3097,24 @@
         "title": "MessageResponse",
         "description": "Simple message response."
       },
+      "ResearchRunAcceptedResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id"
+        ],
+        "title": "ResearchRunAcceptedResponse"
+      },
       "RunFinishedPayload": {
         "properties": {
           "run_id": {
@@ -3231,96 +3249,6 @@
           "event"
         ],
         "title": "StageProgressPayload"
-      },
-      "SubmitIdeaResponse": {
-        "properties": {
-          "run_id": {
-            "type": "string",
-            "title": "Run Id"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "pod_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pod Id"
-          },
-          "pod_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pod Name"
-          },
-          "gpu_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gpu Type"
-          },
-          "public_ip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Public Ip"
-          },
-          "ssh_port": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ssh Port"
-          },
-          "pod_host_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pod Host Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "run_id",
-          "status",
-          "pod_id",
-          "pod_name",
-          "gpu_type",
-          "public_ip",
-          "ssh_port",
-          "pod_host_id"
-        ],
-        "title": "SubmitIdeaResponse"
       },
       "SummaryResponse": {
         "properties": {

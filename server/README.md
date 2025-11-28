@@ -316,6 +316,12 @@ AWS_S3_BUCKET_NAME="your-s3-bucket"                 # For file uploads
 TELEMETRY_WEBHOOK_URL="https://your-backend-host/api/research-pipeline/events"
 TELEMETRY_WEBHOOK_TOKEN="your_shared_secret_token"
 
+# Research pipeline monitor settings (all required)
+PIPELINE_MONITOR_POLL_INTERVAL_SECONDS="60"
+PIPELINE_MONITOR_HEARTBEAT_TIMEOUT_SECONDS="60"
+PIPELINE_MONITOR_MAX_MISSED_HEARTBEATS="5"
+PIPELINE_MONITOR_STARTUP_GRACE_SECONDS="600"
+
 # Metacognition Service (for conversation summarization)
 METACOGNITION_API_URL="http://localhost:8888"      # External summarization service
 METACOGNITION_AUTH_TOKEN="your-auth-token-here"    # Auth token for summarization

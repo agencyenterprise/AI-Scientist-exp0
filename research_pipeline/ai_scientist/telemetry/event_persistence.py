@@ -11,6 +11,7 @@ writer thread in the launcher process performs the inserts.
 import json
 import logging
 import multiprocessing
+import multiprocessing.queues  # noqa: F401  # Ensure multiprocessing.queues is imported
 import queue
 import threading
 from dataclasses import dataclass
