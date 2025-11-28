@@ -204,6 +204,9 @@ async def node_review(state: State, runtime: Runtime[Context]) -> dict[str, Any]
     result = reviewer.State.model_validate(result)
     assert result.review is not None
 
+    filename = state.cwd / f"review_{state.iteration:03d}.json"
+    filename.write_text(result.model_dump_json(indent=2))
+
     for e in result.review.done:
         logger.info("Experiment %s is done", e.id)
     for e in result.review.drop:
