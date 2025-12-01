@@ -218,6 +218,7 @@ export default function ResearchRunDetailPage() {
       }, 10000); // Refresh every 10 seconds
       return () => clearInterval(interval);
     }
+    return undefined;
   }, [details?.run.status, loadRunDetails]);
 
   if (loading) {
