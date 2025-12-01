@@ -4,9 +4,9 @@ import { ConversationHeader } from "@/features/conversation/components/Conversat
 import { ConversationProvider } from "@/features/conversation/context/ConversationContext";
 import { ProjectDraftTab } from "@/features/project-draft/components/ProjectDraftTab";
 import type { ConversationDetail } from "@/types";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { MessageCircle } from "lucide-react";
-import { apiFetch } from "@/shared/lib/api-client";
+import { apiFetch, ApiError } from "@/shared/lib/api-client";
 
 interface ConversationViewProps {
   conversation?: ConversationDetail;
@@ -29,10 +29,13 @@ export function ConversationView({
   const [showConversation, setShowConversation] = useState(expandImportedChat);
   const [showProjectDraft, setShowProjectDraft] = useState(true);
   const [mobileProjectView, setMobileProjectView] = useState<"chat" | "draft">("draft");
-  const researchRuns =
-    ((conversation as unknown as { research_runs?: unknown[] })?.research_runs ?? []) as
-      | Array<Record<string, unknown>>
-      | [];
+  const researchRuns = useMemo(
+    () =>
+      ((conversation as unknown as { research_runs?: unknown[] })?.research_runs ?? []) as Array<
+        Record<string, unknown>
+      >,
+    [conversation]
+  );
   const [activeRunDetails, setActiveRunDetails] = useState<
     Record<string, { stage_progress?: unknown; logs?: unknown; experiment_nodes?: unknown[] }>
   >({});
@@ -62,18 +65,18 @@ export function ConversationView({
     const loadDetails = async (): Promise<void> => {
       try {
         const detailEntries = await Promise.all(
-          researchRuns.map(async (run) => {
+          researchRuns.map(async run => {
             const runId = (run?.run_id as string) ?? "";
             if (!runId) {
               return [runId, null] as const;
             }
             try {
               const data = await apiFetch<Record<string, unknown>>(
-                `/conversations/${conversation.id}/idea/research-run/${runId}`,
+                `/conversations/${conversation.id}/idea/research-run/${runId}`
               );
               return [runId, data] as const;
             } catch (error) {
-              if (error instanceof Error && "status" in error && error.status === 404) {
+              if (error instanceof ApiError && error.status === 404) {
                 return [
                   runId,
                   {
@@ -83,7 +86,7 @@ export function ConversationView({
               }
               throw error;
             }
-          }),
+          })
         );
         if (!isCancelled) {
           const map: Record<string, Record<string, unknown>> = {};
@@ -97,9 +100,7 @@ export function ConversationView({
         }
       } catch (error) {
         if (!isCancelled) {
-          setRunDetailsError(
-            error instanceof Error ? error.message : "Unable to load run details",
-          );
+          setRunDetailsError(error instanceof Error ? error.message : "Unable to load run details");
         }
       }
     };
