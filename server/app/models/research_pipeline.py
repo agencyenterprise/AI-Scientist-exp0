@@ -8,6 +8,42 @@ from pydantic import BaseModel, Field
 
 from app.models.conversations import ResearchRunSummary
 
+# ============================================================================
+# List API Models
+# ============================================================================
+
+
+class ResearchRunListItem(BaseModel):
+    """Item in the research runs list with enriched data from related tables."""
+
+    run_id: str = Field(..., description="Unique identifier of the run")
+    status: str = Field(..., description="Current status of the run")
+    idea_title: str = Field(..., description="Title from the idea version")
+    idea_hypothesis: Optional[str] = Field(
+        None, description="Short hypothesis from the idea version"
+    )
+    current_stage: Optional[str] = Field(None, description="Latest stage from progress events")
+    progress: Optional[float] = Field(
+        None, description="Progress percentage (0-1) from latest event"
+    )
+    gpu_type: Optional[str] = Field(None, description="GPU type used for the run")
+    best_metric: Optional[str] = Field(None, description="Best metric from latest progress event")
+    created_by_name: str = Field(..., description="Name of the user who created the run")
+    created_at: str = Field(..., description="ISO timestamp when the run was created")
+    updated_at: str = Field(..., description="ISO timestamp when the run was last updated")
+    artifacts_count: int = Field(0, description="Number of artifacts produced by this run")
+    error_message: Optional[str] = Field(None, description="Error message if the run failed")
+    conversation_id: int = Field(..., description="ID of the associated conversation")
+
+
+class ResearchRunListResponse(BaseModel):
+    """Response model for the research runs list API."""
+
+    items: List[ResearchRunListItem] = Field(
+        default_factory=list, description="List of research runs"
+    )
+    total: int = Field(..., description="Total count of research runs")
+
 
 class ResearchRunInfo(ResearchRunSummary):
     start_deadline_at: Optional[str] = Field(
