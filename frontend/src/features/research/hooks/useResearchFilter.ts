@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
-import type { ResearchRun } from "@/shared/lib/api-adapters";
+import { useMemo, useState, useCallback, useEffect } from "react";
+import type { ResearchRun, UserListItem } from "@/shared/lib/api-adapters";
+import { fetchUsers } from "@/shared/lib/api-adapters";
 
 interface UseResearchFilterOptions {
   currentUserName?: string;
@@ -30,6 +31,24 @@ export function useResearchFilter(
   const [statusFilter, setStatusFilter] = useState("all");
   const [onlyMine, setOnlyMine] = useState(true);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [users, setUsers] = useState<UserListItem[]>([]);
+
+  // Fetch all users on mount
+  useEffect(() => {
+    let isMounted = true;
+    fetchUsers()
+      .then(fetchedUsers => {
+        if (isMounted) {
+          setUsers(fetchedUsers);
+        }
+      })
+      .catch(() => {
+        // Silently fail - will show empty user list
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSetSearchTerm = useCallback((term: string) => {
     setSearchTerm(term);
@@ -51,9 +70,8 @@ export function useResearchFilter(
   }, []);
 
   const uniqueUsers = useMemo(() => {
-    const users = new Set(researchRuns.map(r => r.createdByName).filter(Boolean));
-    return Array.from(users).sort();
-  }, [researchRuns]);
+    return users.map(u => u.name).sort();
+  }, [users]);
 
   const filteredResearchRuns = useMemo(() => {
     let filtered = researchRuns;
