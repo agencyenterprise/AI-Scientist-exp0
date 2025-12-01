@@ -61,3 +61,6 @@ export type ConversationDetail = ConversationResponse & { cacheTimestamp?: numbe
 
 // Search types still local; keep exporting
 export * from "./search";
+
+// Research types
+export * from "./research";

@@ -154,3 +154,44 @@ export async function searchApi({
   const data = await res.json();
   return data.results as SearchResult[];
 }
+
+// ============================================================================
+// Research Run types and converters
+// ============================================================================
+
+import type {
+  ResearchRun,
+  ResearchRunListItemApi,
+  ResearchRunListResponseApi,
+  ResearchRunListResponse,
+} from "@/types/research";
+
+export type { ResearchRun };
+
+export function convertApiResearchRun(apiRun: ResearchRunListItemApi): ResearchRun {
+  return {
+    runId: apiRun.run_id,
+    status: apiRun.status,
+    ideaTitle: apiRun.idea_title,
+    ideaHypothesis: apiRun.idea_hypothesis,
+    currentStage: apiRun.current_stage,
+    progress: apiRun.progress,
+    gpuType: apiRun.gpu_type,
+    bestMetric: apiRun.best_metric,
+    createdByName: apiRun.created_by_name,
+    createdAt: apiRun.created_at,
+    updatedAt: apiRun.updated_at,
+    artifactsCount: apiRun.artifacts_count,
+    errorMessage: apiRun.error_message,
+    conversationId: apiRun.conversation_id,
+  };
+}
+
+export function convertApiResearchRunList(
+  apiResponse: ResearchRunListResponseApi
+): ResearchRunListResponse {
+  return {
+    items: apiResponse.items.map(convertApiResearchRun),
+    total: apiResponse.total,
+  };
+}

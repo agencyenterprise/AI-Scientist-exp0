@@ -228,3 +228,69 @@ class ResearchPipelineRunsMixin:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
+
+    def list_all_research_pipeline_runs(
+        self, *, limit: int = 50, offset: int = 0
+    ) -> tuple[list[dict], int]:
+        """
+        List all research pipeline runs with enriched data from related tables.
+
+        Returns a tuple of (list of run dicts, total count).
+        Each dict contains:
+        - run_id, status, gpu_type, error_message, created_at, updated_at
+        - idea_title, idea_hypothesis from idea_versions
+        - created_by_name from users
+        - current_stage, progress, best_metric from latest rp_run_stage_progress_events
+        - artifacts_count from rp_artifacts
+        - conversation_id from ideas
+        """
+        query = """
+            WITH latest_progress AS (
+                SELECT DISTINCT ON (run_id)
+                    run_id,
+                    stage,
+                    progress,
+                    best_metric
+                FROM rp_run_stage_progress_events
+                ORDER BY run_id, created_at DESC
+            ),
+            artifact_counts AS (
+                SELECT run_id, COUNT(*) as count
+                FROM rp_artifacts
+                GROUP BY run_id
+            )
+            SELECT
+                r.run_id,
+                r.status,
+                r.gpu_type,
+                r.error_message,
+                r.created_at,
+                r.updated_at,
+                iv.title AS idea_title,
+                iv.short_hypothesis AS idea_hypothesis,
+                u.name AS created_by_name,
+                lp.stage AS current_stage,
+                lp.progress,
+                lp.best_metric,
+                COALESCE(ac.count, 0) AS artifacts_count,
+                i.conversation_id
+            FROM research_pipeline_runs r
+            JOIN ideas i ON r.idea_id = i.id
+            JOIN idea_versions iv ON r.idea_version_id = iv.id
+            JOIN users u ON i.created_by_user_id = u.id
+            LEFT JOIN latest_progress lp ON r.run_id = lp.run_id
+            LEFT JOIN artifact_counts ac ON r.run_id = ac.run_id
+            ORDER BY r.created_at DESC
+            LIMIT %s OFFSET %s
+        """
+        count_query = "SELECT COUNT(*) FROM research_pipeline_runs"
+
+        with psycopg2.connect(**self.pg_config) as conn:  # type: ignore[attr-defined]
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                cursor.execute(count_query)
+                total = cursor.fetchone()["count"]
+
+                cursor.execute(query, (limit, offset))
+                rows = cursor.fetchall() or []
+
+        return [dict(row) for row in rows], total
