@@ -290,6 +290,7 @@ def _build_remote_script(
     idea_content_b64: str,
     config_filename: str,
     config_content_b64: str,
+    run_id: str,
 ) -> str:
     script_parts: list[str] = ["set -euo pipefail", ""]
     script_parts += [
@@ -312,6 +313,8 @@ def _build_remote_script(
         f"AWS_SECRET_ACCESS_KEY={env.aws_secret_access_key}",
         f"AWS_REGION={env.aws_region}",
         f"AWS_S3_BUCKET_NAME={env.aws_s3_bucket_name}",
+        f"RUN_ID={run_id}",
+        f"DATABASE_PUBLIC_URL={env.database_public_url}",
         "EOF",
         "# === Inject refined idea and config ===",
         "cd /workspace/AE-Scientist/research_pipeline",
@@ -326,6 +329,10 @@ def _build_remote_script(
         "source .venv/bin/activate",
         f"python launch_scientist_bfts.py '{config_filename}' 2>&1 | tee -a /workspace/research_pipeline.log",
         'echo "Research pipeline completed. Check /workspace/research_pipeline.log for full output."',
+        "",
+        "# === Upload Research Pipeline Log to S3 ===",
+        'echo "Uploading research pipeline log to S3 (best-effort)..."',
+        "python upload_runpod_log.py --log-path /workspace/research_pipeline.log --artifact-type run_log || true",
     ]
     return "\n".join(script_parts).strip()
 
@@ -367,6 +374,7 @@ def launch_research_pipeline_run(
         idea_content_b64=idea_b64,
         config_filename=config_filename,
         config_content_b64=config_b64,
+        run_id=run_id,
     )
 
     creator = RunPodCreator(api_key=runpod_api_key)
@@ -382,6 +390,8 @@ def launch_research_pipeline_run(
         "AWS_SECRET_ACCESS_KEY": env.aws_secret_access_key,
         "AWS_REGION": env.aws_region,
         "AWS_S3_BUCKET_NAME": env.aws_s3_bucket_name,
+        "RUN_ID": run_id,
+        "DATABASE_PUBLIC_URL": env.database_public_url,
     }
     gpu_types = [
         "NVIDIA GeForce RTX 5090",
