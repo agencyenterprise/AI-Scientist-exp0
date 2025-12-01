@@ -20,10 +20,9 @@ lint: lint-research lint-server
 
 lint-frontend:
 	@echo "🔍 Linting frontend..."
-	@echo "🎨 Auto-formatting frontend..."
-	cd frontend && npm run format
-	cd frontend && npm run lint
-	cd frontend && npm run style
+	cd frontend && npm run format:check
+	cd frontend && npm run lint -- --max-warnings=0
+	cd frontend && npm run style:check
 	@echo "🔍 Type checking frontend..."
 	cd frontend && npx tsc --noEmit
 

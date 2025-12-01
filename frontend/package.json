@@ -11,6 +11,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\"",
     "style": "stylelint \"src/**/*.{css,scss}\" --fix",
+    "style:check": "stylelint \"src/**/*.{css,scss}\" --max-warnings=0 --allow-empty-input",
     "check-tailwind": "node check-tailwind.js",
     "fix-tailwind": "node check-tailwind.js && pkill -f 'next dev' || true && npm run dev",
     "gen:api-types": "openapi-typescript http://localhost:8000/openapi.json --output src/types/api.gen.ts",
