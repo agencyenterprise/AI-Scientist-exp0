@@ -126,8 +126,8 @@ export function useConversationImport(
 
   // Compute streamingContent from sections in correct order
   const streamingContent = useMemo(() => {
-    return SECTION_ORDER.filter((key) => sections[key])
-      .map((key) => sections[key])
+    return SECTION_ORDER.filter(key => sections[key])
+      .map(key => sections[key])
       .join("\n");
   }, [sections]);
 
@@ -255,7 +255,7 @@ export function useConversationImport(
           switch (eventData.type) {
             case "section_update": {
               const { field, data } = eventData as SSESectionUpdate;
-              setSections((prev) => ({ ...prev, [field]: data }));
+              setSections(prev => ({ ...prev, [field]: data }));
               break;
             }
             case "content": {
