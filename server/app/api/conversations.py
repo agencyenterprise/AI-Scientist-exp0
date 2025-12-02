@@ -1147,11 +1147,13 @@ async def import_manual_seed(
 
 @router.get("")
 async def list_conversations(
-    response: Response, limit: int = 100, offset: int = 0
+    request: Request, response: Response, limit: int = 100, offset: int = 0
 ) -> Union[ConversationListResponse, ErrorResponse]:
     """
-    Get a paginated list of all imported conversations.
+    Get a paginated list of conversations for the current user.
     """
+    user = get_current_user(request)
+
     if limit <= 0 or limit > 1000:
         response.status_code = 400
         return ErrorResponse(error="Invalid limit", detail="Limit must be between 1 and 1000")
@@ -1161,7 +1163,9 @@ async def list_conversations(
         return ErrorResponse(error="Invalid offset", detail="Offset must be non-negative")
 
     db = get_database()
-    conversations: List[DBDashboardConversation] = db.list_conversations(limit=limit, offset=offset)
+    conversations: List[DBDashboardConversation] = db.list_conversations(
+        limit=limit, offset=offset, user_id=user.id
+    )
     return ConversationListResponse(
         conversations=[
             ConversationListItem(
