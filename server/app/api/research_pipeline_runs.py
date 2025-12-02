@@ -20,7 +20,11 @@ from app.services.database.ideas import IdeaData
 from app.services.database.research_pipeline_runs import ResearchPipelineRun
 from app.services.database.rp_artifacts import ResearchPipelineArtifact
 from app.services.database.rp_events import ExperimentNodeEvent, RunLogEvent, StageProgressEvent
-from app.services.research_pipeline.runpod_launcher import RunPodError, launch_research_pipeline_run
+from app.services.research_pipeline.runpod_manager import (
+    RunPodError,
+    launch_research_pipeline_run,
+    terminate_pod,
+)
 from app.services.s3_service import get_s3_service
 
 router = APIRouter(prefix="/conversations", tags=["research-pipeline"])
@@ -30,6 +34,12 @@ logger = logging.getLogger(__name__)
 class ResearchRunAcceptedResponse(BaseModel):
     run_id: str
     status: str = "ok"
+
+
+class ResearchRunStopResponse(BaseModel):
+    run_id: str
+    status: str
+    message: str
 
 
 def _idea_version_to_payload(idea_data: IdeaData) -> Dict[str, object]:
@@ -218,6 +228,55 @@ def get_research_run_details(
         logs=log_events,
         experiment_nodes=node_events,
         artifacts=artifacts,
+    )
+
+
+@router.post(
+    "/{conversation_id}/idea/research-run/{run_id}/stop",
+    response_model=ResearchRunStopResponse,
+)
+def stop_research_run(conversation_id: int, run_id: str) -> ResearchRunStopResponse:
+    if conversation_id <= 0:
+        raise HTTPException(status_code=400, detail="conversation_id must be positive")
+
+    db = get_database()
+
+    conversation = db.get_conversation_by_id(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    run = db.get_run_for_conversation(run_id=run_id, conversation_id=conversation_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Research run not found")
+    if run.status not in ("pending", "running"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Research run is already {run.status}; cannot stop.",
+        )
+
+    pod_id = run.pod_id
+    if pod_id:
+        try:
+            terminate_pod(pod_id=pod_id)
+        except RunPodError as exc:
+            logger.exception("Failed to terminate pod %s for run %s", pod_id, run_id)
+            raise HTTPException(
+                status_code=502, detail="Failed to terminate the research run pod."
+            ) from exc
+    else:
+        logger.info("Run %s has no pod_id; marking as stopped without pod termination.", run_id)
+
+    stop_message = "Research run was stopped by the user."
+    db.update_research_pipeline_run(
+        run_id=run_id,
+        status="failed",
+        error_message=stop_message,
+    )
+
+    return ResearchRunStopResponse(
+        run_id=run_id,
+        status="stopped",
+        message=stop_message,
     )
 
 
