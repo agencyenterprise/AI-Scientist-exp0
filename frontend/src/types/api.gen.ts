@@ -726,7 +726,7 @@ export interface paths {
         };
         /**
          * List Research Runs
-         * @description List all research pipeline runs with enriched data.
+         * @description List research pipeline runs for the current user.
          *
          *     Returns runs ordered by creation date (newest first) with:
          *     - Run metadata (status, GPU, timestamps)
@@ -735,7 +735,7 @@ export interface paths {
          *     - Artifact count
          *     - Creator information
          *
-         *     Supports filtering by search term, status, and creator user ID.
+         *     Supports filtering by search term and status.
          */
         get: operations["list_research_runs_api_research_runs__get"];
         put?: never;
@@ -1783,10 +1783,45 @@ export interface components {
              */
             experiment_nodes?: components["schemas"]["ResearchRunNodeEvent"][];
             /**
+             * Events
+             * @description Audit events describing run-level lifecycle transitions
+             */
+            events?: components["schemas"]["ResearchRunEvent"][];
+            /**
              * Artifacts
              * @description Artifacts uploaded for the run
              */
             artifacts?: components["schemas"]["ResearchRunArtifactMetadata"][];
+        };
+        /** ResearchRunEvent */
+        ResearchRunEvent: {
+            /**
+             * Id
+             * @description Unique identifier of the audit event
+             */
+            id: number;
+            /**
+             * Run Id
+             * @description Run identifier that produced the event
+             */
+            run_id: string;
+            /**
+             * Event Type
+             * @description Audit event type label
+             */
+            event_type: string;
+            /**
+             * Metadata
+             * @description Structured metadata captured for the event
+             */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Occurred At
+             * @description ISO timestamp when the event was recorded
+             */
+            occurred_at: string;
         };
         /** ResearchRunInfo */
         ResearchRunInfo: {
@@ -1825,6 +1860,11 @@ export interface components {
              * @description Requested GPU type
              */
             gpu_type?: string | null;
+            /**
+             * Cost
+             * @description Hourly RunPod cost (USD) captured when the run launched
+             */
+            cost: number;
             /**
              * Public Ip
              * @description Pod public IP address
@@ -1912,6 +1952,11 @@ export interface components {
              * @description GPU type used for the run
              */
             gpu_type?: string | null;
+            /**
+             * Cost
+             * @description Hourly RunPod cost (USD) captured when the pod launched
+             */
+            cost: number;
             /**
              * Best Metric
              * @description Best metric from latest progress event
@@ -2125,6 +2170,11 @@ export interface components {
              * @description Requested GPU type
              */
             gpu_type?: string | null;
+            /**
+             * Cost
+             * @description Hourly RunPod cost (USD) captured when the run launched
+             */
+            cost: number;
             /**
              * Public Ip
              * @description Pod public IP address
@@ -3509,8 +3559,6 @@ export interface operations {
                 search?: string;
                 /** @description Filter by status (pending, running, completed, failed) */
                 status?: string;
-                /** @description Filter by creator user ID */
-                user_id?: number;
             };
             header?: never;
             path?: never;
