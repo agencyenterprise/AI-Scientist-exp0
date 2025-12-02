@@ -184,7 +184,7 @@ async def test_real_providers_emit_structured_ideas(config: RealIdeaProviderConf
         pytest.fail(f"{config.env_var} not configured")
 
     setattr(settings, config.settings_attr, api_key)
-    service = config.service_factory(summarizer_service=MagicMock())  # type: ignore[call-arg]
+    service = config.service_factory()  # type: ignore[call-arg]
 
     fake_db = MagicMock()
     fake_db.get_memories_block.return_value = SimpleNamespace(

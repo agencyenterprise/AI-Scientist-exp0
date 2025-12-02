@@ -11,7 +11,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from dotenv import load_dotenv
@@ -114,12 +114,6 @@ PROVIDERS: List[ProviderConfig] = [
 ]
 
 
-def _fake_summarizer() -> MagicMock:
-    summarizer = MagicMock()
-    summarizer.get_chat_summary = AsyncMock(return_value=("", []))
-    return summarizer
-
-
 @dataclass(frozen=True)
 class RealProviderConfig:
     provider: str
@@ -171,7 +165,7 @@ async def test_chat_with_idea_invokes_update_tool(config: ProviderConfig) -> Non
 
     setattr(settings, config.env_attr, "test-key")
 
-    service = config.service_factory(summarizer_service=_fake_summarizer())
+    service = config.service_factory()
     fake_model = FakeChatModel(responses=_tool_call_responses())
     with (
         patch("app.services.langchain_llm_service.get_s3_service", return_value=MagicMock()),
@@ -264,7 +258,7 @@ async def test_llm_tool_calls_real_smoke(config: RealProviderConfig) -> None:
         db.create_idea_version = MagicMock()
         mock_get_db.return_value = db
 
-        service = config.service_factory(summarizer_service=_fake_summarizer())
+        service = config.service_factory()
 
         events: List[object] = []
         async for event in service.chat_with_idea_stream(

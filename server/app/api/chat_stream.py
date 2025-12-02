@@ -14,13 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.middleware.auth import get_current_user
 from app.models import ChatMessageData, ChatRequest, LLMModel
-from app.services import (
-    AnthropicService,
-    GrokService,
-    OpenAIService,
-    SummarizerService,
-    get_database,
-)
+from app.services import AnthropicService, GrokService, OpenAIService, get_database
 from app.services.anthropic_service import SUPPORTED_MODELS as ANTHROPIC_MODELS
 from app.services.base_llm_service import BaseLLMService, FileAttachmentData
 from app.services.chat_models import StreamDoneEvent
@@ -30,10 +24,9 @@ from app.services.openai_service import SUPPORTED_MODELS as OPENAI_MODELS
 router = APIRouter(prefix="/conversations")
 
 # Initialize services
-summarizer_service = SummarizerService()
-openai_service = OpenAIService(summarizer_service=summarizer_service)
-anthropic_service = AnthropicService(summarizer_service=summarizer_service)
-grok_service = GrokService(summarizer_service=summarizer_service)
+openai_service = OpenAIService()
+anthropic_service = AnthropicService()
+grok_service = GrokService()
 logger = logging.getLogger(__name__)
 
 
@@ -152,33 +145,8 @@ async def stream_chat_with_idea(
 
             attached_files = file_attachments
 
-            # After linking, upload/link documents to summarizer using extracted_text from DB
-            try:
-                # Re-read attachments to include latest extracted_text/summary_text
-                refreshed = db.get_file_attachments_by_ids(request_data.attachment_ids)
-                attached_files = refreshed
-                for fa in attached_files:
-                    content = fa.extracted_text or fa.summary_text or ""
-                    if not content.strip():
-                        continue
-                    doc_type = (
-                        "pdf"
-                        if fa.file_type == "application/pdf"
-                        else ("image" if fa.file_type.startswith("image/") else "text")
-                    )
-                    logger.debug(
-                        f"Syncing attachment {fa.id}, name: {fa.filename}, type: {doc_type}, to summarizer: {fa.extracted_text} {fa.summary_text}"
-                    )
-                    await summarizer_service.add_document_to_chat_summary(
-                        conversation_id=conversation_id,
-                        content=content,
-                        description=fa.filename,
-                        document_type=doc_type,
-                    )
-            except Exception as e:
-                logger.exception(
-                    f"Failed to sync linked attachments to summarizer for conversation {conversation_id}: {e}"
-                )
+            # Re-read to include latest extracted_text/summary_text metadata
+            attached_files = db.get_file_attachments_by_ids(request_data.attachment_ids)
 
         llm_model = request_data.llm_model
         llm_provider = request_data.llm_provider
@@ -272,11 +240,7 @@ async def stream_chat_with_idea(
                 yield json.dumps({"type": "error", "data": f"Stream error: {str(e)}"}) + "\n"
 
             finally:
-                logger.info(f"Adding messages to chat summary for conversation {conversation_id}")
-                await summarizer_service.add_messages_to_chat_summary(
-                    idea_id=idea_id,
-                    conversation_id=conversation_id,
-                )
+                logger.info(f"Completed stream for conversation {conversation_id}")
 
         return StreamingResponse(
             generate_stream(),

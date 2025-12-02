@@ -7,7 +7,6 @@ from pydantic import SecretStr
 
 from app.config import settings
 from app.models import LLMModel
-from app.services import SummarizerService
 from app.services.openai_service import OpenAIService
 
 logger = logging.getLogger(__name__)
@@ -51,11 +50,11 @@ SUPPORTED_MODELS = [
 class GrokService(OpenAIService):
     """Service for interacting with xAI's Grok API using the OpenAI-compatible path."""
 
-    def __init__(self, *, summarizer_service: SummarizerService) -> None:
+    def __init__(self) -> None:
         self._xai_api_key = settings.XAI_API_KEY
         if not self._xai_api_key:
             raise ValueError("XAI_API_KEY environment variable is required")
-        super().__init__(summarizer_service=summarizer_service)
+        super().__init__()
 
     def _build_chat_model(self, *, model_id: str) -> ChatOpenAI:
         logger.info("Initializing Grok model '%s'", model_id)

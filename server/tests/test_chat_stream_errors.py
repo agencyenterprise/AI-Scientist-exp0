@@ -8,7 +8,7 @@ Validates that:
 """
 
 from typing import AsyncGenerator, Callable, Iterator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -33,10 +33,6 @@ def patch_chat_stream_common(mock_user_data: object) -> Iterator[MagicMock]:
         patch("app.api.chat_stream.get_database") as mock_get_db,
         patch("app.api.chat_stream.get_current_user") as mock_get_user,
         patch("app.services.auth_service.AuthService.get_user_by_session") as mock_get_by_session,
-        patch(
-            "app.api.chat_stream.summarizer_service.add_messages_to_chat_summary",
-            new=AsyncMock(return_value=None),
-        ),
     ):
         db = MagicMock()
         db.get_conversation_by_id.return_value = MagicMock()

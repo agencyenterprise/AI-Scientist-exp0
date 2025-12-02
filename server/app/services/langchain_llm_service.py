@@ -25,7 +25,6 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.config import settings
 from app.models import ChatMessageData, LLMModel
-from app.services import SummarizerService
 from app.services.base_llm_service import BaseLLMService
 from app.services.base_llm_service import FileAttachmentData as LLMFileAttachmentData
 from app.services.base_llm_service import LLMIdeaGeneration
@@ -50,6 +49,7 @@ from app.services.prompts import (
     get_manual_seed_prompt,
 )
 from app.services.s3_service import S3Service, get_s3_service
+from app.services.summarizer import summarize_live_chat_history
 
 logger = logging.getLogger(__name__)
 
@@ -72,23 +72,18 @@ class LangChainLLMService(BaseLLMService, ABC):
     def __init__(
         self,
         *,
-        summarizer_service: SummarizerService,
         supported_models: Sequence[LLMModel],
         provider_name: str,
     ) -> None:
         if not supported_models:
             raise ValueError("supported_models cannot be empty")
 
-        self.summarizer_service = summarizer_service
         self._supported_models = list(supported_models)
         self.provider_name = provider_name
         self._model_cache: Dict[str, BaseChatModel] = {}
         self._s3_service = get_s3_service()
         self._pdf_service = PDFService()
-        self._chat_stream = LangChainChatWithIdeaStream(
-            service=self,
-            summarizer_service=summarizer_service,
-        )
+        self._chat_stream = LangChainChatWithIdeaStream(service=self)
 
     @property
     def s3_service(self) -> S3Service:
@@ -508,11 +503,8 @@ class UpdateIdeaInput(BaseModel):
 class LangChainChatWithIdeaStream:
     """Shared streaming implementation for LangChain chat models."""
 
-    def __init__(
-        self, *, service: LangChainLLMService, summarizer_service: SummarizerService
-    ) -> None:
+    def __init__(self, *, service: LangChainLLMService) -> None:
         self.service = service
-        self.summarizer_service = summarizer_service
 
     async def chat_with_idea_stream(
         self,
@@ -655,10 +647,7 @@ class LangChainChatWithIdeaStream:
         messages: List[BaseMessage] = [
             SystemMessage(content=self.service._text_content_block(text=system_prompt))
         ]
-        summary, recent_chat_messages = await self.summarizer_service.get_chat_summary(
-            conversation_id=conversation_id,
-            chat_history=chat_history,
-        )
+        summary, recent_chat_messages = await summarize_live_chat_history(chat_history)
         if summary:
             messages.append(
                 HumanMessage(
