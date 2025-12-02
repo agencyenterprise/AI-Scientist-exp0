@@ -248,7 +248,7 @@ export interface paths {
         };
         /**
          * List Conversations
-         * @description Get a paginated list of all imported conversations.
+         * @description Get a paginated list of conversations for the current user.
          */
         get: operations["list_conversations_api_conversations_get"];
         put?: never;
@@ -709,6 +709,36 @@ export interface paths {
         };
         /** Download Research Run Artifact */
         get: operations["download_research_run_artifact_api_conversations__conversation_id__idea_research_run__run_id__artifacts__artifact_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{conversation_id}/idea/research-run/{run_id}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Research Run Events
+         * @description Stream research run events via Server-Sent Events.
+         *
+         *     Event types:
+         *     - initial: Full snapshot on connection
+         *     - log: New log entries
+         *     - stage_progress: Meaningful progress changes only
+         *     - artifact: New artifacts
+         *     - run_update: Run status/info changes
+         *     - complete: Run finished (completed/failed)
+         *     - heartbeat: Keep-alive every 30s
+         *     - error: Error occurred
+         */
+        get: operations["stream_research_run_events_api_conversations__conversation_id__idea_research_run__run_id__stream_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3536,6 +3566,36 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_research_run_events_api_conversations__conversation_id__idea_research_run__run_id__stream_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: number;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
