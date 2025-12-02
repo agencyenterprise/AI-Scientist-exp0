@@ -8,7 +8,7 @@ from app.services import get_database
 from app.services.database import DatabaseManager
 from app.services.database.research_pipeline_runs import ResearchPipelineRun
 from app.services.research_pipeline import RunPodError, terminate_pod
-from app.services.research_pipeline.runpod_launcher import RunPodCreator
+from app.services.research_pipeline.runpod_manager import RunPodCreator
 
 logger = logging.getLogger(__name__)
 

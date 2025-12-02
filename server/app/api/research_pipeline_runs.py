@@ -1,4 +1,5 @@
 import logging
+import threading
 from typing import Dict
 from uuid import uuid4
 
@@ -20,16 +21,29 @@ from app.services.database.ideas import IdeaData
 from app.services.database.research_pipeline_runs import ResearchPipelineRun
 from app.services.database.rp_artifacts import ResearchPipelineArtifact
 from app.services.database.rp_events import ExperimentNodeEvent, RunLogEvent, StageProgressEvent
-from app.services.research_pipeline.runpod_launcher import RunPodError, launch_research_pipeline_run
+from app.services.research_pipeline.runpod_manager import (
+    RunPodError,
+    launch_research_pipeline_run,
+    terminate_pod,
+)
 from app.services.s3_service import get_s3_service
 
 router = APIRouter(prefix="/conversations", tags=["research-pipeline"])
 logger = logging.getLogger(__name__)
 
+_launch_cancel_events: dict[str, threading.Event] = {}
+_launch_cancel_lock = threading.Lock()
+
 
 class ResearchRunAcceptedResponse(BaseModel):
     run_id: str
     status: str = "ok"
+
+
+class ResearchRunStopResponse(BaseModel):
+    run_id: str
+    status: str
+    message: str
 
 
 def _idea_version_to_payload(idea_data: IdeaData) -> Dict[str, object]:
@@ -47,23 +61,58 @@ def _idea_version_to_payload(idea_data: IdeaData) -> Dict[str, object]:
     }
 
 
-def _launch_research_pipeline_job(*, run_id: str, idea_payload: Dict[str, object]) -> None:
+def _launch_research_pipeline_job(
+    *,
+    run_id: str,
+    idea_payload: Dict[str, object],
+    cancel_event: threading.Event | None = None,
+) -> None:
     """Background task that launches the RunPod job and updates DB state."""
     db = get_database()
     config_name = f"{run_id}_config.yaml"
     try:
         logger.info("Launching research pipeline job in background for run_id=%s", run_id)
+
+        if cancel_event and cancel_event.is_set():
+            logger.info("Launch for run_id=%s cancelled before contacting RunPod.", run_id)
+            return
+
         pod_info = launch_research_pipeline_run(
             idea=idea_payload,
             config_name=config_name,
             run_id=run_id,
         )
+
+        if cancel_event and cancel_event.is_set():
+            logger.info(
+                "Launch for run_id=%s cancelled after pod creation; terminating pod.",
+                run_id,
+            )
+            pod_id = pod_info.get("pod_id")
+            if pod_id:
+                try:
+                    terminate_pod(pod_id=pod_id)
+                except RuntimeError as exc:
+                    logger.warning(
+                        "Failed to terminate pod %s for cancelled run %s: %s",
+                        pod_id,
+                        run_id,
+                        exc,
+                    )
+            return
+
         db.update_research_pipeline_run(run_id=run_id, pod_info=pod_info)
     except (RunPodError, FileNotFoundError, ValueError, RuntimeError) as exc:
         logger.exception("Failed to launch research pipeline run.")
         db.update_research_pipeline_run(run_id=run_id, status="failed", error_message=str(exc))
     else:
         logger.info("Background launch complete for run_id=%s", run_id)
+    finally:
+        if cancel_event:
+            with _launch_cancel_lock:
+                existing = _launch_cancel_events.get(run_id)
+                if existing is cancel_event:
+                    _launch_cancel_events.pop(run_id, None)
 
 
 def _run_to_info(run: ResearchPipelineRun) -> ResearchRunInfo:
@@ -172,10 +221,14 @@ def submit_idea_for_research(
     )
 
     idea_payload = _idea_version_to_payload(idea_data)
+    cancel_event = threading.Event()
+    with _launch_cancel_lock:
+        _launch_cancel_events[run_id] = cancel_event
     background_tasks.add_task(
         _launch_research_pipeline_job,
         run_id=run_id,
         idea_payload=idea_payload,
+        cancel_event=cancel_event,
     )
 
     return ResearchRunAcceptedResponse(run_id=run_id)
@@ -218,6 +271,60 @@ def get_research_run_details(
         logs=log_events,
         experiment_nodes=node_events,
         artifacts=artifacts,
+    )
+
+
+@router.post(
+    "/{conversation_id}/idea/research-run/{run_id}/stop",
+    response_model=ResearchRunStopResponse,
+)
+def stop_research_run(conversation_id: int, run_id: str) -> ResearchRunStopResponse:
+    if conversation_id <= 0:
+        raise HTTPException(status_code=400, detail="conversation_id must be positive")
+
+    db = get_database()
+
+    conversation = db.get_conversation_by_id(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    run = db.get_run_for_conversation(run_id=run_id, conversation_id=conversation_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Research run not found")
+    if run.status not in ("pending", "running"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Research run is already {run.status}; cannot stop.",
+        )
+
+    with _launch_cancel_lock:
+        cancel_event = _launch_cancel_events.get(run_id)
+        if cancel_event:
+            cancel_event.set()
+
+    pod_id = run.pod_id
+    if pod_id:
+        try:
+            terminate_pod(pod_id=pod_id)
+        except RunPodError as exc:
+            logger.exception("Failed to terminate pod %s for run %s", pod_id, run_id)
+            raise HTTPException(
+                status_code=502, detail="Failed to terminate the research run pod."
+            ) from exc
+    else:
+        logger.info("Run %s has no pod_id; marking as stopped without pod termination.", run_id)
+
+    stop_message = "Research run was stopped by the user."
+    db.update_research_pipeline_run(
+        run_id=run_id,
+        status="failed",
+        error_message=stop_message,
+    )
+
+    return ResearchRunStopResponse(
+        run_id=run_id,
+        status="stopped",
+        message=stop_message,
     )
 
 
