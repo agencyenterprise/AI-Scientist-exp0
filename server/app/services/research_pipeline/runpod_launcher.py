@@ -343,6 +343,7 @@ def _build_remote_script(
         "python upload_runpod_log.py --log-path /workspace/research_pipeline.log --artifact-type run_log || true",
         'if [ "$pipeline_exit_code" -ne 0 ]; then',
         '  echo "Research pipeline failed with exit code $pipeline_exit_code (log uploaded)."',
+        "  python upload_runpod_workspace.py --workspace-path /workspace/AE-Scientist/workspaces/0-run --artifact-type workspace_archive --archive-name 0-run-workspace.zip || true",
         "else",
         '  echo "Research pipeline finished successfully (log uploaded)."',
         "fi",
