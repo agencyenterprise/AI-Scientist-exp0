@@ -267,6 +267,70 @@ export function useConversation() {
 }
 ```
 
+### Shared Hooks
+
+The `shared/hooks/` folder contains reusable hooks for cross-feature functionality:
+
+| Hook | File | Purpose |
+|------|------|---------|
+| `useAuth` | `useAuth.ts` | Authentication state and actions |
+| `useSearch` | `useSearch.ts` | Search with debouncing and caching |
+| `useSSEStream` | `use-sse-stream.ts` | Generic SSE streaming with reconnection |
+| `useStreamingImport` | `use-streaming-import.ts` | Base hook for streaming import operations |
+
+#### useSSEStream
+
+Generic SSE streaming hook for real-time server events:
+
+```typescript
+import { useSSEStream } from '@/shared/hooks/use-sse-stream';
+
+const { isConnected, connectionError, reconnect, disconnect } = useSSEStream({
+  url: '/api/stream',
+  enabled: true,
+  parseEvent: (line) => JSON.parse(line),
+  onEvent: (event) => handleEvent(event),
+  onComplete: () => console.log('Stream complete'),
+  onError: (error) => console.error(error),
+  delimiter: '\n',           // or '\n\n' for SSE format
+  reconnect: true,           // auto-reconnect on failure
+  maxReconnectAttempts: 5,
+});
+```
+
+Key features:
+- Buffer management for partial lines
+- Configurable line delimiter (`\n` or `\n\n`)
+- Parser callback for different event formats
+- Optional reconnection with exponential backoff
+- AbortController cleanup on unmount
+
+#### useStreamingImport
+
+Base hook for streaming import operations (used by conversation import and manual idea import):
+
+```typescript
+import { useStreamingImport } from '@/shared/hooks/use-streaming-import';
+
+const { state, actions, streamingRef } = useStreamingImport({
+  onSuccess: (conversationId) => router.push(`/conversations/${conversationId}`),
+  onError: (error) => toast.error(error),
+});
+
+// Start streaming import
+await actions.startStream({
+  url: 'https://chatgpt.com/share/...',
+  model: 'gpt-4',
+  provider: 'openai',
+  duplicateResolution: 'prompt',
+});
+
+// Access state
+console.log(state.sections);       // Record<string, string>
+console.log(state.currentState);   // ImportState
+console.log(state.isStreaming);    // boolean
+```
+
 ### Shared Context Example (AuthContext)
 
 ```typescript

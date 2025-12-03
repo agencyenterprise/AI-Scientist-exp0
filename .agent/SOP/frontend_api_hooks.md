@@ -599,7 +599,119 @@ export function useDeleteConversation() {
 
 ## Streaming Hook Pattern
 
-For Server-Sent Events (SSE) streaming responses:
+> Updated from: frontend-solid-refactoring implementation (2025-12-03)
+
+For Server-Sent Events (SSE) streaming responses, use the shared `useSSEStream` hook:
+
+### Using the Generic SSE Hook
+
+```typescript
+// features/my-feature/hooks/useMyFeatureStream.ts
+import { useCallback } from "react"
+import { useSSEStream } from "@/shared/hooks/use-sse-stream"
+
+interface MyEvent {
+  type: 'data' | 'status' | 'complete'
+  data: unknown
+}
+
+export function useMyFeatureStream(
+  conversationId: number,
+  onData: (data: unknown) => void,
+  onStatus: (status: string) => void
+) {
+  // Parser function converts raw SSE lines to typed events
+  const parseEvent = useCallback((line: string): MyEvent | null => {
+    if (!line.trim()) return null
+    try {
+      return JSON.parse(line) as MyEvent
+    } catch {
+      console.warn("Failed to parse SSE line:", line)
+      return null
+    }
+  }, [])
+
+  // Handler dispatches events to appropriate callbacks
+  const handleEvent = useCallback((event: MyEvent) => {
+    switch (event.type) {
+      case 'data':
+        onData(event.data)
+        break
+      case 'status':
+        onStatus(event.data as string)
+        break
+    }
+  }, [onData, onStatus])
+
+  return useSSEStream({
+    url: `/conversations/${conversationId}/stream`,
+    enabled: true,
+    parseEvent,
+    onEvent: handleEvent,
+    onComplete: () => console.log("Stream complete"),
+    onError: (error) => console.error("Stream error:", error),
+    delimiter: '\n',        // '\n' for JSON lines, '\n\n' for SSE format
+    reconnect: true,        // auto-reconnect on failure
+    maxReconnectAttempts: 5,
+  })
+}
+```
+
+### For SSE with `data: ` Prefix
+
+Some endpoints use the standard SSE format with `data: ` prefix:
+
+```typescript
+const parseEvent = useCallback((line: string) => {
+  // Handle SSE format: "data: {...}"
+  if (!line.startsWith('data: ')) return null
+  const jsonStr = line.slice(6) // Remove "data: " prefix
+  return JSON.parse(jsonStr)
+}, [])
+
+// Use with '\n\n' delimiter for SSE format
+return useSSEStream({
+  url: `/api/events`,
+  parseEvent,
+  delimiter: '\n\n',  // SSE uses double newline
+  // ...
+})
+```
+
+### For Import Streaming
+
+Use `useStreamingImport` for conversation/idea import operations:
+
+```typescript
+import { useStreamingImport } from "@/shared/hooks/use-streaming-import"
+
+export function useMyImport(options: { onSuccess?: (id: number) => void }) {
+  const { state, actions, streamingRef } = useStreamingImport({
+    onSuccess: options.onSuccess,
+    onError: (error) => toast.error(error),
+  })
+
+  const startImport = async (url: string, model: string, provider: string) => {
+    await actions.startStream({
+      url,
+      model,
+      provider,
+      duplicateResolution: 'prompt',
+    })
+  }
+
+  return {
+    ...state,
+    startImport,
+    reset: actions.reset,
+    streamingRef,
+  }
+}
+```
+
+### Legacy Pattern (Direct Implementation)
+
+For simple streaming without the shared hook:
 
 ```typescript
 // features/project-draft/hooks/useChatStreaming.ts
