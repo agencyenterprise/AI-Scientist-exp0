@@ -84,7 +84,13 @@ class ResearchPipelineMonitor:
     def _handle_pending_run(
         self, db: "DatabaseManager", run: ResearchPipelineRun, now: datetime
     ) -> None:
-        deadline = run.start_deadline_at or (run.created_at + self._startup_grace)
+        deadline = run.start_deadline_at
+        if deadline is None:
+            logger.info(
+                "Run %s pending; launch has not scheduled a deadline yet.",
+                run.run_id,
+            )
+            return
         if deadline:
             remaining = (deadline - now).total_seconds()
             if remaining > 0:
@@ -100,7 +106,13 @@ class ResearchPipelineMonitor:
         self, db: "DatabaseManager", run: ResearchPipelineRun, now: datetime
     ) -> None:
         if run.last_heartbeat_at is None:
-            deadline = run.start_deadline_at or (run.created_at + self._startup_grace)
+            deadline = run.start_deadline_at
+            if deadline is None:
+                logger.info(
+                    "Run %s awaiting pod start; deadline not scheduled yet.",
+                    run.run_id,
+                )
+                return
             if deadline:
                 remaining = (deadline - now).total_seconds()
                 logger.info(

@@ -1,8 +1,9 @@
 import asyncio
 import json
 import logging
+import os
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Dict, Optional
 from uuid import uuid4
 
@@ -144,6 +145,12 @@ def _launch_research_pipeline_job(
         if cancel_event and cancel_event.is_set():
             logger.info("Launch for run_id=%s cancelled before contacting RunPod.", run_id)
             return
+
+        startup_grace_seconds = int(os.environ.get("PIPELINE_MONITOR_STARTUP_GRACE_SECONDS", "600"))
+        db.update_research_pipeline_run(
+            run_id=run_id,
+            start_deadline_at=datetime.now(timezone.utc) + timedelta(seconds=startup_grace_seconds),
+        )
 
         pod_info = launch_research_pipeline_run(
             idea=idea_payload,
