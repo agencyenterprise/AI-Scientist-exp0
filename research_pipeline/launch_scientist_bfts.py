@@ -31,11 +31,12 @@ from ai_scientist.latest_run_finder import normalize_run_name
 from ai_scientist.llm import token_tracker
 from ai_scientist.perform_icbinb_writeup import gather_citations
 from ai_scientist.perform_icbinb_writeup import perform_writeup as perform_icbinb_writeup
-from ai_scientist.perform_llm_review import load_paper, perform_review
+from ai_scientist.perform_llm_review import ReviewResponseModel, load_paper, perform_review
 from ai_scientist.perform_plotting import aggregate_plots
 from ai_scientist.perform_vlm_review import perform_imgs_cap_ref_review
 from ai_scientist.perform_writeup import perform_writeup
 from ai_scientist.review_context import build_auto_review_context
+from ai_scientist.review_storage import FigureReviewRecorder, ReviewResponseRecorder
 from ai_scientist.telemetry import EventPersistenceManager, EventQueueEmitter, WebhookClient
 from ai_scientist.treesearch.agent_manager import AgentManager
 from ai_scientist.treesearch.bfts_utils import idea_to_markdown
@@ -682,6 +683,8 @@ def run_review_stage(
     writeup_success: bool,
     should_run_reports: bool,
     agg_ok: bool,
+    artifact_callback: ArtifactCallback,
+    telemetry_cfg: TelemetryConfig | None,
 ) -> None:
     if (
         review_cfg is None
@@ -704,7 +707,7 @@ def run_review_stage(
     paper_content = load_paper(pdf_path)
     review_model = review_cfg.model
     review_context = build_auto_review_context(reports_base, None, paper_content or "")
-    review_text = perform_review(
+    review_result = perform_review(
         text=paper_content,
         model=review_model,
         temperature=review_cfg.temperature,
@@ -712,21 +715,65 @@ def run_review_stage(
         num_reviews_ensemble=3,
         num_reflections=2,
     )
+    if isinstance(review_result, tuple):
+        review: ReviewResponseModel = review_result[0]
+    else:
+        review = review_result
+    if not isinstance(review, ReviewResponseModel):
+        raise TypeError("perform_review must return ReviewResponseModel")
     review_img_cap_ref = perform_imgs_cap_ref_review(
         model=review_model,
         pdf_path=pdf_path,
         temperature=review_cfg.temperature,
     )
+    serialized_img_reviews = [
+        {
+            "figure_name": item.figure_name,
+            "review": item.review.model_dump(by_alias=True),
+        }
+        for item in review_img_cap_ref
+    ]
     review_out_dir = (
         osp.join(reports_base, "logs", run_dir_path.name)
         if run_dir_path is not None
         else reports_base
     )
     os.makedirs(review_out_dir, exist_ok=True)
-    with open(osp.join(review_out_dir, "review_text.txt"), "w") as f:
-        f.write(json.dumps(review_text, indent=4))
-    with open(osp.join(review_out_dir, "review_img_cap_ref.json"), "w") as f:
-        json.dump(review_img_cap_ref, f, indent=4)
+    review_json_path = Path(review_out_dir) / "review_text.json"
+    review_json_path.write_text(
+        json.dumps(review.model_dump(by_alias=True), indent=4),
+        encoding="utf-8",
+    )
+    review_img_path = Path(review_out_dir) / "review_img_cap_ref.json"
+    review_img_path.write_text(json.dumps(serialized_img_reviews, indent=4), encoding="utf-8")
+    try:
+        artifact_callback(
+            ArtifactSpec(
+                artifact_type="llm_review",
+                path=review_json_path,
+                packaging="file",
+            )
+        )
+    except Exception:
+        logger.exception("Failed to upload review JSON artifact: %s", review_json_path)
+
+    if telemetry_cfg and telemetry_cfg.database_url:
+        try:
+            recorder = ReviewResponseRecorder.from_database_url(
+                database_url=telemetry_cfg.database_url,
+                run_id=telemetry_cfg.run_id,
+            )
+            recorder.insert_review(review=review, source_path=review_json_path)
+            figure_recorder = FigureReviewRecorder.from_database_url(
+                database_url=telemetry_cfg.database_url,
+                run_id=telemetry_cfg.run_id,
+            )
+            figure_recorder.insert_reviews(
+                reviews=review_img_cap_ref,
+                source_path=review_img_path,
+            )
+        except Exception:
+            logger.exception("Failed to persist review data to database.")
     logger.info("Paper review completed.")
 
 
@@ -839,6 +886,8 @@ def execute_launcher(args: argparse.Namespace) -> None:
             writeup_success=writeup_success,
             should_run_reports=should_run_reports,
             agg_ok=agg_ok,
+            artifact_callback=artifact_callback,
+            telemetry_cfg=base_cfg.telemetry,
         )
 
         if artifact_callback is not None and run_dir_path is not None:
