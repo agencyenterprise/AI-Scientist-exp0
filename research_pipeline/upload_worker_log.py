@@ -47,7 +47,7 @@ def upload_runlog(*, log_path: Path, artifact_type: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Upload RunPod research_pipeline.log to S3 and record metadata."
+        description="Upload research_pipeline.log to S3 and record metadata."
     )
     parser.add_argument(
         "--log-path",

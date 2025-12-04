@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # =============================================================================
-# Generic RunPod Repository Setup Script
+# Remote GPU Worker Repository Setup Script
 # =============================================================================
 # Required Environment Variables:
 #   - GIT_SSH_KEY_B64: Base64-encoded SSH private key for GitHub
@@ -22,7 +22,7 @@ WORKSPACE_DIR="${WORKSPACE_DIR:-/workspace}"
 : "${REPO_NAME:?ERROR: REPO_NAME environment variable not set}"
 
 echo "========================================"
-echo "🚀 RunPod Setup: ${REPO_NAME}"
+echo "🚀 Worker Setup: ${REPO_NAME}"
 echo "========================================"
 echo "Organization: ${REPO_ORG}"
 echo "Branch: ${REPO_BRANCH}"
@@ -57,17 +57,17 @@ else
 fi
 
 echo "  Decoding SSH deploy key..."
-echo "$GIT_SSH_KEY_B64" | base64 -d > ~/.ssh/id_deploy_runpod
-chmod 600 ~/.ssh/id_deploy_runpod
+echo "$GIT_SSH_KEY_B64" | base64 -d > ~/.ssh/id_deploy_worker
+chmod 600 ~/.ssh/id_deploy_worker
 
-SSH_HOST_ALIAS="github.com-runpod-${REPO_NAME}"
+SSH_HOST_ALIAS="github.com-worker-${REPO_NAME}"
 if ! grep -q "Host ${SSH_HOST_ALIAS}" ~/.ssh/config 2>/dev/null; then
   echo "  Writing SSH config..."
   cat >> ~/.ssh/config <<EOF
 Host ${SSH_HOST_ALIAS}
   HostName github.com
   User git
-  IdentityFile ~/.ssh/id_deploy_runpod
+  IdentityFile ~/.ssh/id_deploy_worker
   IdentitiesOnly yes
 EOF
   chmod 600 ~/.ssh/config
@@ -109,4 +109,5 @@ echo "  ✓ Repository cloned"
 # =============================================================================
 echo ""
 echo "✓ Repository setup complete! Repository ready at: ${REPO_DIR}"
+
 

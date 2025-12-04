@@ -9,7 +9,7 @@ The research pipeline implements a Best-First Tree Search (BFTS) approach to aut
 - Runs multi-seed evaluations for statistical significance
 - Performs ablation studies to validate contributions
 - Aggregates results and generates LaTeX papers with citations
-- Supports both local and GPU-accelerated (RunPod) execution
+- Supports both local and AWS EC2 GPU execution
 
 ## Setup (Local)
 
@@ -30,16 +30,16 @@ Or use the Makefile from the root directory:
 make install-research
 ```
 
-## Setup (RunPod)
+## Setup (AWS Worker)
 
-For GPU-accelerated experiments on RunPod:
+For GPU-accelerated experiments on AWS (or any remote GPU host):
 
 1. **Create a new virtual environment with access to system-wide packages**
 ```bash
 uv venv --system-site-packages
 ```
 
-RunPod provides images with PyTorch and other GPU-related packages. Some of these packages may conflict with the packages listed in pyproject.toml. To use the pre-installed packages, create a virtual environment with access to system-wide packages.
+Many AWS AMIs already include PyTorch and GPU drivers. Some of these packages may conflict with the packages listed in `pyproject.toml`. To use the pre-installed packages, create a virtual environment with access to system-wide packages.
 
 2. **Activate the virtual environment**:
    ```bash
@@ -59,17 +59,16 @@ RunPod provides images with PyTorch and other GPU-related packages. Some of thes
 
 ### Quick Setup Script
 
-Alternatively, use the provided setup script from the repository root:
+Alternatively, use the provided setup script:
 
 ```bash
-bash install_run_pod.sh
+bash server/app/services/research_pipeline/install_worker.sh
 ```
 
 This script:
 - Creates a virtual environment with system packages
 - Activates it
 - Installs dependencies
-- Installs LaTeX packages
 
 ## Environment Variables
 
@@ -101,7 +100,7 @@ HF_TOKEN=hf_your_token
 ### Optional Variables
 
 ```bash
-# Custom OpenAI-compatible endpoint (e.g., local LLM server, RunPod)
+# Custom OpenAI-compatible endpoint (e.g., local LLM server)
 # Only set this if NOT using the default OpenAI API
 OPENAI_BASE_URL="https://your-custom-endpoint.com/v1"
 
@@ -111,7 +110,7 @@ ANTHROPIC_API_KEY=your-anthropic-key
 ```
 
 **Important:**
-- `OPENAI_BASE_URL` should **only** be set if you're using a custom OpenAI-compatible endpoint (like a local LLM server or RunPod inference). Leave it unset to use the default OpenAI API.
+- `OPENAI_BASE_URL` should **only** be set if you're using a custom OpenAI-compatible endpoint (like a local LLM server). Leave it unset to use the default OpenAI API.
 - `ANTHROPIC_API_KEY` is **only** required if you plan to use Claude models (e.g., `bfts_config_claude-haiku.yaml`).
 
 ## Running Experiments

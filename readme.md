@@ -31,7 +31,7 @@ AE-Scientist consists of three main components that work together to facilitate 
 - Automatic code generation and experimentation
 - Multi-seed evaluation and ablation studies
 - LaTeX paper generation with citations
-- Support for both local and RunPod GPU execution
+- Support for both local and AWS EC2 GPU execution
 
 📖 [Research Pipeline Documentation](./research_pipeline/README.md)
 
@@ -262,43 +262,14 @@ The frontend can be deployed to Railway or Vercel:
 - Automatic Next.js detection on Vercel
 - Configure `NEXT_PUBLIC_API_BASE_URL` to point to production server
 
-### Research Pipeline (RunPod)
+### Research Pipeline (AWS EC2)
 
-For GPU-accelerated experiments:
-- Use provided RunPod scripts to create containers
-- Configure environment variables in container
-- Run experiments via SSH or Jupyter
+For GPU-accelerated experiments the server provisions short-lived EC2 instances:
+- `server/app/services/research_pipeline/aws_ec2_manager.py` builds the user-data script, launches EC2 instances, and terminates them when runs finish.
+- Configure the required AWS environment variables (`AWS_EC2_SUBNET_ID`, `AWS_EC2_SECURITY_GROUP_IDS`, `AWS_EC2_AMI_ID`, `AWS_EC2_INSTANCE_TYPE`, `AWS_EC2_KEY_NAME`, `AWS_EC2_INSTANCE_PROFILE_ARN`, `AWS_EC2_ROOT_VOLUME_GB`) plus the Git deploy key used to clone the repo on the worker.
+- Provide `WORKER_SSH_PRIVATE_KEY` (matching the AWS key pair) so the server can upload run logs via SSH before terminating the instance. Optional `WORKER_SSH_USERNAME` (default `ubuntu`) and `WORKER_SSH_PUBLIC_KEY` let you customize access.
 
-See [Research Pipeline Documentation](./research_pipeline/README.md) for RunPod setup.
-
-#### RunPod Base Image
-
-The RunPod pipeline uses a pre-baked Docker image defined at `server/app/services/research_pipeline/Dockerfile`. This image installs the LaTeX/PDF toolchain so pods skip long `apt-get` steps.
-
-**Build + push (macOS/Apple Silicon friendly):**
-```bash
-DOCKER_DEFAULT_PLATFORM=linux/amd64 docker buildx build \
-  --platform linux/amd64 \
-  -t <dockerhub-username>/runpod_pytorch_texdeps:<tag> \
-  -f server/app/services/research_pipeline/Dockerfile \
-  --load .
-docker push <dockerhub-username>/runpod_pytorch_texdeps:<tag>
-```
-Setting `DOCKER_DEFAULT_PLATFORM=linux/amd64` ensures you build an x86 image compatible with RunPod’s GPU hosts even when running on Apple Silicon.
-
-**Reference in code:** `server/app/services/research_pipeline/runpod_manager.py` passes the image name to `RunPodCreator.create_pod()`. Update that constant when you publish a new tag so deployments use the latest base image.
-
-## Contributing
-
-1. Follow the code style guidelines above
-2. Run linting before committing: `make lint`
-3. Update documentation when adding features
-4. Test authentication flows and protected routes
-5. Keep dependencies up to date
-
-## License
-
-See [LICENSE](./LICENSE) file for details.
+See [Research Pipeline Documentation](./research_pipeline/README.md) for AWS worker setup details.
 
 ## Support
 

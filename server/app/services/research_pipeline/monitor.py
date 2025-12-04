@@ -7,8 +7,13 @@ from typing import Optional
 from app.services import get_database
 from app.services.database import DatabaseManager
 from app.services.database.research_pipeline_runs import ResearchPipelineRun
-from app.services.research_pipeline import RunPodError, terminate_pod, upload_runpod_log_via_ssh
-from app.services.research_pipeline.runpod_manager import RunPodManager
+from app.services.research_pipeline import (
+    AWSEC2Error,
+    fetch_instance_billing_summary,
+    terminate_instance,
+    upload_worker_log_via_ssh,
+)
+from app.services.research_pipeline.aws_ec2_manager import AWSEC2Manager
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +37,10 @@ class ResearchPipelineMonitor:
         self._startup_grace = timedelta(seconds=startup_grace_seconds)
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
-        api_key = os.environ.get("RUNPOD_API_KEY")
-        if not api_key:
-            raise RuntimeError("RUNPOD_API_KEY environment variable is required.")
-        self._runpod_manager: RunPodManager = RunPodManager(api_key=api_key)
+        region = os.environ.get("AWS_REGION")
+        if not region:
+            raise RuntimeError("AWS_REGION environment variable is required.")
+        self._ec2_manager = AWSEC2Manager(region=region)
 
     async def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
@@ -95,7 +100,7 @@ class ResearchPipelineMonitor:
             remaining = (deadline - now).total_seconds()
             if remaining > 0:
                 logger.info(
-                    "Run %s pending; waiting for pod start (%.0fs remaining).",
+                    "Run %s pending; waiting for instance start (%.0fs remaining).",
                     run.run_id,
                     remaining,
                 )
@@ -109,7 +114,7 @@ class ResearchPipelineMonitor:
             deadline = run.start_deadline_at
             if deadline is None:
                 logger.info(
-                    "Run %s awaiting pod start; deadline not scheduled yet.",
+                    "Run %s awaiting instance start; deadline not scheduled yet.",
                     run.run_id,
                 )
                 return
@@ -142,26 +147,27 @@ class ResearchPipelineMonitor:
         if run.heartbeat_failures > 0:
             db.update_research_pipeline_run(run_id=run.run_id, heartbeat_failures=0)
 
-        if run.pod_id:
+        if run.instance_id:
             try:
-                pod = self._runpod_manager.get_pod(run.pod_id)
-                status = pod.get("desiredStatus")
-                if status == "PENDING":
+                instance = self._ec2_manager.describe_instance(instance_id=run.instance_id)
+            except AWSEC2Error as exc:
+                logger.warning("Failed to poll instance %s: %s", run.instance_id, exc)
+            else:
+                state = instance.get("State", {}).get("Name")
+                if state == "pending":
                     logger.info(
-                        "Run %s pod %s still pending startup; waiting for readiness.",
+                        "Run %s instance %s still pending startup; waiting for readiness.",
                         run.run_id,
-                        run.pod_id,
+                        run.instance_id,
                     )
-                elif status not in ("RUNNING", "PENDING"):
+                elif state not in ("running", "pending"):
                     logger.warning(
-                        "Run %s pod %s returned unexpected status '%s'; failing run.",
+                        "Run %s instance %s returned unexpected state '%s'; failing run.",
                         run.run_id,
-                        run.pod_id,
-                        status,
+                        run.instance_id,
+                        state,
                     )
-                    self._fail_run(db, run, f"Pod status is {status}; terminating run.")
-            except RunPodError as exc:
-                logger.warning("Failed to poll RunPod status for %s: %s", run.pod_id, exc)
+                    self._fail_run(db, run, f"Instance state is {state}; terminating run.")
 
     def _fail_run(self, db: "DatabaseManager", run: ResearchPipelineRun, message: str) -> None:
         logger.warning("Marking run %s as failed: %s", run.run_id, message)
@@ -181,31 +187,36 @@ class ResearchPipelineMonitor:
             },
             occurred_at=datetime.now(timezone.utc),
         )
-        if run.pod_id:
-            self._upload_pod_log(run)
+        if run.instance_id:
+            self._upload_worker_log(run)
             try:
-                terminate_pod(pod_id=run.pod_id)
+                terminate_instance(instance_id=run.instance_id)
             except RuntimeError as exc:
-                logger.warning("Failed to terminate pod %s: %s", run.pod_id, exc)
-            self._record_pod_billing_event(
+                logger.warning("Failed to terminate instance %s: %s", run.instance_id, exc)
+            else:
+                db.update_research_pipeline_run(
+                    run_id=run.run_id,
+                    instance_info={"instance_terminated_at": datetime.now(timezone.utc)},
+                )
+            self._record_instance_billing_event(
                 db=db,
                 run_id=run.run_id,
-                pod_id=run.pod_id,
+                instance_id=run.instance_id,
                 context="pipeline_monitor_failure",
             )
 
-    def _record_pod_billing_event(
+    def _record_instance_billing_event(
         self,
         db: "DatabaseManager",
         *,
         run_id: str,
-        pod_id: str,
+        instance_id: str,
         context: str,
     ) -> None:
         try:
-            summary = self._runpod_manager.get_pod_billing_summary(pod_id=pod_id)
-        except RunPodError as exc:
-            logger.warning("Failed to fetch billing summary for pod %s: %s", pod_id, exc)
+            summary = fetch_instance_billing_summary(instance_id=instance_id)
+        except AWSEC2Error as exc:
+            logger.warning("Failed to fetch billing summary for instance %s: %s", instance_id, exc)
             return
         if summary is None:
             return
@@ -213,23 +224,23 @@ class ResearchPipelineMonitor:
         metadata["context"] = context
         db.insert_research_pipeline_run_event(
             run_id=run_id,
-            event_type="pod_billing_summary",
+            event_type="instance_billing_summary",
             metadata=metadata,
             occurred_at=datetime.now(timezone.utc),
         )
 
-    def _upload_pod_log(self, run: ResearchPipelineRun) -> None:
+    def _upload_worker_log(self, run: ResearchPipelineRun) -> None:
         if not run.public_ip or not run.ssh_port:
             logger.info("Run %s missing SSH info; skipping log upload.", run.run_id)
             return
         try:
-            upload_runpod_log_via_ssh(
+            upload_worker_log_via_ssh(
                 host=run.public_ip,
                 port=run.ssh_port,
                 run_id=run.run_id,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Failed to upload pod log via SSH for run %s: %s", run.run_id, exc)
+            logger.exception("Failed to upload worker log via SSH for run %s: %s", run.run_id, exc)
 
 
 def _require_int(name: str) -> int:

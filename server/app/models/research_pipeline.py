@@ -26,8 +26,11 @@ class ResearchRunListItem(BaseModel):
     progress: Optional[float] = Field(
         None, description="Progress percentage (0-1) from latest event"
     )
-    gpu_type: Optional[str] = Field(None, description="GPU type used for the run")
-    cost: float = Field(..., description="Hourly RunPod cost (USD) captured when the pod launched")
+    instance_type: Optional[str] = Field(None, description="AWS instance type used for the run")
+    cost: float = Field(
+        ...,
+        description="Hourly instance cost (USD) captured when the worker launched",
+    )
     best_metric: Optional[str] = Field(None, description="Best metric from latest progress event")
     created_by_name: str = Field(..., description="Name of the user who created the run")
     created_at: str = Field(..., description="ISO timestamp when the run was created")

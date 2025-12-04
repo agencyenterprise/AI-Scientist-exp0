@@ -30,12 +30,12 @@ from app.services.database.research_pipeline_runs import (
 )
 from app.services.database.rp_artifacts import ResearchPipelineArtifact
 from app.services.database.rp_events import ExperimentNodeEvent, RunLogEvent, StageProgressEvent
-from app.services.research_pipeline.runpod_manager import (
-    RunPodError,
-    fetch_pod_billing_summary,
+from app.services.research_pipeline import (
+    AWSEC2Error,
+    fetch_instance_billing_summary,
     launch_research_pipeline_run,
-    terminate_pod,
-    upload_runpod_log_via_ssh,
+    terminate_instance,
+    upload_worker_log_via_ssh,
 )
 from app.services.s3_service import get_s3_service
 
@@ -57,17 +57,17 @@ class ResearchRunStopResponse(BaseModel):
     message: str
 
 
-def _record_pod_billing_event(
+def _record_instance_billing_event(
     db: DatabaseManager,
     *,
     run_id: str,
-    pod_id: str,
+    instance_id: str,
     context: str,
 ) -> None:
     try:
-        summary = fetch_pod_billing_summary(pod_id=pod_id)
-    except (RuntimeError, RunPodError) as exc:
-        logger.warning("Failed to fetch billing summary for pod %s: %s", pod_id, exc)
+        summary = fetch_instance_billing_summary(instance_id=instance_id)
+    except (RuntimeError, AWSEC2Error) as exc:
+        logger.warning("Failed to fetch billing summary for instance %s: %s", instance_id, exc)
         return
     if summary is None:
         return
@@ -75,22 +75,22 @@ def _record_pod_billing_event(
     metadata["context"] = context
     db.insert_research_pipeline_run_event(
         run_id=run_id,
-        event_type="pod_billing_summary",
+        event_type="instance_billing_summary",
         metadata=metadata,
         occurred_at=datetime.now(timezone.utc),
     )
 
 
-def _upload_pod_log_if_possible(run: ResearchPipelineRun) -> None:
+def _upload_worker_log_if_possible(run: ResearchPipelineRun) -> None:
     host = run.public_ip
     port = run.ssh_port
     if not host or not port:
         logger.info("Run %s missing SSH info; skipping log upload.", run.run_id)
         return
     try:
-        upload_runpod_log_via_ssh(host=host, port=port, run_id=run.run_id)
+        upload_worker_log_via_ssh(host=host, port=port, run_id=run.run_id)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to upload pod log via SSH for run %s: %s", run.run_id, exc)
+        logger.warning("Failed to upload worker log via SSH for run %s: %s", run.run_id, exc)
 
 
 def _idea_version_to_payload(idea_data: IdeaData) -> Dict[str, object]:
@@ -108,24 +108,24 @@ def _idea_version_to_payload(idea_data: IdeaData) -> Dict[str, object]:
     }
 
 
-def _extract_cost_per_hour(pod_info: Dict[str, Any], run_id: str) -> float:
+def _extract_cost_per_hour(instance_info: Dict[str, Any], run_id: str) -> float:
     try:
-        value = pod_info["costPerHr"]
+        value = instance_info["costPerHr"]
     except KeyError:
         logger.warning(
-            "Run %s pod response missing costPerHr. Full payload: %s",
+            "Run %s instance response missing costPerHr. Full payload: %s",
             run_id,
-            pod_info,
+            instance_info,
         )
         return 0.0
     try:
         return float(value)
     except (TypeError, ValueError):
         logger.warning(
-            "Run %s pod response costPerHr is invalid (%s); payload=%s",
+            "Run %s instance response costPerHr is invalid (%s); payload=%s",
             run_id,
             value,
-            pod_info,
+            instance_info,
         )
         return 0.0
 
@@ -136,14 +136,14 @@ def _launch_research_pipeline_job(
     idea_payload: Dict[str, object],
     cancel_event: threading.Event | None = None,
 ) -> None:
-    """Background task that launches the RunPod job and updates DB state."""
+    """Background task that launches the AWS worker and updates DB state."""
     db = get_database()
     config_name = f"{run_id}_config.yaml"
     try:
         logger.info("Launching research pipeline job in background for run_id=%s", run_id)
 
         if cancel_event and cancel_event.is_set():
-            logger.info("Launch for run_id=%s cancelled before contacting RunPod.", run_id)
+            logger.info("Launch for run_id=%s cancelled before contacting AWS.", run_id)
             return
 
         startup_grace_seconds = int(os.environ.get("PIPELINE_MONITOR_STARTUP_GRACE_SECONDS", "600"))
@@ -152,25 +152,33 @@ def _launch_research_pipeline_job(
             start_deadline_at=datetime.now(timezone.utc) + timedelta(seconds=startup_grace_seconds),
         )
 
-        pod_info = launch_research_pipeline_run(
+        instance_info = launch_research_pipeline_run(
             idea=idea_payload,
             config_name=config_name,
             run_id=run_id,
         )
+        launch_time_raw = instance_info.pop("launch_time", None)
+        if launch_time_raw:
+            try:
+                launch_dt = datetime.fromisoformat(launch_time_raw)
+            except ValueError:
+                logger.warning("Invalid launch_time '%s' for run %s", launch_time_raw, run_id)
+            else:
+                instance_info["instance_launched_at"] = launch_dt
 
         if cancel_event and cancel_event.is_set():
             logger.info(
-                "Launch for run_id=%s cancelled after pod creation; terminating pod.",
+                "Launch for run_id=%s cancelled after instance creation; terminating instance.",
                 run_id,
             )
-            pod_id = pod_info.get("pod_id")
-            if pod_id:
+            instance_id = instance_info.get("instance_id")
+            if instance_id:
                 try:
-                    terminate_pod(pod_id=pod_id)
+                    terminate_instance(instance_id=instance_id)
                 except RuntimeError as exc:
                     logger.warning(
-                        "Failed to terminate pod %s for cancelled run %s: %s",
-                        pod_id,
+                        "Failed to terminate instance %s for cancelled run %s: %s",
+                        instance_id,
                         run_id,
                         exc,
                     )
@@ -178,23 +186,24 @@ def _launch_research_pipeline_job(
 
         db.update_research_pipeline_run(
             run_id=run_id,
-            pod_info=pod_info,
-            cost=_extract_cost_per_hour(pod_info, run_id),
+            instance_info=instance_info,
+            cost=_extract_cost_per_hour(instance_info, run_id),
         )
         db.insert_research_pipeline_run_event(
             run_id=run_id,
-            event_type="pod_info_updated",
+            event_type="instance_info_updated",
             metadata={
-                "pod_id": pod_info.get("pod_id"),
-                "pod_name": pod_info.get("pod_name"),
-                "gpu_type": pod_info.get("gpu_type"),
-                "public_ip": pod_info.get("public_ip"),
-                "ssh_port": pod_info.get("ssh_port"),
-                "cost_per_hr": pod_info.get("costPerHr"),
+                "instance_id": instance_info.get("instance_id"),
+                "instance_name": instance_info.get("instance_name"),
+                "instance_type": instance_info.get("instance_type"),
+                "public_ip": instance_info.get("public_ip"),
+                "ssh_port": instance_info.get("ssh_port"),
+                "availability_zone": instance_info.get("availability_zone"),
+                "cost_per_hr": instance_info.get("costPerHr"),
             },
             occurred_at=datetime.now(timezone.utc),
         )
-    except (RunPodError, FileNotFoundError, ValueError, RuntimeError) as exc:
+    except (AWSEC2Error, FileNotFoundError, ValueError, RuntimeError) as exc:
         logger.exception("Failed to launch research pipeline run.")
         run_before = db.get_research_pipeline_run(run_id)
         db.update_research_pipeline_run(run_id=run_id, status="failed", error_message=str(exc))
@@ -225,13 +234,13 @@ def _run_to_info(run: ResearchPipelineRun) -> ResearchRunInfo:
         status=run.status,
         idea_id=run.idea_id,
         idea_version_id=run.idea_version_id,
-        pod_id=run.pod_id,
-        pod_name=run.pod_name,
-        gpu_type=run.gpu_type,
+        instance_id=run.instance_id,
+        instance_name=run.instance_name,
+        instance_type=run.instance_type,
         cost=run.cost,
         public_ip=run.public_ip,
         ssh_port=run.ssh_port,
-        pod_host_id=run.pod_host_id,
+        availability_zone=run.availability_zone,
         error_message=run.error_message,
         last_heartbeat_at=run.last_heartbeat_at.isoformat() if run.last_heartbeat_at else None,
         heartbeat_failures=run.heartbeat_failures,
@@ -432,31 +441,37 @@ def stop_research_run(conversation_id: int, run_id: str) -> ResearchRunStopRespo
         if cancel_event:
             cancel_event.set()
 
-    pod_id = run.pod_id
-    if pod_id:
-        _upload_pod_log_if_possible(run)
+    instance_id = run.instance_id
+    terminated_at: datetime | None = None
+    if instance_id:
+        _upload_worker_log_if_possible(run)
         try:
-            terminate_pod(pod_id=pod_id)
-        except RunPodError as exc:
-            logger.exception("Failed to terminate pod %s for run %s", pod_id, run_id)
+            terminate_instance(instance_id=instance_id)
+        except AWSEC2Error as exc:
+            logger.exception("Failed to terminate instance %s for run %s", instance_id, run_id)
             raise HTTPException(
-                status_code=502, detail="Failed to terminate the research run pod."
+                status_code=502, detail="Failed to terminate the research worker instance."
             ) from exc
         finally:
-            _record_pod_billing_event(
+            _record_instance_billing_event(
                 db,
                 run_id=run_id,
-                pod_id=pod_id,
+                instance_id=instance_id,
                 context="user_stop",
             )
+            terminated_at = datetime.now(timezone.utc)
     else:
-        logger.info("Run %s has no pod_id; marking as stopped without pod termination.", run_id)
+        logger.info(
+            "Run %s has no instance_id; marking as stopped without instance termination.",
+            run_id,
+        )
 
     stop_message = "Research run was stopped by the user."
     db.update_research_pipeline_run(
         run_id=run_id,
         status="failed",
         error_message=stop_message,
+        instance_info=({"instance_terminated_at": terminated_at} if terminated_at else None),
     )
     db.insert_research_pipeline_run_event(
         run_id=run_id,

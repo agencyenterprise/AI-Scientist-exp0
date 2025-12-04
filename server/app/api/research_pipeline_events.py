@@ -10,10 +10,10 @@ from app.services import get_database
 from app.services.database import DatabaseManager
 from app.services.database.research_pipeline_runs import ResearchPipelineRun
 from app.services.research_pipeline import (
-    RunPodError,
-    fetch_pod_billing_summary,
-    terminate_pod,
-    upload_runpod_log_via_ssh,
+    AWSEC2Error,
+    fetch_instance_billing_summary,
+    terminate_instance,
+    upload_worker_log_via_ssh,
 )
 
 router = APIRouter(prefix="/research-pipeline/events", tags=["research-pipeline-events"])
@@ -78,17 +78,17 @@ def _verify_bearer_token(authorization: str = Header(...)) -> None:
         )
 
 
-def _record_pod_billing_event(
+def _record_instance_billing_event(
     db: DatabaseManager,
     *,
     run_id: str,
-    pod_id: str,
+    instance_id: str,
     context: str,
 ) -> None:
     try:
-        summary = fetch_pod_billing_summary(pod_id=pod_id)
-    except (RuntimeError, RunPodError) as exc:
-        logger.warning("Failed to fetch billing summary for pod %s: %s", pod_id, exc)
+        summary = fetch_instance_billing_summary(instance_id=instance_id)
+    except (RuntimeError, AWSEC2Error) as exc:
+        logger.warning("Failed to fetch billing summary for instance %s: %s", instance_id, exc)
         return
     if summary is None:
         return
@@ -96,19 +96,19 @@ def _record_pod_billing_event(
     metadata["context"] = context
     db.insert_research_pipeline_run_event(
         run_id=run_id,
-        event_type="pod_billing_summary",
+        event_type="instance_billing_summary",
         metadata=metadata,
         occurred_at=datetime.now(timezone.utc),
     )
 
 
-def _upload_pod_log_if_possible(run: ResearchPipelineRun) -> None:
+def _upload_worker_log_if_possible(run: ResearchPipelineRun) -> None:
     host = run.public_ip
     port = run.ssh_port
     if not host or not port:
         logger.info("Run %s missing SSH info; skipping log upload.", run.run_id)
         return
-    upload_runpod_log_via_ssh(host=host, port=port, run_id=run.run_id)
+    upload_worker_log_via_ssh(host=host, port=port, run_id=run.run_id)
 
 
 @router.post("/stage-progress", status_code=status.HTTP_204_NO_CONTENT)
@@ -207,27 +207,35 @@ def ingest_run_finished(
         occurred_at=now,
     )
 
-    if run.pod_id:
-        _upload_pod_log_if_possible(run)
+    instance_terminated_at: datetime | None = None
+    if run.instance_id:
+        _upload_worker_log_if_possible(run)
         try:
             logger.info(
-                "Run %s finished (success=%s, message=%s); terminating pod %s.",
+                "Run %s finished (success=%s, message=%s); terminating instance %s.",
                 payload.run_id,
                 payload.success,
                 payload.message,
-                run.pod_id,
+                run.instance_id,
             )
-            terminate_pod(pod_id=run.pod_id)
-            logger.info("Terminated pod %s for run %s", run.pod_id, payload.run_id)
+            terminate_instance(instance_id=run.instance_id)
+            logger.info("Terminated instance %s for run %s", run.instance_id, payload.run_id)
         except RuntimeError as exc:
-            logger.warning("Failed to terminate pod %s: %s", run.pod_id, exc)
+            logger.warning("Failed to terminate instance %s: %s", run.instance_id, exc)
         finally:
-            _record_pod_billing_event(
+            _record_instance_billing_event(
                 db,
                 run_id=payload.run_id,
-                pod_id=run.pod_id,
+                instance_id=run.instance_id,
                 context="pipeline_event_finish",
             )
+            instance_terminated_at = datetime.now(timezone.utc)
+
+    if instance_terminated_at:
+        db.update_research_pipeline_run(
+            run_id=payload.run_id,
+            instance_info={"instance_terminated_at": instance_terminated_at},
+        )
 
 
 @router.post("/heartbeat", status_code=status.HTTP_204_NO_CONTENT)

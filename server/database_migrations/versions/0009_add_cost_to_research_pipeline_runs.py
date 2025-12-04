@@ -18,7 +18,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Add cost column storing RunPod hourly price."""
+    """Add cost column storing hourly instance price."""
     op.add_column(
         "research_pipeline_runs",
         sa.Column(

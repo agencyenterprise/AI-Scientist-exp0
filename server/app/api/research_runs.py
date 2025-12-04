@@ -23,7 +23,7 @@ def _row_to_list_item(row: dict) -> ResearchRunListItem:
         idea_hypothesis=row.get("idea_hypothesis"),
         current_stage=row.get("current_stage"),
         progress=row.get("progress"),
-        gpu_type=row.get("gpu_type"),
+        instance_type=row.get("instance_type"),
         cost=float(row["cost"]),
         best_metric=row.get("best_metric"),
         created_by_name=row["created_by_name"],
@@ -47,7 +47,7 @@ def list_research_runs(
     List research pipeline runs for the current user.
 
     Returns runs ordered by creation date (newest first) with:
-    - Run metadata (status, GPU, timestamps)
+    - Run metadata (status, instance type, timestamps)
     - Idea information (title, hypothesis)
     - Latest stage progress (stage, progress percentage, best metric)
     - Artifact count
@@ -77,7 +77,7 @@ def get_research_run(request: Request, run_id: str) -> ResearchRunListItem:
     Get a single research pipeline run by run_id.
 
     Returns the run with enriched data including:
-    - Run metadata (status, GPU, timestamps)
+    - Run metadata (status, instance type, timestamps)
     - Idea information (title, hypothesis)
     - Latest stage progress (stage, progress percentage, best metric)
     - Artifact count

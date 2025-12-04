@@ -34,12 +34,14 @@ class ResearchPipelineRun(NamedTuple):
     idea_id: int
     idea_version_id: int
     status: str
-    pod_id: Optional[str]
-    pod_name: Optional[str]
-    gpu_type: Optional[str]
+    instance_id: Optional[str]
+    instance_name: Optional[str]
+    instance_type: Optional[str]
     public_ip: Optional[str]
     ssh_port: Optional[str]
-    pod_host_id: Optional[str]
+    availability_zone: Optional[str]
+    instance_launched_at: Optional[datetime]
+    instance_terminated_at: Optional[datetime]
     error_message: Optional[str]
     cost: float
     start_deadline_at: Optional[datetime]
@@ -116,7 +118,7 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
         *,
         run_id: str,
         status: Optional[str] = None,
-        pod_info: Optional[dict[str, Optional[str]]] = None,
+        instance_info: Optional[dict[str, object]] = None,
         error_message: Optional[str] = None,
         last_heartbeat_at: Optional[datetime] = None,
         heartbeat_failures: Optional[int] = None,
@@ -130,18 +132,20 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
                 raise ValueError(f"Invalid status '{status}'")
             fields.append("status = %s")
             values.append(status)
-        if pod_info is not None:
+        if instance_info is not None:
             for column in (
-                "pod_id",
-                "pod_name",
-                "gpu_type",
+                "instance_id",
+                "instance_name",
+                "instance_type",
                 "public_ip",
                 "ssh_port",
-                "pod_host_id",
+                "availability_zone",
+                "instance_launched_at",
+                "instance_terminated_at",
             ):
-                if column in pod_info:
+                if column in instance_info:
                     fields.append(f"{column} = %s")
-                    values.append(pod_info[column])
+                    values.append(instance_info[column])
         if error_message is not None:
             fields.append("error_message = %s")
             values.append(error_message[:2000])
@@ -158,7 +162,7 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
             fields.append("cost = %s")
             values.append(cost)
         fields.append("updated_at = %s")
-        values.append(datetime.now())
+        values.append(datetime.now(timezone.utc))
         values.append(run_id)
         set_clause = ", ".join(fields)
         with self._get_connection() as conn:
@@ -316,12 +320,14 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
             idea_id=row["idea_id"],
             idea_version_id=row["idea_version_id"],
             status=row["status"],
-            pod_id=row.get("pod_id"),
-            pod_name=row.get("pod_name"),
-            gpu_type=row.get("gpu_type"),
+            instance_id=row.get("instance_id"),
+            instance_name=row.get("instance_name"),
+            instance_type=row.get("instance_type"),
             public_ip=row.get("public_ip"),
             ssh_port=row.get("ssh_port"),
-            pod_host_id=row.get("pod_host_id"),
+            availability_zone=row.get("availability_zone"),
+            instance_launched_at=row.get("instance_launched_at"),
+            instance_terminated_at=row.get("instance_terminated_at"),
             error_message=row.get("error_message"),
             cost=float(row.get("cost", 0)),
             start_deadline_at=row.get("start_deadline_at"),
@@ -356,7 +362,7 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
             SELECT
                 r.run_id,
                 r.status,
-                r.gpu_type,
+                r.instance_type,
                 r.error_message,
                 r.cost,
                 r.created_at,
@@ -407,7 +413,7 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
 
         Returns a tuple of (list of run dicts, total count).
         Each dict contains:
-        - run_id, status, gpu_type, cost, error_message, created_at, updated_at
+        - run_id, status, instance_type, cost, error_message, created_at, updated_at
         - idea_title, idea_hypothesis from idea_versions
         - created_by_name from users
         - current_stage, progress, best_metric from latest rp_run_stage_progress_events
@@ -460,7 +466,7 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
             SELECT
                 r.run_id,
                 r.status,
-                r.gpu_type,
+                r.instance_type,
                 r.cost,
                 r.error_message,
                 r.created_at,
