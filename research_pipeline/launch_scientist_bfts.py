@@ -783,6 +783,7 @@ def execute_launcher(args: argparse.Namespace) -> None:
     apply_log_level(level_name=str(base_cfg.log_level))
     top_log_dir = base_cfg.log_dir
     top_log_dir.mkdir(parents=True, exist_ok=True)
+
     existing_runs_before = {p.name for p in top_log_dir.iterdir() if p.is_dir()}
     reports_base = str(top_log_dir.parent.resolve())
 
