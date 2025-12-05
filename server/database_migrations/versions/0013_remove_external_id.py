@@ -24,4 +24,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.add_column("chat_summaries", sa.Column("external_id", sa.Integer(), nullable=False))
-    op.add_column("imported_conversation_summaries", sa.Column("external_id", sa.Integer(), nullable=False))
+    op.add_column(
+        "imported_conversation_summaries", sa.Column("external_id", sa.Integer(), nullable=False)
+    )

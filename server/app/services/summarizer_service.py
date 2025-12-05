@@ -75,7 +75,7 @@ class SummarizerService:
     def get_summarizer(self) -> CustomSummarizationMiddleware:
         """
         Get the summarizer middleware.
-        
+
         With trigger=("messages", 1), it will trigger summarization of the entire conversation always.
         With keep=("messages", 1), it will keep only the summary message.
         """
