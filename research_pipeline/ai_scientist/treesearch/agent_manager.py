@@ -21,7 +21,7 @@ from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, cast
 from pydantic import BaseModel
 
 from ai_scientist.llm import structured_query_with_schema
-from ai_scientist.treesearch.events import BaseEvent, RunLogEvent, RunStageProgressEvent
+from ai_scientist.treesearch.events import BaseEvent, RunLogEvent
 
 from .journal import Journal, Node
 from .metrics_extraction import analyze_progress, gather_stage_metrics, identify_issues
@@ -547,7 +547,7 @@ Your research idea:\n\n
         - If False and next_substage is provided, the caller should continue with that sub-stage.
         """
         while True:
-            # Emit iteration progress before each step
+            # Emit iteration log before each step; progress events are handled in step_callback.
             journal = self.journals[current_substage.name]
             max_iters = current_substage.max_iterations
             current_iter = len(journal.nodes) + 1
@@ -559,17 +559,6 @@ Your research idea:\n\n
                             f"Stage {current_substage.name}: Iteration {current_iter}/{max_iters}"
                         ),
                         level="info",
-                    )
-                )
-                self.event_callback(
-                    RunStageProgressEvent(
-                        stage=current_substage.name,
-                        iteration=current_iter,
-                        max_iterations=max_iters,
-                        progress=min(len(journal.nodes) / max_iters, 1.0),
-                        total_nodes=len(journal.nodes),
-                        buggy_nodes=len(journal.buggy_nodes),
-                        good_nodes=len(journal.good_nodes),
                     )
                 )
             except Exception:
