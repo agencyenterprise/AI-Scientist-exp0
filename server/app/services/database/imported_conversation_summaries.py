@@ -19,7 +19,6 @@ class ImportedConversationSummary(NamedTuple):
 
     id: int
     conversation_id: int
-    external_id: int
     summary: str
     created_at: datetime
     updated_at: datetime
@@ -28,9 +27,7 @@ class ImportedConversationSummary(NamedTuple):
 class ImportedConversationSummariesMixin:
     """Database operations for imported conversation summaries."""
 
-    def create_imported_conversation_summary(
-        self, conversation_id: int, external_id: int, summary: str
-    ) -> int:
+    def create_imported_conversation_summary(self, conversation_id: int, summary: str) -> int:
         """Create a new imported conversation summary in the database."""
         now = datetime.now()
 
@@ -39,13 +36,12 @@ class ImportedConversationSummariesMixin:
                 cursor.execute(
                     """
                     INSERT INTO imported_conversation_summaries
-                    (conversation_id, external_id, summary, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s)
+                    (conversation_id, summary, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s)
                     RETURNING id
                 """,
                     (
                         conversation_id,
-                        external_id,
                         summary,
                         now,
                         now,
@@ -81,7 +77,7 @@ class ImportedConversationSummariesMixin:
         with psycopg2.connect(**self.pg_config) as conn:  # type: ignore[attr-defined]
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
                 cursor.execute(
-                    "SELECT id, conversation_id, external_id, summary, created_at, updated_at FROM imported_conversation_summaries WHERE conversation_id = %s",
+                    "SELECT id, conversation_id, summary, created_at, updated_at FROM imported_conversation_summaries WHERE conversation_id = %s",
                     (conversation_id,),
                 )
                 row = cursor.fetchone()

@@ -19,7 +19,6 @@ class ChatSummary(NamedTuple):
 
     id: int
     conversation_id: int
-    external_id: int
     summary: str
     latest_message_id: int
     created_at: datetime
@@ -30,7 +29,7 @@ class ChatSummariesMixin:
     """Database operations for chat summaries."""
 
     def create_chat_summary(
-        self, conversation_id: int, external_id: int, summary: str, latest_message_id: int
+        self, conversation_id: int, summary: str, latest_message_id: int
     ) -> int:
         """Create a new chat summary in the database."""
         now = datetime.now()
@@ -40,13 +39,12 @@ class ChatSummariesMixin:
                 cursor.execute(
                     """
                     INSERT INTO chat_summaries
-                    (conversation_id, external_id, summary, latest_message_id, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    (conversation_id, summary, latest_message_id, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s)
                     RETURNING id
                 """,
                     (
                         conversation_id,
-                        external_id,
                         summary,
                         latest_message_id,
                         now,
@@ -63,16 +61,22 @@ class ChatSummariesMixin:
         return chat_summary_id
 
     def update_chat_summary(
-        self, conversation_id: int, new_summary: str, latest_message_id: int
+        self, conversation_id: int, new_summary: str, latest_message_id: int | None = None
     ) -> bool:
         """Update a conversation's summary. Returns True if updated, False if not found."""
         now = datetime.now()
         with psycopg2.connect(**self.pg_config) as conn:  # type: ignore[attr-defined]
             with conn.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE chat_summaries SET summary = %s, latest_message_id = %s, updated_at = %s WHERE conversation_id = %s",
-                    (new_summary, latest_message_id, now, conversation_id),
-                )
+                if latest_message_id is not None:
+                    cursor.execute(
+                        "UPDATE chat_summaries SET summary = %s, latest_message_id = %s, updated_at = %s WHERE conversation_id = %s",
+                        (new_summary, latest_message_id, now, conversation_id),
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE chat_summaries SET summary = %s, updated_at = %s WHERE conversation_id = %s",
+                        (new_summary, now, conversation_id),
+                    )
                 conn.commit()
                 return bool(cursor.rowcount > 0)
 
@@ -81,7 +85,7 @@ class ChatSummariesMixin:
         with psycopg2.connect(**self.pg_config) as conn:  # type: ignore[attr-defined]
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
                 cursor.execute(
-                    "SELECT id, conversation_id, external_id, summary, latest_message_id, created_at, updated_at FROM chat_summaries WHERE conversation_id = %s",
+                    "SELECT id, conversation_id, summary, latest_message_id, created_at, updated_at FROM chat_summaries WHERE conversation_id = %s",
                     (conversation_id,),
                 )
                 row = cursor.fetchone()

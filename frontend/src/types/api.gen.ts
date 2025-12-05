@@ -700,6 +700,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research-runs/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Research Runs
+         * @description List all research pipeline runs with enriched data.
+         *
+         *     Returns runs ordered by creation date (newest first) with:
+         *     - Run metadata (status, GPU, timestamps)
+         *     - Idea information (title, hypothesis)
+         *     - Latest stage progress (stage, progress percentage, best metric)
+         *     - Artifact count
+         *     - Creator information
+         */
+        get: operations["list_research_runs_api_research_runs__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -1339,11 +1366,6 @@ export interface components {
              */
             llm_provider: string;
             /**
-             * Accept Summarization
-             * @description Whether to proceed by summarizing when the imported chat exceeds the selected model's context window
-             */
-            accept_summarization: boolean;
-            /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
@@ -1367,11 +1389,6 @@ export interface components {
              */
             llm_provider: string;
             /**
-             * Accept Summarization
-             * @description Whether to proceed by summarizing when the imported chat exceeds the selected model's context window
-             */
-            accept_summarization: boolean;
-            /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
@@ -1394,11 +1411,6 @@ export interface components {
              * @description LLM provider to use
              */
             llm_provider: string;
-            /**
-             * Accept Summarization
-             * @description Whether to proceed by summarizing when the imported chat exceeds the selected model's context window
-             */
-            accept_summarization: boolean;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -1775,6 +1787,99 @@ export interface components {
              * @description ISO timestamp representing the start deadline window
              */
             start_deadline_at?: string | null;
+        };
+        /**
+         * ResearchRunListItem
+         * @description Item in the research runs list with enriched data from related tables.
+         */
+        ResearchRunListItem: {
+            /**
+             * Run Id
+             * @description Unique identifier of the run
+             */
+            run_id: string;
+            /**
+             * Status
+             * @description Current status of the run
+             */
+            status: string;
+            /**
+             * Idea Title
+             * @description Title from the idea version
+             */
+            idea_title: string;
+            /**
+             * Idea Hypothesis
+             * @description Short hypothesis from the idea version
+             */
+            idea_hypothesis?: string | null;
+            /**
+             * Current Stage
+             * @description Latest stage from progress events
+             */
+            current_stage?: string | null;
+            /**
+             * Progress
+             * @description Progress percentage (0-1) from latest event
+             */
+            progress?: number | null;
+            /**
+             * Gpu Type
+             * @description GPU type used for the run
+             */
+            gpu_type?: string | null;
+            /**
+             * Best Metric
+             * @description Best metric from latest progress event
+             */
+            best_metric?: string | null;
+            /**
+             * Created By Name
+             * @description Name of the user who created the run
+             */
+            created_by_name: string;
+            /**
+             * Created At
+             * @description ISO timestamp when the run was created
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * @description ISO timestamp when the run was last updated
+             */
+            updated_at: string;
+            /**
+             * Artifacts Count
+             * @description Number of artifacts produced by this run
+             * @default 0
+             */
+            artifacts_count: number;
+            /**
+             * Error Message
+             * @description Error message if the run failed
+             */
+            error_message?: string | null;
+            /**
+             * Conversation Id
+             * @description ID of the associated conversation
+             */
+            conversation_id: number;
+        };
+        /**
+         * ResearchRunListResponse
+         * @description Response model for the research runs list API.
+         */
+        ResearchRunListResponse: {
+            /**
+             * Items
+             * @description List of research runs
+             */
+            items?: components["schemas"]["ResearchRunListItem"][];
+            /**
+             * Total
+             * @description Total count of research runs
+             */
+            total: number;
         };
         /** ResearchRunLogEntry */
         ResearchRunLogEntry: {
@@ -3218,6 +3323,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_research_runs_api_research_runs__get: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of runs to return */
+                limit?: number;
+                /** @description Number of runs to skip */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchRunListResponse"];
                 };
             };
             /** @description Validation Error */
