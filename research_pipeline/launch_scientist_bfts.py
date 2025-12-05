@@ -21,6 +21,7 @@ import shutil
 import sys
 import threading
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, NamedTuple, Optional, cast
 
@@ -300,17 +301,23 @@ def setup_event_pipeline(*, telemetry_cfg: TelemetryConfig | None) -> TelemetryH
         )
 
 
+@dataclass
+class _EventCallbackWrapper:
+    base_callback: Callable[[BaseEvent], None]
+    webhook_client: WebhookClient | None
+
+    def __call__(self, event: BaseEvent) -> None:
+        if isinstance(event, GpuShortageEvent):
+            _handle_gpu_shortage_event(event=event, webhook_client=self.webhook_client)
+        self.base_callback(event)
+
+
 def _augment_event_callback(
     base_callback: Callable[[BaseEvent], None],
     *,
     webhook_client: WebhookClient | None,
 ) -> Callable[[BaseEvent], None]:
-    def _callback(event: BaseEvent) -> None:
-        if isinstance(event, GpuShortageEvent):
-            _handle_gpu_shortage_event(event=event, webhook_client=webhook_client)
-        base_callback(event)
-
-    return _callback
+    return _EventCallbackWrapper(base_callback=base_callback, webhook_client=webhook_client)
 
 
 def _handle_gpu_shortage_event(
