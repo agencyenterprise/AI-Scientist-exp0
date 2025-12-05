@@ -96,11 +96,19 @@ export interface LogEntryApi {
   created_at: string;
 }
 
+export interface NodeSummary {
+  findings: string;
+  significance: string;
+  next_steps?: string | null;
+  is_buggy: boolean;
+  metric?: string | null;
+}
+
 export interface NodeEventApi {
   id: number;
   stage: string;
   node_id: string | null;
-  summary: Record<string, unknown>;
+  summary: NodeSummary | Record<string, unknown>; // Allow both typed and legacy format
   created_at: string;
 }
 
@@ -167,7 +175,7 @@ export interface NodeEvent {
   id: number;
   stage: string;
   node_id: string | null;
-  summary: Record<string, unknown>;
+  summary: NodeSummary | Record<string, unknown>; // Allow both typed and legacy format
   created_at: string;
 }
 

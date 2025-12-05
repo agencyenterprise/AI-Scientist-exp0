@@ -20,16 +20,35 @@ export function FinalPdfBanner({ artifacts, conversationId, runId }: FinalPdfBan
     conversationId,
     runId,
   });
-  // Find all paper PDF artifacts, sorted by created_at (most recent first)
+  // Find the final paper PDF (highest suffix or most recent)
   const paperPdfs = artifacts
     .filter(a => a.artifact_type === "paper_pdf")
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    .sort((a, b) => {
+      // Try to extract numeric suffix from filename (e.g., "paper_5.pdf" -> 5)
+      const extractSuffix = (filename: string): number => {
+        const match = filename.match(/_(\d+)\.pdf$/);
+        return match ? parseInt(match[1] ?? "0", 10) : 0;
+      };
+
+      const suffixA = extractSuffix(a.filename);
+      const suffixB = extractSuffix(b.filename);
+
+      if (suffixA !== suffixB) {
+        return suffixB - suffixA; // Higher suffix first
+      }
+
+      // Fallback to created_at if no suffix or equal
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+  // Get only the final PDF (highest suffix)
+  const finalPdf = paperPdfs.length > 0 ? paperPdfs[0] : null;
 
   // Find the workspace archive artifact
   const workspaceArchive = artifacts.find(a => a.artifact_type === "workspace_archive");
 
-  // Don't render if no papers and no workspace archive
-  if (paperPdfs.length === 0 && !workspaceArchive) {
+  // Don't render if no final PDF and no workspace archive
+  if (!finalPdf && !workspaceArchive) {
     return null;
   }
 
@@ -43,54 +62,48 @@ export function FinalPdfBanner({ artifacts, conversationId, runId }: FinalPdfBan
         <div>
           <h3 className="text-base font-semibold text-emerald-100">Final Results Ready</h3>
           <p className="text-sm text-emerald-300/80">
-            Download{" "}
-            {paperPdfs.length > 0 && `${paperPdfs.length} paper${paperPdfs.length > 1 ? "s" : ""}`}
-            {paperPdfs.length > 0 && workspaceArchive && " and "}
-            {workspaceArchive && "experiment archive"}
+            Download the final paper and experiment artifacts
           </p>
         </div>
       </div>
 
       {/* Download Cards - Two Column Layout */}
       <div className="grid gap-3 md:grid-cols-2">
-        {/* Left Column: Paper PDFs (50%) */}
-        {paperPdfs.length > 0 && (
-          <div className="space-y-3 rounded-lg border border-emerald-700/50 bg-emerald-950/30 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <FileText className="h-5 w-5 text-emerald-400" />
-              <div className="text-sm font-semibold text-emerald-100">
-                Research Papers ({paperPdfs.length})
+        {/* Left Column: Final Paper PDF (50%) */}
+        {finalPdf && (
+          <div className="flex items-center justify-between rounded-lg border border-emerald-700/50 bg-emerald-950/30 p-4">
+            <div className="flex items-start gap-3">
+              <FileText className="h-5 w-5 flex-shrink-0 text-emerald-400" />
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-emerald-100">Final Paper (PDF)</div>
+                <div className="mt-1 text-xs text-emerald-400/70">
+                  {finalPdf.file_size ? formatBytes(finalPdf.file_size) : "Unknown size"}
+                </div>
               </div>
             </div>
-            <div className="flex gap-2 overflow-x-auto">
-              {paperPdfs.map(pdf => (
-                <button
-                  key={pdf.id}
-                  onClick={() => downloadArtifact(pdf.id)}
-                  disabled={isDownloading}
-                  className="flex min-w-0 flex-1 flex-col items-center justify-center rounded border border-emerald-700/30 bg-emerald-900/20 p-3 transition-colors hover:border-emerald-600/50 hover:bg-emerald-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <FileText className="h-6 w-6 text-emerald-400/70" />
-                  <div className="mt-2 w-full text-center">
-                    <div className="truncate text-xs text-emerald-100">{pdf.filename}</div>
-                    <div className="mt-1 text-xs text-emerald-400/60">
-                      {pdf.file_size ? formatBytes(pdf.file_size) : "—"}
-                    </div>
-                  </div>
-                  {downloadingArtifactId === pdf.id ? (
-                    <div className="mt-1.5 h-3.5 w-3.5 animate-pulse text-emerald-400">...</div>
-                  ) : (
-                    <Download className="mt-1.5 h-3.5 w-3.5 text-emerald-400" />
-                  )}
-                </button>
-              ))}
-            </div>
+            <button
+              onClick={() => downloadArtifact(finalPdf.id)}
+              disabled={isDownloading}
+              className="flex items-center justify-center gap-2 rounded border border-emerald-600 bg-emerald-500/20 px-4 py-2.5 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {downloadingArtifactId === finalPdf.id ? (
+                <>
+                  <div className="h-4 w-4 animate-pulse">...</div>
+                  <span>Downloading...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 text-emerald-100" />
+                  <span className="text-emerald-100">Download</span>
+                </>
+              )}
+            </button>
           </div>
         )}
 
         {/* Right Column: Workspace Archive (50%) */}
         {workspaceArchive && (
-          <div className="flex flex-col justify-between rounded-lg border border-emerald-700/50 bg-emerald-950/30 p-4">
+          <div className="flex items-center justify-between rounded-lg border border-emerald-700/50 bg-emerald-950/30 p-4">
             <div className="flex items-start gap-3">
               <FolderArchive className="h-5 w-5 flex-shrink-0 text-emerald-400" />
               <div className="flex-1">
@@ -109,7 +122,7 @@ export function FinalPdfBanner({ artifacts, conversationId, runId }: FinalPdfBan
             <button
               onClick={() => downloadArtifact(workspaceArchive.id)}
               disabled={isDownloading}
-              className="mt-4 flex items-center justify-center gap-2 rounded border border-emerald-600 bg-emerald-500/20 px-4 py-2.5 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 rounded border border-emerald-600 bg-emerald-500/20 px-4 py-2.5 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {downloadingArtifactId === workspaceArchive.id ? (
                 <>
@@ -119,7 +132,7 @@ export function FinalPdfBanner({ artifacts, conversationId, runId }: FinalPdfBan
               ) : (
                 <>
                   <Download className="h-4 w-4 text-emerald-100" />
-                  <span className="text-emerald-100">Download Archive</span>
+                  <span className="text-emerald-100">Download</span>
                 </>
               )}
             </button>

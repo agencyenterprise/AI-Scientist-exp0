@@ -56,7 +56,7 @@ export default function ResearchRunDetailPage() {
     );
   }
 
-  const { run, stage_progress, logs, artifacts } = details;
+  const { run, stage_progress, logs, artifacts, experiment_nodes } = details;
   const latestProgress = stage_progress[stage_progress.length - 1];
   const canStopRun =
     conversationId !== null && (run.status === "running" || run.status === "pending");
@@ -91,7 +91,10 @@ export default function ResearchRunDetailPage() {
 
         <div className="flex flew-row gap-6">
           <div className="flex w-full sm:w-[60%] max-h-[600px] overflow-y-auto">
-            <ResearchPipelineStages stageProgress={stage_progress} />
+            <ResearchPipelineStages
+              stageProgress={stage_progress}
+              experimentNodes={experiment_nodes}
+            />
           </div>
           <div className="flex w-full sm:w-[40%] max-h-[600px] overflow-y-auto">
             <ResearchRunDetailsGrid run={run} conversationId={conversationId} />

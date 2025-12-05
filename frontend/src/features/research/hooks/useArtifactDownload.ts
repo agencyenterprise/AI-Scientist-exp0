@@ -44,7 +44,6 @@ export function useArtifactDownload({
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to download artifact";
       setError(errorMessage);
-      console.error("Download error:", err);
     } finally {
       setIsDownloading(false);
       setDownloadingArtifactId(null);

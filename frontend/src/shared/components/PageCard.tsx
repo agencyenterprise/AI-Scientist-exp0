@@ -1,4 +1,3 @@
-
 export function PageCard(props: { children: React.ReactNode }) {
   return (
     <section className="relative overflow-hidden rounded-[2.75rem] border border-slate-800/80 bg-slate-950/70 shadow-[0_50px_140px_-60px_rgba(14,165,233,0.9)]">

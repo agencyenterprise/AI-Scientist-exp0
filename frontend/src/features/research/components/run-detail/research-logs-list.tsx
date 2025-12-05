@@ -55,7 +55,8 @@ export function ResearchLogsList({ logs }: ResearchLogsListProps) {
           <Terminal className="h-5 w-5 text-slate-400" />
           <h2 className="text-lg font-semibold text-white">Logs</h2>
           <span className="text-sm text-slate-400">
-            ({filteredLogs.length}{activeFilter !== "all" ? `/${logs.length}` : ""})
+            ({filteredLogs.length}
+            {activeFilter !== "all" ? `/${logs.length}` : ""})
           </span>
         </div>
 
