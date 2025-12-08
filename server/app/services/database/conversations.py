@@ -12,10 +12,13 @@ from typing import List, NamedTuple, Optional
 
 import psycopg2
 import psycopg2.extras
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from .base import ConnectionProvider
 
 logger = logging.getLogger(__name__)
+
+CONVERSATION_STATUSES = ("draft", "with_research")
 
 
 class ImportedChatMessage(NamedTuple):
@@ -51,6 +54,7 @@ class FullConversation(NamedTuple):
     imported_chat: Optional[List[ImportedChatMessage]]
     manual_title: Optional[str]
     manual_hypothesis: Optional[str]
+    status: str  # Conversation status: 'draft' or 'with_research'
 
 
 class DashboardConversation(NamedTuple):
@@ -71,6 +75,7 @@ class DashboardConversation(NamedTuple):
     last_assistant_message_content: Optional[str]
     manual_title: Optional[str]
     manual_hypothesis: Optional[str]
+    status: str  # Conversation status: 'draft' or 'with_research'
 
 
 class UrlConversationBrief(NamedTuple):
@@ -123,7 +128,7 @@ class ConversationsMixin(ConnectionProvider):
                 cursor.execute(
                     """
                     SELECT c.id, c.url, c.title, c.import_date, c.imported_chat,
-                           c.created_at, c.updated_at,
+                           c.created_at, c.updated_at, c.status,
                            u.id as user_id, u.name as user_name, u.email as user_email,
                            EXISTS(
                                SELECT 1 FROM file_attachments fa
@@ -173,6 +178,7 @@ class ConversationsMixin(ConnectionProvider):
             imported_chat=content,
             manual_title=row.get("manual_title"),
             manual_hypothesis=row.get("manual_hypothesis"),
+            status=row["status"],
         )
 
     def get_conversation_id_by_url(self, url: str) -> Optional[int]:
@@ -257,7 +263,7 @@ class ConversationsMixin(ConnectionProvider):
                            user_id, user_name, user_email,
                            idea_title, idea_abstract,
                            last_user_message_content, last_assistant_message_content,
-                           manual_title, manual_hypothesis
+                           manual_title, manual_hypothesis, status
                     FROM conversation_dashboard_view
                 """
                 params: list = []
@@ -286,6 +292,7 @@ class ConversationsMixin(ConnectionProvider):
                 last_assistant_message_content=row.get("last_assistant_message_content"),
                 manual_title=row.get("manual_title"),
                 manual_hypothesis=row.get("manual_hypothesis"),
+                status=row["status"],
             )
             for row in rows
         ]
@@ -376,3 +383,68 @@ class ConversationsMixin(ConnectionProvider):
         """Check if a conversation is locked (deprecated - always returns False)."""
         # Conversations are no longer locked since Linear integration was removed
         return False
+
+    def update_conversation_status(self, conversation_id: int, status: str) -> bool:
+        """
+        Update conversation status to 'with_research' after research run created.
+
+        Args:
+            conversation_id: ID of conversation to update
+            status: New status value (validated against CONVERSATION_STATUSES)
+
+        Returns:
+            True if updated, False if not found
+
+        Raises:
+            ValueError: If status not in CONVERSATION_STATUSES
+        """
+        if status not in CONVERSATION_STATUSES:
+            raise ValueError(
+                f"Invalid status '{status}'. Must be one of: {', '.join(CONVERSATION_STATUSES)}"
+            )
+
+        now = datetime.now()
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE conversations
+                    SET status = %s, updated_at = %s
+                    WHERE id = %s
+                    """,
+                    (status, now, conversation_id),
+                )
+                conn.commit()
+                return bool(cursor.rowcount > 0)
+
+    def _update_conversation_status_with_cursor(
+        self, cursor: PsycopgCursor, conversation_id: int, status: str
+    ) -> None:
+        """
+        Update conversation status within existing transaction (no commit).
+
+        Used by create_research_pipeline_run to update status atomically
+        with the run creation.
+
+        Args:
+            cursor: Active database cursor from outer transaction
+            conversation_id: ID of conversation to update
+            status: New status value (validated against CONVERSATION_STATUSES)
+
+        Raises:
+            ValueError: If status not in CONVERSATION_STATUSES
+        """
+        if status not in CONVERSATION_STATUSES:
+            raise ValueError(
+                f"Invalid status '{status}'. Must be one of: {', '.join(CONVERSATION_STATUSES)}"
+            )
+
+        now = datetime.now()
+        cursor.execute(
+            """
+            UPDATE conversations
+            SET status = %s, updated_at = %s
+            WHERE id = %s
+            """,
+            (status, now, conversation_id),
+        )

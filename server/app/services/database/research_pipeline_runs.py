@@ -108,6 +108,22 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
                     },
                     occurred_at=now,
                 )
+
+                # Get conversation_id from the idea and update its status to 'with_research'
+                cursor.execute(
+                    "SELECT conversation_id FROM ideas WHERE id = %s",
+                    (idea_id,),
+                )
+                idea_row = cursor.fetchone()
+                if idea_row:
+                    conversation_id = idea_row[0]
+                    # Call the helper method to update status within this transaction
+                    self._update_conversation_status_with_cursor(
+                        cursor=cursor,
+                        conversation_id=conversation_id,
+                        status="with_research",
+                    )
+
                 conn.commit()
                 return int(new_id)
 

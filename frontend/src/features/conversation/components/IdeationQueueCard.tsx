@@ -2,9 +2,10 @@
 
 import { memo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import { formatRelativeTime } from "@/shared/lib/date-utils";
 import { cn } from "@/shared/lib/utils";
+import { Button } from "@/shared/components/ui/button";
 import type { IdeationQueueCardProps } from "@/features/conversation";
 import { IdeationQueueRunsList } from "./IdeationQueueRunsList";
 
@@ -40,6 +41,11 @@ function IdeationQueueCardComponent({
     setIsExpanded(prev => !prev);
   };
 
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/conversations/${id}`);
+  };
+
   return (
     <article
       onClick={handleCardClick}
@@ -59,7 +65,7 @@ function IdeationQueueCardComponent({
         <p className="mb-3 line-clamp-3 text-xs leading-relaxed text-slate-400">{abstract}</p>
       )}
 
-      {/* Footer: Dates + Expand toggle */}
+      {/* Footer: Dates + Buttons */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-wide text-slate-500">
           <span className="inline-flex items-center gap-1">
@@ -69,20 +75,33 @@ function IdeationQueueCardComponent({
           <span>Updated {formatRelativeTime(updatedAt)}</span>
         </div>
 
-        <button
-          onClick={handleExpandToggle}
-          type="button"
-          aria-label={isExpanded ? "Hide research runs" : "Show research runs"}
-          aria-expanded={isExpanded}
-          className={cn(
-            "inline-flex items-center gap-1 rounded px-2 py-1",
-            "text-[10px] uppercase tracking-wide text-slate-400",
-            "transition-colors hover:bg-slate-800 hover:text-slate-300"
-          )}
-        >
-          {isExpanded ? "Hide Runs" : "Show Runs"}
-          {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleEditClick}
+            variant="ghost"
+            size="sm"
+            className="text-slate-400 hover:text-slate-300"
+            aria-label="Edit conversation"
+          >
+            <Pencil className="h-3 w-3" />
+            Edit
+          </Button>
+
+          <button
+            onClick={handleExpandToggle}
+            type="button"
+            aria-label={isExpanded ? "Hide research runs" : "Show research runs"}
+            aria-expanded={isExpanded}
+            className={cn(
+              "inline-flex items-center gap-1 rounded px-2 py-1",
+              "text-[10px] uppercase tracking-wide text-slate-400",
+              "transition-colors hover:bg-slate-800 hover:text-slate-300"
+            )}
+          >
+            {isExpanded ? "Hide Runs" : "Show Runs"}
+            {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+        </div>
       </div>
 
       {/* Expandable Runs Section */}

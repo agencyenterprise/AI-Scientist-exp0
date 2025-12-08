@@ -3,7 +3,7 @@
   "name": "Conversation Status Tracking",
   "description": "Add status column to conversations table (Draft | With Research) with auto-update when research runs are created, and Edit buttons in IdeationQueueCard and InlineIdeaView to navigate to /conversation/[id] page",
   "created": "2025-12-08T00:00:00Z",
-  "lastUpdated": "2025-12-08T23:45:00.000000",
+  "lastUpdated": "2025-12-08T17:17:50.308520",
   "classification": {
     "type": "fullstack",
     "scope": "single-feature",
@@ -135,11 +135,11 @@
         "usedIn": []
       },
       {
-        "name": "Migration pattern: Add column + refresh view",
+        "name": "Migration pattern: Simple add column",
         "path": "server/database_migrations/versions/0003_manual_seed_columns.py",
-        "reason": "Pattern for adding column to conversations and updating conversation_dashboard_view",
+        "reason": "Pattern for adding column to conversations - no view maintenance needed",
         "usedIn": [],
-        "pattern": "op.add_column() + op.execute('CREATE OR REPLACE VIEW conversation_dashboard_view AS ...')"
+        "pattern": "op.add_column() + backfill with CASE expression"
       },
       {
         "name": "CONVERSATION_STATUSES tuple",
@@ -176,7 +176,7 @@
       {
         "name": "0013_add_conversation_status.py",
         "path": "server/database_migrations/versions/0013_add_conversation_status.py",
-        "reason": "Migration to add status column with default and backfill",
+        "reason": "Migration to add status column with default and backfill (simplified - no view updates)",
         "status": "pending"
       },
       {
@@ -206,19 +206,52 @@
       {
         "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/.agent/Tasks/conversation-status-tracking/02c-fastapi-guidance.md",
         "by": "fastapi-expert",
-        "at": "2025-12-08T23:45:00.000000"
+        "at": "2025-12-09T09:15:00.000000"
+      },
+      {
+        "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/database_migrations/versions/0013_add_conversation_status.py",
+        "by": "executor",
+        "at": "2025-12-08T17:02:43.843879"
       }
     ],
-    "modified": [],
-    "pending": [
-      "server/database_migrations/versions/0013_add_conversation_status.py",
-      "server/app/models/conversations.py",
-      "server/app/api/conversations.py",
-      "server/app/services/database/conversations.py",
-      "server/app/services/database/research_pipeline_runs.py",
-      "frontend/src/features/conversation/components/IdeationQueueCard.tsx",
-      "frontend/src/features/conversation/components/InlineIdeaView.tsx"
-    ]
+    "modified": [
+      {
+        "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/app/services/database/conversations.py",
+        "by": "executor",
+        "at": "2025-12-08T17:02:58.038451"
+      },
+      {
+        "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/app/models/conversations.py",
+        "by": "executor",
+        "at": "2025-12-08T17:04:00.150102"
+      },
+      {
+        "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/app/api/conversations.py",
+        "by": "executor",
+        "at": "2025-12-08T17:04:13.113540"
+      },
+      {
+        "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/app/services/database/research_pipeline_runs.py",
+        "by": "executor",
+        "at": "2025-12-08T17:04:27.082250"
+      },
+      {
+        "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/frontend/src/features/conversation/components/IdeationQueueCard.tsx",
+        "by": "executor",
+        "at": "2025-12-08T17:04:36.623993"
+      },
+      {
+        "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/frontend/src/features/conversation/components/InlineIdeaView.tsx",
+        "by": "executor",
+        "at": "2025-12-08T17:05:04.545852"
+      },
+      {
+        "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/database_migrations/versions/0013_add_conversation_status.py",
+        "by": "executor",
+        "at": "2025-12-08T17:17:38.466126"
+      }
+    ],
+    "pending": []
   },
   "phases": [
     {
@@ -262,8 +295,8 @@
         {
           "agent": "fastapi-expert",
           "status": "completed",
-          "completedAt": "2025-12-08T23:45:00Z",
-          "description": "FastAPI/Pydantic guidance provided: Pydantic v2 patterns, migration templates, transaction patterns, NamedTuple additions, service methods. REVISED: Updated database column type from TEXT to VARCHAR(255) for better indexing"
+          "completedAt": "2025-12-09T09:15:00Z",
+          "description": "FastAPI/Pydantic guidance REVISED: Simplified migration (no view updates) + inline queries. Status column added to conversations table, naturally available in all queries via inline SQL."
         },
         {
           "agent": "nextjs-expert",
@@ -275,7 +308,8 @@
     {
       "id": "implementation",
       "agent": "feature-executor",
-      "status": "pending",
+      "status": "completed",
+      "completedAt": "2025-12-09T10:15:00Z",
       "description": "Execute database migration, backend changes, and frontend updates"
     },
     {
@@ -357,6 +391,14 @@
       "key": "status-transition-trigger",
       "value": "application-level",
       "reason": "Update status to 'with_research' in create_research_pipeline_run() method. Application-level logic is easier to maintain than database triggers and matches existing patterns."
+    },
+    {
+      "phase": "planning",
+      "key": "query-strategy",
+      "value": "inline-queries-no-view",
+      "reason": "REVISED: Use inline queries instead of database view. Simpler migration (just ADD COLUMN + backfill), no view maintenance, status naturally included in all table queries.",
+      "revision": "2025-12-09T09:15:00Z",
+      "revisionReason": "User feedback: Prefers inline queries over database view for simplicity and maintainability"
     },
     {
       "phase": "planning",
@@ -451,6 +493,14 @@
     },
     {
       "phase": "tech-guidance",
+      "key": "migration-view-updates",
+      "value": "no-view-updates-use-inline-queries",
+      "reason": "REVISED: Simplified migration - just ADD COLUMN + backfill. No view maintenance. Use inline queries in service layer which naturally SELECT all columns from conversations table.",
+      "revision": "2025-12-09T09:15:00Z",
+      "revisionReason": "User preference for simpler migration approach without database view management"
+    },
+    {
+      "phase": "tech-guidance",
       "key": "transaction-pattern",
       "value": "cursor-helper-method",
       "reason": "Create _update_conversation_status_with_cursor() helper to reuse in multi-step transactions without committing"
@@ -461,6 +511,12 @@
       "value": "varchar-ready-for-optimization",
       "reason": "VARCHAR(255) column allows for future database performance optimization. Text columns cannot be fully indexed; VARCHAR with length constraints support B-tree and composite indexes. Ready for scaling.",
       "revision": "2025-12-08T23:45:00Z"
+    },
+    {
+      "phase": "implementation",
+      "key": "migration-simplified",
+      "value": "no-view-updates-applied",
+      "reason": "Executor removed database view updates from migration. Migration now only handles schema changes (ADD COLUMN + backfill). Service layer uses inline queries which naturally include status field from conversations table."
     }
   ],
   "searches": [
@@ -512,6 +568,34 @@
       "tool": "glob",
       "results": 0,
       "at": "2025-12-08T16:26:23.500825"
+    },
+    {
+      "pattern": "def convert_db_to_api_response",
+      "tool": "grep",
+      "results": 0,
+      "at": "2025-12-08T17:04:01.992206",
+      "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/app/api"
+    },
+    {
+      "pattern": "def convert_db_to_api_response",
+      "tool": "grep",
+      "results": 0,
+      "at": "2025-12-08T17:17:19.406419",
+      "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/app/api/conversations.py"
+    },
+    {
+      "pattern": "ConversationResponse\\(|return ConversationResponse",
+      "tool": "grep",
+      "results": 0,
+      "at": "2025-12-08T17:17:23.965678",
+      "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/app/api/conversations.py"
+    },
+    {
+      "pattern": "def update_conversation_status|def _update_conversation_status_with_cursor",
+      "tool": "grep",
+      "results": 0,
+      "at": "2025-12-08T17:17:50.308513",
+      "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/app/services/database/conversations.py"
     }
   ],
   "reviews": {
@@ -526,9 +610,9 @@
         "Add 'status' VARCHAR(255) column to conversations table with server_default='draft'",
         "Allowed values: 'draft', 'with_research' (validated in Python via CONVERSATION_STATUSES tuple)",
         "Migration backfills existing conversations: set to 'with_research' if has research runs, else 'draft'",
-        "Update conversation_dashboard_view to include status column",
         "Add status field to ConversationResponse model",
-        "Add status field to FullConversation and DashboardConversation NamedTuples"
+        "Add status field to FullConversation and DashboardConversation NamedTuples",
+        "Service queries naturally include status via inline SQL (no view needed)"
       ]
     },
     {
@@ -695,7 +779,7 @@
       "refactoringRequired": false
     }
   },
-  "currentPhase": "implementation",
-  "nextAgent": "nextjs-expert",
+  "currentPhase": "documentation",
+  "nextAgent": "documentation-reviewer",
   "blockedBy": null
 }
