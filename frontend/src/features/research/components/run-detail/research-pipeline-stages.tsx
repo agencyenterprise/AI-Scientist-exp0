@@ -80,7 +80,6 @@ interface SegmentData {
   isSynthetic: boolean;
 }
 
-
 /**
  * Segmented progress bar showing one segment per node
  */
@@ -101,9 +100,7 @@ function SegmentedProgressBar({ segments }: SegmentedProgressBarProps) {
         return (
           <Tooltip key={index}>
             <TooltipTrigger asChild>
-              <div
-                className="h-2 flex-1 rounded-sm transition-all duration-300 cursor-help bg-blue-500"
-              />
+              <div className="h-2 flex-1 rounded-sm transition-all duration-300 cursor-help bg-blue-500" />
             </TooltipTrigger>
             <TooltipContent>
               <p className="text-xs">{tooltipText}</p>
