@@ -3,7 +3,7 @@
   "name": "Conversation Status Tracking",
   "description": "Add status column to conversations table (Draft | With Research) with auto-update when research runs are created, and Edit buttons in IdeationQueueCard and InlineIdeaView to navigate to /conversation/[id] page",
   "created": "2025-12-08T00:00:00Z",
-  "lastUpdated": "2025-12-08T20:30:00Z",
+  "lastUpdated": "2025-12-08T21:00:00Z",
   "classification": {
     "type": "fullstack",
     "scope": "single-feature",
@@ -57,6 +57,8 @@
       "server/app/api/conversations.py",
       "server/app/services/database/conversations.py",
       "server/app/services/database/research_pipeline_runs.py",
+      "server/app/services/database/ideas.py",
+      "server/app/services/database/__init__.py",
       "server/database_migrations/versions/0003_manual_seed_columns.py",
       "server/database_migrations/versions/0012_substage_completed_events.py",
       "frontend/src/features/conversation/components/IdeationQueueCard.tsx",
@@ -126,31 +128,11 @@
         "pattern": "op.add_column() + op.execute('CREATE OR REPLACE VIEW conversation_dashboard_view AS ...')"
       },
       {
-        "name": "Migration pattern: Table creation",
-        "path": "server/database_migrations/versions/0012_substage_completed_events.py",
-        "reason": "Pattern for creating tables with indexes",
-        "usedIn": []
-      },
-      {
-        "name": "CHECK constraint pattern",
-        "path": "server/database_migrations/versions/0001_initial_schema.py:194",
-        "reason": "Pattern for CHECK constraint on status columns",
+        "name": "CONVERSATION_STATUSES tuple",
+        "path": "server/app/services/database/conversations.py",
+        "reason": "New constant following PIPELINE_RUN_STATUSES pattern for validation",
         "usedIn": [],
-        "pattern": "sa.CheckConstraint(\"role IN ('user', 'assistant')\", name=\"chat_messages_role_check\")"
-      },
-      {
-        "name": "Status column pattern (TEXT with validation)",
-        "path": "server/database_migrations/versions/0005_research_pipeline_runs.py:34",
-        "reason": "research_pipeline_runs.status uses TEXT with default, validated in Python",
-        "usedIn": [],
-        "pattern": "sa.Column('status', sa.Text(), nullable=False, server_default='pending')"
-      },
-      {
-        "name": "PIPELINE_RUN_STATUSES tuple",
-        "path": "server/app/services/database/research_pipeline_runs.py:14",
-        "reason": "Pattern for defining allowed status values as tuple constant",
-        "usedIn": [],
-        "pattern": "PIPELINE_RUN_STATUSES = ('pending', 'running', 'failed', 'completed')"
+        "pattern": "CONVERSATION_STATUSES = ('draft', 'with_research')"
       },
       {
         "name": "ConversationsMixin update methods",
@@ -163,82 +145,44 @@
         ]
       },
       {
-        "name": "FullConversation NamedTuple",
-        "path": "server/app/services/database/conversations.py:37",
-        "reason": "Database layer NamedTuple - needs status field added",
+        "name": "IdeasMixin.get_idea_by_id",
+        "path": "server/app/services/database/ideas.py:368",
+        "reason": "Used to lookup conversation_id from idea_id for status update",
         "usedIn": []
-      },
-      {
-        "name": "DashboardConversation NamedTuple",
-        "path": "server/app/services/database/conversations.py:56",
-        "reason": "Dashboard view NamedTuple - needs status field added",
-        "usedIn": []
-      },
-      {
-        "name": "ConversationResponse Pydantic model",
-        "path": "server/app/models/conversations.py:94",
-        "reason": "API response model - needs status field added",
-        "usedIn": []
-      },
-      {
-        "name": "ResearchPipelineRunsMixin.create_research_pipeline_run",
-        "path": "server/app/services/database/research_pipeline_runs.py:61",
-        "reason": "Method where status update logic will be added (AC2)",
-        "usedIn": [],
-        "notes": "Uses transaction with conn.cursor() and conn.commit()"
       },
       {
         "name": "Transaction pattern with cursor",
         "path": "server/app/services/database/research_pipeline_runs.py:75-112",
         "reason": "Pattern for multi-step operations in same transaction",
         "usedIn": [],
-        "pattern": "with self._get_connection() as conn:\n    with conn.cursor() as cursor:\n        cursor.execute(...)\n        # more operations\n        conn.commit()"
+        "pattern": "with self._get_connection() as conn:\n    with conn.cursor() as cursor:\n        cursor.execute(...)\n        conn.commit()"
       }
     ],
     "create": [
       {
         "name": "0013_add_conversation_status.py",
         "path": "server/database_migrations/versions/0013_add_conversation_status.py",
-        "reason": "Migration to add status column with CHECK constraint and backfill",
-        "status": "pending",
-        "dependencies": [
-          "Migration pattern: Add column + refresh view",
-          "CHECK constraint pattern",
-          "Status column pattern (TEXT with validation)"
-        ]
+        "reason": "Migration to add status column with default and backfill",
+        "status": "pending"
       },
       {
         "name": "update_conversation_status method",
         "path": "server/app/services/database/conversations.py",
         "reason": "New method in ConversationsMixin to update status",
         "status": "pending",
-        "signature": "update_conversation_status(self, conversation_id: int, status: str) -> bool",
-        "dependencies": [
-          "ConversationsMixin update methods"
-        ]
+        "signature": "update_conversation_status(self, conversation_id: int, status: str) -> bool"
       },
       {
         "name": "Edit button in IdeationQueueCard footer",
         "path": "frontend/src/features/conversation/components/IdeationQueueCard.tsx",
         "reason": "Add Edit button next to expand/collapse toggle (AC3)",
-        "status": "pending",
-        "dependencies": [
-          "Button",
-          "Pencil (lucide-react)",
-          "useRouter",
-          "stopPropagation pattern"
-        ]
+        "status": "pending"
       },
       {
         "name": "Edit button in InlineIdeaView header",
         "path": "frontend/src/features/conversation/components/InlineIdeaView.tsx",
         "reason": "Add Edit button in metadata header area (AC4)",
-        "status": "pending",
-        "dependencies": [
-          "Button",
-          "Pencil (lucide-react)",
-          "useRouter"
-        ]
+        "status": "pending"
       }
     ],
     "extract": []
@@ -287,8 +231,9 @@
     {
       "id": "architecture",
       "agent": "feature-architecture-expert",
-      "status": "pending",
-      "description": "Design status enum, migration strategy, API changes, and UI patterns"
+      "status": "completed",
+      "completedAt": "2025-12-08T21:00:00Z",
+      "description": "SOLID architecture design completed with implementation order and file specifications"
     },
     {
       "id": "tech-guidance",
@@ -375,8 +320,8 @@
     {
       "phase": "planning",
       "key": "status-column-type",
-      "value": "TEXT with CHECK constraint",
-      "reason": "PostgreSQL TEXT with CHECK constraint is more flexible than ENUM type for future additions. Pattern consistent with existing status columns (e.g., research_pipeline_runs.status)"
+      "value": "TEXT with server_default",
+      "reason": "PostgreSQL TEXT with server_default follows existing pattern (research_pipeline_runs.status). Python-level validation via CONVERSATION_STATUSES tuple."
     },
     {
       "phase": "planning",
@@ -419,6 +364,48 @@
       "key": "migration-numbering",
       "value": "0013",
       "reason": "Latest migration is 0012_substage_completed_events.py, next should be 0013_add_conversation_status.py"
+    },
+    {
+      "phase": "architecture",
+      "key": "solid-srp",
+      "value": "status-update-in-conversations-mixin",
+      "reason": "Status update method belongs in ConversationsMixin (SRP: manages conversation state). ResearchPipelineRunsMixin calls it after creating run."
+    },
+    {
+      "phase": "architecture",
+      "key": "solid-ocp",
+      "value": "status-values-as-constant",
+      "reason": "CONVERSATION_STATUSES tuple allows adding new statuses without modifying validation logic. Open for extension (new values), closed for modification."
+    },
+    {
+      "phase": "architecture",
+      "key": "solid-dip",
+      "value": "mixin-composition",
+      "reason": "DatabaseManager composes mixins. ResearchPipelineRunsMixin can call ConversationsMixin methods via self since both are mixed into DatabaseManager."
+    },
+    {
+      "phase": "architecture",
+      "key": "solid-analysis-namedtuple",
+      "value": "acceptable-pattern",
+      "reason": "NamedTuples are immutable data containers (value objects). Adding a field is data extension, not a SOLID violation. They follow SRP as pure data transfer objects."
+    },
+    {
+      "phase": "architecture",
+      "key": "cross-mixin-call-pattern",
+      "value": "self-method-call",
+      "reason": "ResearchPipelineRunsMixin can call update_conversation_status via self because both mixins are composed into DatabaseManager. No need for StatusManager class."
+    },
+    {
+      "phase": "architecture",
+      "key": "transaction-boundary",
+      "value": "single-transaction",
+      "reason": "Status update and run creation should be in same transaction for atomicity. Use cursor from existing transaction context."
+    },
+    {
+      "phase": "architecture",
+      "key": "implementation-order",
+      "value": "migration-first",
+      "reason": "1. Migration (schema), 2. ConversationsMixin (status method + NamedTuples), 3. Models (Pydantic), 4. API (response conversion), 5. ResearchPipelineRunsMixin (auto-update), 6. Frontend (Edit buttons)"
     }
   ],
   "searches": [
@@ -457,6 +444,13 @@
       "tool": "grep",
       "results": 1,
       "at": "2025-12-08T20:30:00Z"
+    },
+    {
+      "pattern": "class DatabaseManager|def get_conversation_id_by_idea",
+      "tool": "grep",
+      "results": 1,
+      "at": "2025-12-08T21:00:00Z",
+      "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server/app/services/database"
     }
   ],
   "reviews": {
@@ -468,9 +462,8 @@
       "id": "AC1",
       "description": "Create a status column for conversations: Draft | With Research (when we have launched research)",
       "technicalRequirements": [
-        "Add 'status' TEXT column to conversations table with CHECK constraint",
-        "Default value: 'draft'",
-        "Allowed values: 'draft', 'with_research'",
+        "Add 'status' TEXT column to conversations table with server_default='draft'",
+        "Allowed values: 'draft', 'with_research' (validated in Python via CONVERSATION_STATUSES tuple)",
         "Migration backfills existing conversations: set to 'with_research' if has research runs, else 'draft'",
         "Update conversation_dashboard_view to include status column",
         "Add status field to ConversationResponse model",
@@ -481,10 +474,11 @@
       "id": "AC2",
       "description": "Auto-update status when research run is created",
       "technicalRequirements": [
-        "In create_research_pipeline_run(), update parent conversation status to 'with_research'",
         "Add update_conversation_status() method to ConversationsMixin",
-        "Lookup conversation_id via idea_id when creating run",
-        "Transaction safety: status update should be in same transaction as run creation"
+        "Add _update_conversation_status_with_cursor() for transaction-safe updates",
+        "In create_research_pipeline_run(), lookup conversation_id via idea_id",
+        "Call status update within existing transaction (before conn.commit())",
+        "Use IdeasMixin.get_idea_by_id() or direct SQL to get conversation_id"
       ]
     },
     {
@@ -494,8 +488,8 @@
         "Add Edit button with Pencil icon to IdeationQueueCard footer",
         "Button uses router.push to navigate to /conversations/{id}",
         "onClick handler calls e.stopPropagation() to prevent card click",
-        "Use consistent styling: variant='ghost' size='sm' text-slate-400 hover:text-slate-300",
-        "Button text: 'Edit' with Pencil icon"
+        "Use Button component with variant='ghost' size='sm'",
+        "Style: text-slate-400 hover:text-slate-300"
       ]
     },
     {
@@ -505,12 +499,118 @@
         "Add Edit button in InlineIdeaView header area",
         "Position in the flex row with metadata (after badges)",
         "Button uses router.push to navigate to /conversations/{id}",
-        "Use shadcn Button component with variant='ghost' or 'outline'",
+        "Use Button component with variant='outline' size='sm'",
         "Include Pencil icon and 'Edit' text"
       ]
     }
   ],
-  "currentPhase": "architecture",
-  "nextAgent": "feature-architecture-expert",
+  "architecture": {
+    "implementationOrder": [
+      {
+        "order": 1,
+        "file": "server/database_migrations/versions/0013_add_conversation_status.py",
+        "type": "create",
+        "reason": "Schema must exist before code references it",
+        "dependencies": [],
+        "solidPrinciples": ["SRP: Migration only handles schema changes"]
+      },
+      {
+        "order": 2,
+        "file": "server/app/services/database/conversations.py",
+        "type": "modify",
+        "reason": "Add CONVERSATION_STATUSES constant, update_conversation_status method, and update NamedTuples",
+        "dependencies": ["0013_add_conversation_status.py"],
+        "solidPrinciples": ["SRP: ConversationsMixin manages conversation state", "OCP: Status values extensible via tuple constant"]
+      },
+      {
+        "order": 3,
+        "file": "server/app/models/conversations.py",
+        "type": "modify",
+        "reason": "Add status field to ConversationResponse Pydantic model",
+        "dependencies": ["conversations.py service"],
+        "solidPrinciples": ["SRP: Models define API contracts only"]
+      },
+      {
+        "order": 4,
+        "file": "server/app/api/conversations.py",
+        "type": "modify",
+        "reason": "Update convert_db_to_api_response to include status field",
+        "dependencies": ["ConversationResponse model"],
+        "solidPrinciples": ["SRP: API layer handles HTTP concerns only"]
+      },
+      {
+        "order": 5,
+        "file": "server/app/services/database/research_pipeline_runs.py",
+        "type": "modify",
+        "reason": "Add status update call in create_research_pipeline_run",
+        "dependencies": ["update_conversation_status method"],
+        "solidPrinciples": ["SRP: Run creation + side effect (status update)", "DIP: Calls abstraction via self"]
+      },
+      {
+        "order": 6,
+        "file": "frontend/src/features/conversation/components/IdeationQueueCard.tsx",
+        "type": "modify",
+        "reason": "Add Edit button with navigation",
+        "dependencies": [],
+        "solidPrinciples": ["SRP: Component handles display + user interaction"]
+      },
+      {
+        "order": 7,
+        "file": "frontend/src/features/conversation/components/InlineIdeaView.tsx",
+        "type": "modify",
+        "reason": "Add Edit button with navigation",
+        "dependencies": [],
+        "solidPrinciples": ["SRP: Component handles display + user interaction"]
+      }
+    ],
+    "interfaces": {
+      "CONVERSATION_STATUSES": {
+        "type": "tuple",
+        "location": "server/app/services/database/conversations.py",
+        "definition": "CONVERSATION_STATUSES = ('draft', 'with_research')",
+        "purpose": "Validation constant for status values"
+      },
+      "update_conversation_status": {
+        "type": "method",
+        "location": "server/app/services/database/conversations.py",
+        "signature": "def update_conversation_status(self, conversation_id: int, status: str) -> bool",
+        "purpose": "Public method for updating conversation status",
+        "validation": "Raises ValueError if status not in CONVERSATION_STATUSES"
+      },
+      "_update_conversation_status_with_cursor": {
+        "type": "method",
+        "location": "server/app/services/database/conversations.py",
+        "signature": "def _update_conversation_status_with_cursor(self, cursor, conversation_id: int, status: str) -> None",
+        "purpose": "Transaction-safe status update for use within existing transactions",
+        "validation": "Raises ValueError if status not in CONVERSATION_STATUSES"
+      }
+    },
+    "solidAnalysis": {
+      "violations": [],
+      "recommendations": [
+        {
+          "file": "server/app/services/database/research_pipeline_runs.py",
+          "observation": "create_research_pipeline_run will have two responsibilities: creating run + updating status",
+          "verdict": "ACCEPTABLE",
+          "reason": "Status update is a side effect of run creation, not a separate responsibility. They are causally linked. Extracting to StatusManager would over-engineer."
+        },
+        {
+          "file": "server/app/services/database/conversations.py",
+          "observation": "NamedTuples (FullConversation, DashboardConversation) are data containers",
+          "verdict": "NOT A VIOLATION",
+          "reason": "NamedTuples are value objects / DTOs. Adding a field is data structure extension, not responsibility bloat. They have single responsibility: carry data."
+        },
+        {
+          "file": "server/app/api/conversations.py",
+          "observation": "convert_db_to_api_response function handles mapping",
+          "verdict": "GOOD SRP",
+          "reason": "Single responsibility: convert DB NamedTuple to API Pydantic model. Adding status field is natural extension."
+        }
+      ],
+      "refactoringRequired": false
+    }
+  },
+  "currentPhase": "implementation",
+  "nextAgent": "fastapi-expert",
   "blockedBy": null
 }
