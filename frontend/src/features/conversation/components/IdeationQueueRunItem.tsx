@@ -1,10 +1,7 @@
 import { memo } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
-import {
-  getStatusBadge,
-  truncateRunId,
-} from "@/features/research/utils/research-utils";
+import { getStatusBadge, truncateRunId } from "@/features/research/utils/research-utils";
 import { formatRelativeTime } from "@/shared/lib/date-utils";
 import { cn } from "@/shared/lib/utils";
 import type { IdeationQueueRunItemProps } from "../types/ideation-queue.types";
@@ -42,9 +39,7 @@ function IdeationQueueRunItemComponent({
     >
       <div className="flex items-center gap-3">
         {getStatusBadge(status, "sm")}
-        <span className="font-mono text-xs text-slate-400">
-          {truncateRunId(runId)}
-        </span>
+        <span className="font-mono text-xs text-slate-400">{truncateRunId(runId)}</span>
       </div>
       <div className="flex items-center gap-3 text-[10px] text-slate-500">
         {gpuType && <span className="hidden sm:inline">{gpuType}</span>}

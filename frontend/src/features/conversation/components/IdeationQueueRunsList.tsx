@@ -9,7 +9,7 @@ import type { IdeationQueueRunsListProps } from "../types/ideation-queue.types";
 function RunsListSkeleton() {
   return (
     <div className="mt-3 space-y-2 border-t border-slate-800 pt-3">
-      {[1, 2, 3].map((i) => (
+      {[1, 2, 3].map(i => (
         <div
           key={i}
           className="animate-pulse rounded-lg border border-slate-800/50 bg-slate-900/30 px-3 py-2"
@@ -46,19 +46,13 @@ function RunsListEmpty() {
 /**
  * Error state with retry capability.
  */
-function RunsListError({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
+function RunsListError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="mt-3 border-t border-slate-800 pt-3">
       <div className="flex items-center justify-between rounded-lg bg-red-500/10 px-3 py-2 text-sm">
         <span className="text-red-400">{message}</span>
         <button
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation();
             onRetry();
           }}
@@ -76,11 +70,8 @@ function RunsListError({
  * Container component that fetches and displays research runs for a conversation.
  * Handles loading, empty, and error states.
  */
-export function IdeationQueueRunsList({
-  conversationId,
-}: IdeationQueueRunsListProps) {
-  const { runs, isLoading, error, refetch } =
-    useConversationResearchRuns(conversationId);
+export function IdeationQueueRunsList({ conversationId }: IdeationQueueRunsListProps) {
+  const { runs, isLoading, error, refetch } = useConversationResearchRuns(conversationId);
 
   // Loading state
   if (isLoading) {
@@ -104,7 +95,7 @@ export function IdeationQueueRunsList({
   return (
     <div className="mt-3 border-t border-slate-800 pt-3">
       <div className="space-y-2">
-        {displayRuns.map((run) => (
+        {displayRuns.map(run => (
           <IdeationQueueRunItem
             key={run.run_id}
             runId={run.run_id}
@@ -116,9 +107,7 @@ export function IdeationQueueRunsList({
       </div>
       {hasMore && (
         <div className="mt-2 text-center">
-          <span className="text-xs text-slate-500">
-            +{runs.length - 5} more runs
-          </span>
+          <span className="text-xs text-slate-500">+{runs.length - 5} more runs</span>
         </div>
       )}
     </div>

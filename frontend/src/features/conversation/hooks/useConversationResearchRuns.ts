@@ -15,13 +15,10 @@ import type {
 async function fetchConversationResearchRuns(
   conversationId: number
 ): Promise<ResearchRunSummary[]> {
-  const data = await apiFetch<ConversationResponse>(
-    `/conversations/${conversationId}`
-  );
+  const data = await apiFetch<ConversationResponse>(`/conversations/${conversationId}`);
   // Sort by created_at descending (newest first)
   return (data.research_runs ?? []).sort(
-    (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 }
 

@@ -7,7 +7,7 @@
 export function IdeationQueueSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {[1, 2, 3, 4, 5].map((i) => (
+      {[1, 2, 3, 4, 5].map(i => (
         <div
           key={i}
           className="animate-pulse rounded-xl border border-slate-800 bg-slate-900/50 p-4"

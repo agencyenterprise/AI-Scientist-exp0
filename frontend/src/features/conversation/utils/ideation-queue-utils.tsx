@@ -1,11 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  CheckCircle2,
-  Clock,
-  Loader2,
-  AlertCircle,
-  FileQuestion,
-} from "lucide-react";
+import { CheckCircle2, Clock, Loader2, AlertCircle, FileQuestion } from "lucide-react";
 import type { Conversation } from "@/shared/lib/api-adapters";
 import type {
   IdeaStatus,
@@ -46,16 +40,9 @@ export const IDEA_STATUS_CONFIG: Record<IdeaStatus, IdeaStatusConfig> = {
 
 // ===== Filter Configuration (OCP: extend by adding entries) =====
 
-export const STATUS_FILTER_OPTIONS: StatusFilterOption[] = [
-  "all",
-  "no_idea",
-  "pending_launch",
-];
+export const STATUS_FILTER_OPTIONS: StatusFilterOption[] = ["all", "no_idea", "pending_launch"];
 
-export const STATUS_FILTER_CONFIG: Record<
-  StatusFilterOption,
-  StatusFilterConfig
-> = {
+export const STATUS_FILTER_CONFIG: Record<StatusFilterOption, StatusFilterConfig> = {
   all: { label: "All", activeClass: "bg-slate-500/15 text-slate-300" },
   no_idea: { label: "No idea", activeClass: "bg-slate-500/15 text-slate-400" },
   pending_launch: {

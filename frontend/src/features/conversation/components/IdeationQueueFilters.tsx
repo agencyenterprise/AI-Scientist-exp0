@@ -2,26 +2,16 @@
 
 import { cn } from "@/shared/lib/utils";
 import type { IdeationQueueFiltersProps } from "../types/ideation-queue.types";
-import {
-  STATUS_FILTER_OPTIONS,
-  STATUS_FILTER_CONFIG,
-} from "../utils/ideation-queue-utils";
+import { STATUS_FILTER_OPTIONS, STATUS_FILTER_CONFIG } from "../utils/ideation-queue-utils";
 
 /**
  * Status filter buttons for the Ideation Queue
  * Follows the LOG_FILTER_CONFIG pattern from research-logs-list.tsx
  */
-export function IdeationQueueFilters({
-  activeFilter,
-  onFilterChange,
-}: IdeationQueueFiltersProps) {
+export function IdeationQueueFilters({ activeFilter, onFilterChange }: IdeationQueueFiltersProps) {
   return (
-    <div
-      className="flex items-center gap-1"
-      role="group"
-      aria-label="Status filter"
-    >
-      {STATUS_FILTER_OPTIONS.map((option) => (
+    <div className="flex items-center gap-1" role="group" aria-label="Status filter">
+      {STATUS_FILTER_OPTIONS.map(option => (
         <button
           key={option}
           type="button"

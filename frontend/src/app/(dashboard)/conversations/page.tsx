@@ -35,7 +35,7 @@ export default function ConversationsPage() {
           inlineViewRef.current?.scrollIntoView({
             behavior: "smooth",
             block: "start",
-            inline: "nearest"
+            inline: "nearest",
           });
         });
       });

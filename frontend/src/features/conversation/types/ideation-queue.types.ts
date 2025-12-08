@@ -37,12 +37,7 @@ export interface StatusFilterConfig {
 /**
  * Sort options for ideation queue
  */
-export type IdeationSortKey =
-  | "newest"
-  | "oldest"
-  | "title_asc"
-  | "title_desc"
-  | "status";
+export type IdeationSortKey = "newest" | "oldest" | "title_asc" | "title_desc" | "status";
 
 /**
  * Props for IdeationQueueCard component (ISP-compliant: focused interface)
@@ -120,9 +115,7 @@ import type { ConversationResponse } from "@/types";
  * Research run summary type derived from API schema.
  * Uses NonNullable to extract the array element type from ConversationResponse.
  */
-export type ResearchRunSummary = NonNullable<
-  ConversationResponse["research_runs"]
->[number];
+export type ResearchRunSummary = NonNullable<ConversationResponse["research_runs"]>[number];
 
 /**
  * Research run status for display purposes.

@@ -31,7 +31,7 @@ export function useConversationsFilter(
 
     // Apply status filter
     if (statusFilter !== "all") {
-      filtered = filtered.filter((conversation) => {
+      filtered = filtered.filter(conversation => {
         const status = deriveIdeaStatus(conversation);
         return status === statusFilter;
       });
@@ -40,7 +40,7 @@ export function useConversationsFilter(
     // Apply search filter
     if (searchTerm.trim()) {
       const lowerSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter((conversation) => {
+      filtered = filtered.filter(conversation => {
         const title = conversation.title?.toLowerCase() || "";
         const ideaTitle = conversation.ideaTitle?.toLowerCase() || "";
         const ideaAbstract = conversation.ideaAbstract?.toLowerCase() || "";

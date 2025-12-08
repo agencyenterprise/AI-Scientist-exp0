@@ -13,15 +13,11 @@ import type { UseSelectedIdeaDataReturn } from "../types/ideation-queue.types";
  * @param conversationId - The ID of the conversation to fetch idea for, or null if none selected
  * @returns Object containing idea data, loading state, error, and refetch function
  */
-export function useSelectedIdeaData(
-  conversationId: number | null
-): UseSelectedIdeaDataReturn {
+export function useSelectedIdeaData(conversationId: number | null): UseSelectedIdeaDataReturn {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["selected-idea", conversationId],
     queryFn: async () => {
-      const response = await apiFetch<IdeaGetResponse>(
-        `/conversations/${conversationId}/idea`
-      );
+      const response = await apiFetch<IdeaGetResponse>(`/conversations/${conversationId}/idea`);
       return response.idea;
     },
     // CRITICAL: Disable query when no selection
