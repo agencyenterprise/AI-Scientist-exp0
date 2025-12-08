@@ -14,6 +14,11 @@ export { IdeationQueueList } from "./components/IdeationQueueList";
 export { IdeationQueueCard } from "./components/IdeationQueueCard";
 export { IdeationQueueFilters } from "./components/IdeationQueueFilters";
 export { IdeationQueueEmpty } from "./components/IdeationQueueEmpty";
+export { IdeationQueueRunsList } from "./components/IdeationQueueRunsList";
+export { IdeationQueueRunItem } from "./components/IdeationQueueRunItem";
+
+// Ideation Queue hooks
+export { useConversationResearchRuns } from "./hooks/useConversationResearchRuns";
 
 // Ideation Queue utilities
 export {
@@ -36,4 +41,10 @@ export type {
   IdeationQueueListProps,
   IdeationQueueEmptyProps,
   UseConversationsFilterReturn,
+  // Research runs types
+  ResearchRunSummary,
+  RunStatus,
+  IdeationQueueRunItemProps,
+  IdeationQueueRunsListProps,
+  UseConversationResearchRunsReturn,
 } from "./types/ideation-queue.types";

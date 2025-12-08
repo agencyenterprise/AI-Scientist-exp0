@@ -101,3 +101,50 @@ export interface UseConversationsFilterReturn {
   setStatusFilter: (filter: StatusFilterOption) => void;
   filteredConversations: Conversation[];
 }
+
+// ============================================================================
+// Research Run Types for Ideation Queue Display
+// ============================================================================
+
+import type { ConversationResponse } from "@/types";
+
+/**
+ * Research run summary type derived from API schema.
+ * Uses NonNullable to extract the array element type from ConversationResponse.
+ */
+export type ResearchRunSummary = NonNullable<
+  ConversationResponse["research_runs"]
+>[number];
+
+/**
+ * Research run status for display purposes.
+ * Matches backend status values from ResearchRunSummary.
+ */
+export type RunStatus = "pending" | "running" | "completed" | "failed";
+
+/**
+ * Props for IdeationQueueRunItem component (ISP-compliant: minimal interface)
+ */
+export interface IdeationQueueRunItemProps {
+  runId: string;
+  status: string;
+  gpuType: string | null;
+  createdAt: string;
+}
+
+/**
+ * Props for IdeationQueueRunsList component
+ */
+export interface IdeationQueueRunsListProps {
+  conversationId: number;
+}
+
+/**
+ * Return type for useConversationResearchRuns hook
+ */
+export interface UseConversationResearchRunsReturn {
+  runs: ResearchRunSummary[];
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => void;
+}

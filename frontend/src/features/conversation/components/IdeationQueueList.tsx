@@ -1,9 +1,9 @@
 "use client";
 
-import type { IdeationQueueListProps } from "../types/ideation-queue.types";
+import type { IdeationQueueListProps } from "@/features/conversation";
 import { IdeationQueueCard } from "./IdeationQueueCard";
 import { IdeationQueueEmpty } from "./IdeationQueueEmpty";
-import { deriveIdeaStatus } from "../utils/ideation-queue-utils";
+import { deriveIdeaStatus } from "@/features/conversation";
 
 /**
  * Card grid container for the Ideation Queue
@@ -18,8 +18,8 @@ export function IdeationQueueList({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {conversations.map((conversation) => (
+    <div className="grid grid-cols-1 gap-4">
+      {conversations.map(conversation => (
         <IdeationQueueCard
           key={conversation.id}
           id={conversation.id}
