@@ -14,6 +14,7 @@ export { IdeationQueueList } from "./components/IdeationQueueList";
 export { IdeationQueueCard } from "./components/IdeationQueueCard";
 export { IdeationQueueFilters } from "./components/IdeationQueueFilters";
 export { IdeationQueueEmpty } from "./components/IdeationQueueEmpty";
+export { IdeationQueueSkeleton } from "./components/IdeationQueueSkeleton";
 export { IdeationQueueRunsList } from "./components/IdeationQueueRunsList";
 export { IdeationQueueRunItem } from "./components/IdeationQueueRunItem";
 

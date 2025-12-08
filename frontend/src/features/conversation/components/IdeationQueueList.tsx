@@ -9,10 +9,7 @@ import { deriveIdeaStatus } from "@/features/conversation";
  * Card grid container for the Ideation Queue
  * Displays conversations as responsive cards with status badges
  */
-export function IdeationQueueList({
-  conversations,
-  emptyMessage,
-}: IdeationQueueListProps) {
+export function IdeationQueueList({ conversations, emptyMessage }: IdeationQueueListProps) {
   if (conversations.length === 0) {
     return <IdeationQueueEmpty hasFilters={Boolean(emptyMessage)} />;
   }
@@ -23,9 +20,7 @@ export function IdeationQueueList({
         <IdeationQueueCard
           key={conversation.id}
           id={conversation.id}
-          title={
-            conversation.ideaTitle || conversation.title || "Untitled Idea"
-          }
+          title={conversation.ideaTitle || conversation.title || "Untitled Idea"}
           abstract={conversation.ideaAbstract ?? null}
           status={deriveIdeaStatus(conversation)}
           createdAt={conversation.createdAt}

@@ -2,17 +2,14 @@
 
 import { Search, Lightbulb } from "lucide-react";
 import type { IdeationQueueHeaderProps } from "../types/ideation-queue.types";
-import { IdeationQueueFilters } from "./IdeationQueueFilters";
 
 /**
  * Header component for the Ideation Queue page
- * Includes title, count, search input, and status filters
+ * Includes title, count, and search input
  */
 export function IdeationQueueHeader({
   searchTerm,
   onSearchChange,
-  statusFilter,
-  onStatusFilterChange,
   totalCount,
   filteredCount,
 }: IdeationQueueHeaderProps) {
@@ -35,26 +32,17 @@ export function IdeationQueueHeader({
         </div>
       </div>
 
-      {/* Search and filters row */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Search input */}
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-          <input
-            type="search"
-            role="searchbox"
-            aria-label="Search ideas"
-            placeholder="Search ideas..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full rounded-lg border border-slate-800 bg-slate-900/50 py-2 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 transition-colors focus:border-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-700"
-          />
-        </div>
-
-        {/* Status filters */}
-        <IdeationQueueFilters
-          activeFilter={statusFilter}
-          onFilterChange={onStatusFilterChange}
+      {/* Search row */}
+      <div className="relative w-full max-w-2xl">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+        <input
+          type="search"
+          role="searchbox"
+          aria-label="Search ideas"
+          placeholder="Search ideas..."
+          value={searchTerm}
+          onChange={e => onSearchChange(e.target.value)}
+          className="w-full rounded-lg border border-slate-800 bg-slate-900/50 py-2 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 transition-colors focus:border-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-700"
         />
       </div>
     </div>

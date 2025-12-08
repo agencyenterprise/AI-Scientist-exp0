@@ -6,7 +6,6 @@ import { Clock, ChevronDown, ChevronUp } from "lucide-react";
 import { formatRelativeTime } from "@/shared/lib/date-utils";
 import { cn } from "@/shared/lib/utils";
 import type { IdeationQueueCardProps } from "../types/ideation-queue.types";
-import { getIdeaStatusBadge } from "../utils/ideation-queue-utils";
 import { IdeationQueueRunsList } from "./IdeationQueueRunsList";
 
 /**
@@ -18,7 +17,6 @@ function IdeationQueueCardComponent({
   id,
   title,
   abstract,
-  status,
   createdAt,
   updatedAt,
 }: IdeationQueueCardProps) {
@@ -42,7 +40,7 @@ function IdeationQueueCardComponent({
         "transition-all hover:border-slate-700 hover:bg-slate-900/80"
       )}
     >
-      {/* Header: Status badge + Title */}
+      {/* Header: Title */}
       <div className="mb-3 flex flex-col gap-2">
         <h3 className="line-clamp-2 text-sm font-semibold text-slate-100">
           {title}

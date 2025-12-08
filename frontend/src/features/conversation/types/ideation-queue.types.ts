@@ -70,8 +70,6 @@ export interface IdeationQueueFiltersProps {
 export interface IdeationQueueHeaderProps {
   searchTerm: string;
   onSearchChange: (term: string) => void;
-  statusFilter: StatusFilterOption;
-  onStatusFilterChange: (filter: StatusFilterOption) => void;
   totalCount: number;
   filteredCount: number;
 }
