@@ -3,8 +3,7 @@
   "name": "Conversation Status Tracking",
   "description": "Add status column to conversations table (Draft | With Research) with auto-update when research runs are created, and Edit buttons in IdeationQueueCard and InlineIdeaView to navigate to /conversation/[id] page",
   "created": "2025-12-08T00:00:00Z",
-  "lastUpdated": "2025-12-08T18:00:00Z",
-
+  "lastUpdated": "2025-12-08T20:30:00Z",
   "classification": {
     "type": "fullstack",
     "scope": "single-feature",
@@ -28,7 +27,6 @@
       "workflow": "Full workflow needed due to fullstack nature: database schema changes (migration), backend API updates (FastAPI), frontend component modifications (Next.js), and documentation"
     }
   },
-
   "techStack": {
     "detected": [
       "nextjs-15",
@@ -45,7 +43,6 @@
       "typescript": "5.x"
     }
   },
-
   "docsConsulted": {
     "project": [
       ".agent/README.md",
@@ -67,34 +64,185 @@
       "frontend/src/features/conversation/types/ideation-queue.types.ts"
     ]
   },
-
   "assets": {
     "reuse": [
       {
-        "path": "frontend/src/features/conversation/components/IdeationQueueCard.tsx",
-        "reason": "Existing card component - needs Edit button added"
+        "name": "Button",
+        "path": "@/shared/components/ui/button",
+        "reason": "shadcn Button component - use variant='ghost' for Edit button",
+        "usedIn": [],
+        "patterns": {
+          "variants": ["default", "destructive", "outline", "secondary", "ghost", "link"],
+          "sizes": ["default", "sm", "lg", "icon", "icon-sm", "icon-lg"],
+          "recommended": "variant='ghost' size='sm' for Edit button in card footer"
+        }
       },
       {
-        "path": "frontend/src/features/conversation/components/InlineIdeaView.tsx",
-        "reason": "Existing inline view - needs Edit button added"
+        "name": "cn",
+        "path": "@/shared/lib/utils",
+        "reason": "Utility for conditional className merging (twMerge + clsx)",
+        "usedIn": []
       },
       {
-        "path": "frontend/src/shared/lib/utils.ts",
-        "reason": "cn() utility for conditional classes"
+        "name": "Pencil (lucide-react)",
+        "path": "lucide-react",
+        "reason": "Standard edit icon - already used in 7+ components for edit actions",
+        "usedIn": [],
+        "examples": [
+          "frontend/src/features/conversation/components/TitleEditor.tsx",
+          "frontend/src/features/project-draft/components/ProjectDraftHeader.tsx",
+          "frontend/src/features/project-draft/components/ExperimentsSection.tsx"
+        ]
       },
       {
-        "path": "frontend/src/shared/components/ui/button.tsx",
-        "reason": "shadcn Button component for Edit button"
+        "name": "useRouter",
+        "path": "next/navigation",
+        "reason": "Next.js 15 App Router navigation hook",
+        "usedIn": [],
+        "pattern": "const router = useRouter(); router.push('/conversations/{id}')"
       },
       {
+        "name": "stopPropagation pattern",
+        "path": "n/a",
+        "reason": "Prevent card click when clicking button inside card",
+        "usedIn": [],
+        "pattern": "onClick={(e) => { e.stopPropagation(); ... }}",
+        "examples": [
+          "frontend/src/features/conversation/components/IdeationQueueCard.tsx:39",
+          "frontend/src/features/conversation/components/IdeationQueueRunItem.tsx:23"
+        ]
+      },
+      {
+        "name": "formatRelativeTime",
+        "path": "@/shared/lib/date-utils",
+        "reason": "Date formatting utility (uses date-fns)",
+        "usedIn": []
+      },
+      {
+        "name": "Migration pattern: Add column + refresh view",
         "path": "server/database_migrations/versions/0003_manual_seed_columns.py",
-        "reason": "Pattern for adding column and refreshing dashboard view"
+        "reason": "Pattern for adding column to conversations and updating conversation_dashboard_view",
+        "usedIn": [],
+        "pattern": "op.add_column() + op.execute('CREATE OR REPLACE VIEW conversation_dashboard_view AS ...')"
+      },
+      {
+        "name": "Migration pattern: Table creation",
+        "path": "server/database_migrations/versions/0012_substage_completed_events.py",
+        "reason": "Pattern for creating tables with indexes",
+        "usedIn": []
+      },
+      {
+        "name": "CHECK constraint pattern",
+        "path": "server/database_migrations/versions/0001_initial_schema.py:194",
+        "reason": "Pattern for CHECK constraint on status columns",
+        "usedIn": [],
+        "pattern": "sa.CheckConstraint(\"role IN ('user', 'assistant')\", name=\"chat_messages_role_check\")"
+      },
+      {
+        "name": "Status column pattern (TEXT with validation)",
+        "path": "server/database_migrations/versions/0005_research_pipeline_runs.py:34",
+        "reason": "research_pipeline_runs.status uses TEXT with default, validated in Python",
+        "usedIn": [],
+        "pattern": "sa.Column('status', sa.Text(), nullable=False, server_default='pending')"
+      },
+      {
+        "name": "PIPELINE_RUN_STATUSES tuple",
+        "path": "server/app/services/database/research_pipeline_runs.py:14",
+        "reason": "Pattern for defining allowed status values as tuple constant",
+        "usedIn": [],
+        "pattern": "PIPELINE_RUN_STATUSES = ('pending', 'running', 'failed', 'completed')"
+      },
+      {
+        "name": "ConversationsMixin update methods",
+        "path": "server/app/services/database/conversations.py",
+        "reason": "Patterns for update_conversation_title and other update methods",
+        "usedIn": [],
+        "methods": [
+          "update_conversation_title(conversation_id, new_title) -> bool",
+          "update_conversation_messages(conversation_id, messages) -> bool"
+        ]
+      },
+      {
+        "name": "FullConversation NamedTuple",
+        "path": "server/app/services/database/conversations.py:37",
+        "reason": "Database layer NamedTuple - needs status field added",
+        "usedIn": []
+      },
+      {
+        "name": "DashboardConversation NamedTuple",
+        "path": "server/app/services/database/conversations.py:56",
+        "reason": "Dashboard view NamedTuple - needs status field added",
+        "usedIn": []
+      },
+      {
+        "name": "ConversationResponse Pydantic model",
+        "path": "server/app/models/conversations.py:94",
+        "reason": "API response model - needs status field added",
+        "usedIn": []
+      },
+      {
+        "name": "ResearchPipelineRunsMixin.create_research_pipeline_run",
+        "path": "server/app/services/database/research_pipeline_runs.py:61",
+        "reason": "Method where status update logic will be added (AC2)",
+        "usedIn": [],
+        "notes": "Uses transaction with conn.cursor() and conn.commit()"
+      },
+      {
+        "name": "Transaction pattern with cursor",
+        "path": "server/app/services/database/research_pipeline_runs.py:75-112",
+        "reason": "Pattern for multi-step operations in same transaction",
+        "usedIn": [],
+        "pattern": "with self._get_connection() as conn:\n    with conn.cursor() as cursor:\n        cursor.execute(...)\n        # more operations\n        conn.commit()"
       }
     ],
-    "create": [],
+    "create": [
+      {
+        "name": "0013_add_conversation_status.py",
+        "path": "server/database_migrations/versions/0013_add_conversation_status.py",
+        "reason": "Migration to add status column with CHECK constraint and backfill",
+        "status": "pending",
+        "dependencies": [
+          "Migration pattern: Add column + refresh view",
+          "CHECK constraint pattern",
+          "Status column pattern (TEXT with validation)"
+        ]
+      },
+      {
+        "name": "update_conversation_status method",
+        "path": "server/app/services/database/conversations.py",
+        "reason": "New method in ConversationsMixin to update status",
+        "status": "pending",
+        "signature": "update_conversation_status(self, conversation_id: int, status: str) -> bool",
+        "dependencies": [
+          "ConversationsMixin update methods"
+        ]
+      },
+      {
+        "name": "Edit button in IdeationQueueCard footer",
+        "path": "frontend/src/features/conversation/components/IdeationQueueCard.tsx",
+        "reason": "Add Edit button next to expand/collapse toggle (AC3)",
+        "status": "pending",
+        "dependencies": [
+          "Button",
+          "Pencil (lucide-react)",
+          "useRouter",
+          "stopPropagation pattern"
+        ]
+      },
+      {
+        "name": "Edit button in InlineIdeaView header",
+        "path": "frontend/src/features/conversation/components/InlineIdeaView.tsx",
+        "reason": "Add Edit button in metadata header area (AC4)",
+        "status": "pending",
+        "dependencies": [
+          "Button",
+          "Pencil (lucide-react)",
+          "useRouter"
+        ]
+      }
+    ],
     "extract": []
   },
-
   "files": {
     "created": [],
     "modified": [],
@@ -108,7 +256,6 @@
       "frontend/src/features/conversation/components/InlineIdeaView.tsx"
     ]
   },
-
   "phases": [
     {
       "id": "classification",
@@ -133,8 +280,9 @@
     {
       "id": "analysis",
       "agent": "codebase-analyzer",
-      "status": "pending",
-      "description": "Analyze existing conversation schema, API patterns, and component structure"
+      "status": "completed",
+      "completedAt": "2025-12-08T20:30:00Z",
+      "description": "Analyzed existing conversation schema, API patterns, and component structure"
     },
     {
       "id": "architecture",
@@ -171,7 +319,6 @@
       "description": "Update architecture docs with new status field pattern"
     }
   ],
-
   "decisions": [
     {
       "phase": "classification",
@@ -254,23 +401,68 @@
       "key": "edit-button-icon",
       "value": "Pencil",
       "reason": "Lucide Pencil icon is standard for edit actions, already imported in codebase"
+    },
+    {
+      "phase": "analysis",
+      "key": "status-validation-pattern",
+      "value": "python-tuple-validation",
+      "reason": "Codebase uses Python tuple constants (PIPELINE_RUN_STATUSES) for validation rather than database CHECK constraints. Should follow this pattern for consistency."
+    },
+    {
+      "phase": "analysis",
+      "key": "button-styling",
+      "value": "ghost-variant-small-size",
+      "reason": "Existing card buttons use ghost variant for subtle appearance. Footer buttons should match: variant='ghost' size='sm'"
+    },
+    {
+      "phase": "analysis",
+      "key": "migration-numbering",
+      "value": "0013",
+      "reason": "Latest migration is 0012_substage_completed_events.py, next should be 0013_add_conversation_status.py"
     }
   ],
-
   "searches": [
     {
       "pattern": "server/database_migrations/versions/*.py",
       "tool": "glob",
       "results": 12,
       "at": "2025-12-08T18:00:00Z"
+    },
+    {
+      "pattern": "lucide-react",
+      "tool": "grep",
+      "results": 30,
+      "at": "2025-12-08T20:30:00Z"
+    },
+    {
+      "pattern": "useRouter",
+      "tool": "grep",
+      "results": 19,
+      "at": "2025-12-08T20:30:00Z"
+    },
+    {
+      "pattern": "Pencil",
+      "tool": "grep",
+      "results": 13,
+      "at": "2025-12-08T20:30:00Z"
+    },
+    {
+      "pattern": "stopPropagation",
+      "tool": "grep",
+      "results": 9,
+      "at": "2025-12-08T20:30:00Z"
+    },
+    {
+      "pattern": "sa.CheckConstraint",
+      "tool": "grep",
+      "results": 1,
+      "at": "2025-12-08T20:30:00Z"
     }
   ],
-
   "reviews": {
     "copy": [],
     "queries": []
   },
-
   "acceptanceCriteria": [
     {
       "id": "AC1",
@@ -302,7 +494,7 @@
         "Add Edit button with Pencil icon to IdeationQueueCard footer",
         "Button uses router.push to navigate to /conversations/{id}",
         "onClick handler calls e.stopPropagation() to prevent card click",
-        "Use consistent styling: text-slate-400 hover:text-slate-300",
+        "Use consistent styling: variant='ghost' size='sm' text-slate-400 hover:text-slate-300",
         "Button text: 'Edit' with Pencil icon"
       ]
     },
@@ -313,13 +505,12 @@
         "Add Edit button in InlineIdeaView header area",
         "Position in the flex row with metadata (after badges)",
         "Button uses router.push to navigate to /conversations/{id}",
-        "Use shadcn Button component with variant='outline' or ghost",
+        "Use shadcn Button component with variant='ghost' or 'outline'",
         "Include Pencil icon and 'Edit' text"
       ]
     }
   ],
-
-  "currentPhase": "analysis",
-  "nextAgent": "codebase-analyzer",
+  "currentPhase": "architecture",
+  "nextAgent": "feature-architecture-expert",
   "blockedBy": null
 }
