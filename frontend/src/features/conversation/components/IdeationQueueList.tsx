@@ -8,8 +8,14 @@ import { deriveIdeaStatus } from "@/features/conversation";
 /**
  * Card grid container for the Ideation Queue
  * Displays conversations as responsive cards with status badges
+ * Supports optional selection for inline view
  */
-export function IdeationQueueList({ conversations, emptyMessage }: IdeationQueueListProps) {
+export function IdeationQueueList({
+  conversations,
+  emptyMessage,
+  selectedId,
+  onSelect,
+}: IdeationQueueListProps) {
   if (conversations.length === 0) {
     return <IdeationQueueEmpty hasFilters={Boolean(emptyMessage)} />;
   }
@@ -25,6 +31,8 @@ export function IdeationQueueList({ conversations, emptyMessage }: IdeationQueue
           status={deriveIdeaStatus(conversation)}
           createdAt={conversation.createdAt}
           updatedAt={conversation.updatedAt}
+          isSelected={selectedId === conversation.id}
+          onSelect={onSelect}
         />
       ))}
     </div>

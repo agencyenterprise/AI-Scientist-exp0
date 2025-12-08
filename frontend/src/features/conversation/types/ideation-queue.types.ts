@@ -46,6 +46,7 @@ export type IdeationSortKey =
 
 /**
  * Props for IdeationQueueCard component (ISP-compliant: focused interface)
+ * MODIFIED: Added optional selection props for inline view support
  */
 export interface IdeationQueueCardProps {
   id: number;
@@ -54,6 +55,10 @@ export interface IdeationQueueCardProps {
   status: IdeaStatus;
   createdAt: string;
   updatedAt: string;
+  /** Whether this card is currently selected for inline view */
+  isSelected?: boolean;
+  /** Callback when card is selected (if not provided, defaults to navigation) */
+  onSelect?: (id: number) => void;
 }
 
 /**
@@ -76,10 +81,15 @@ export interface IdeationQueueHeaderProps {
 
 /**
  * Props for IdeationQueueList component
+ * MODIFIED: Added optional selection props for inline view support
  */
 export interface IdeationQueueListProps {
   conversations: Conversation[];
   emptyMessage?: string;
+  /** ID of currently selected conversation */
+  selectedId?: number | null;
+  /** Callback when a conversation is selected */
+  onSelect?: (id: number) => void;
 }
 
 /**
@@ -142,6 +152,30 @@ export interface IdeationQueueRunsListProps {
  */
 export interface UseConversationResearchRunsReturn {
   runs: ResearchRunSummary[];
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+
+// ============================================================================
+// Inline Idea View Types
+// ============================================================================
+
+import type { Idea } from "@/types";
+
+/**
+ * Props for InlineIdeaView component
+ * Focused interface per ISP - only needs conversation ID
+ */
+export interface InlineIdeaViewProps {
+  conversationId: number | null;
+}
+
+/**
+ * Return type for useSelectedIdeaData hook
+ */
+export interface UseSelectedIdeaDataReturn {
+  idea: Idea | null;
   isLoading: boolean;
   error: string | null;
   refetch: () => void;

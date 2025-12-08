@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { Clock, ChevronDown, ChevronUp } from "lucide-react";
 import { formatRelativeTime } from "@/shared/lib/date-utils";
 import { cn } from "@/shared/lib/utils";
-import type { IdeationQueueCardProps } from "../types/ideation-queue.types";
+import type { IdeationQueueCardProps } from "@/features/conversation";
 import { IdeationQueueRunsList } from "./IdeationQueueRunsList";
 
 /**
  * Card component for displaying a single idea in the Ideation Queue
  * Supports expand/collapse to show research runs
+ * Supports selection for inline view (if onSelect provided)
  * Memoized for performance in list rendering
  */
 function IdeationQueueCardComponent({
@@ -19,17 +20,24 @@ function IdeationQueueCardComponent({
   abstract,
   createdAt,
   updatedAt,
+  isSelected,
+  onSelect,
 }: IdeationQueueCardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const router = useRouter();
 
+  // Call onSelect if provided, otherwise navigate (backward compatible)
   const handleCardClick = () => {
-    router.push(`/conversations/${id}`);
+    if (onSelect) {
+      onSelect(id);
+    } else {
+      router.push(`/conversations/${id}`);
+    }
   };
 
   const handleExpandToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsExpanded((prev) => !prev);
+    setIsExpanded(prev => !prev);
   };
 
   return (
@@ -37,21 +45,18 @@ function IdeationQueueCardComponent({
       onClick={handleCardClick}
       className={cn(
         "group cursor-pointer rounded-xl border border-slate-800 bg-slate-900/50 p-4",
-        "transition-all hover:border-slate-700 hover:bg-slate-900/80"
+        "transition-all hover:border-slate-700 hover:bg-slate-900/80",
+        isSelected && "ring-2 ring-sky-500 border-sky-500/50 bg-slate-900/80"
       )}
     >
       {/* Header: Title */}
       <div className="mb-3 flex flex-col gap-2">
-        <h3 className="line-clamp-2 text-sm font-semibold text-slate-100">
-          {title}
-        </h3>
+        <h3 className="line-clamp-2 text-sm font-semibold text-slate-100">{title}</h3>
       </div>
 
       {/* Body: Abstract preview */}
       {abstract && (
-        <p className="mb-3 line-clamp-3 text-xs leading-relaxed text-slate-400">
-          {abstract}
-        </p>
+        <p className="mb-3 line-clamp-3 text-xs leading-relaxed text-slate-400">{abstract}</p>
       )}
 
       {/* Footer: Dates + Expand toggle */}
@@ -76,11 +81,7 @@ function IdeationQueueCardComponent({
           )}
         >
           {isExpanded ? "Hide Runs" : "Show Runs"}
-          {isExpanded ? (
-            <ChevronUp className="h-3 w-3" />
-          ) : (
-            <ChevronDown className="h-3 w-3" />
-          )}
+          {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </button>
       </div>
 

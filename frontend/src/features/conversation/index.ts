@@ -17,9 +17,11 @@ export { IdeationQueueEmpty } from "./components/IdeationQueueEmpty";
 export { IdeationQueueSkeleton } from "./components/IdeationQueueSkeleton";
 export { IdeationQueueRunsList } from "./components/IdeationQueueRunsList";
 export { IdeationQueueRunItem } from "./components/IdeationQueueRunItem";
+export { InlineIdeaView } from "./components/InlineIdeaView";
 
 // Ideation Queue hooks
 export { useConversationResearchRuns } from "./hooks/useConversationResearchRuns";
+export { useSelectedIdeaData } from "./hooks/useSelectedIdeaData";
 
 // Ideation Queue utilities
 export {
@@ -48,4 +50,7 @@ export type {
   IdeationQueueRunItemProps,
   IdeationQueueRunsListProps,
   UseConversationResearchRunsReturn,
+  // Inline idea view types
+  InlineIdeaViewProps,
+  UseSelectedIdeaDataReturn,
 } from "./types/ideation-queue.types";

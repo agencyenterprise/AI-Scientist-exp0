@@ -1,7 +1,6 @@
 "use client";
 
 import { DashboardContext, SortDir, SortKey } from "@/features/dashboard/contexts/DashboardContext";
-import { PageCard } from "@/shared/components/PageCard";
 
 import { ProtectedRoute } from "@/shared/components/ProtectedRoute";
 import type { Conversation } from "@/shared/lib/api-adapters";
@@ -69,12 +68,10 @@ export default function ConversationsLayout({ children }: ConversationsLayoutPro
   };
 
   return (
-    <PageCard>
-      <ProtectedRoute>
-        <DashboardContext.Provider value={dashboardContextValue}>
-          {children}
-        </DashboardContext.Provider>
-      </ProtectedRoute>
-    </PageCard>
+    <ProtectedRoute>
+      <DashboardContext.Provider value={dashboardContextValue}>
+        {children}
+      </DashboardContext.Provider>
+    </ProtectedRoute>
   );
 }
