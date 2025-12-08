@@ -1,0 +1,221 @@
+{
+  "id": "conversation-status-tracking",
+  "name": "Conversation Status Tracking",
+  "description": "Add status field to conversations (Draft | With Research) and Edit buttons in IdeationQueueCard and InlineIdeaView to navigate to /conversation/[id] page",
+  "created": "2025-12-08T00:00:00Z",
+  "lastUpdated": "2025-12-08T00:00:00Z",
+
+  "classification": {
+    "type": "fullstack",
+    "scope": "single-feature",
+    "complexity": "moderate",
+    "confidence": "high",
+    "requiresUserStories": false,
+    "workflow": [
+      "feature-planner",
+      "codebase-analyzer",
+      "feature-architecture-expert",
+      "fastapi-expert",
+      "nextjs-expert",
+      "feature-executor",
+      "documentation-reviewer"
+    ],
+    "reasoning": {
+      "type": "User story describes both backend (status field + database migration) and frontend (UI updates to 2 components)",
+      "scope": "Changes limited to conversation feature - backend schema + 2 frontend components",
+      "complexity": "Moderate - requires database migration, backend API changes, and coordinated frontend updates",
+      "requiresUserStories": "False - file-driven approach is sufficient. While fullstack and user-facing, the scope is contained to a single feature with clear technical requirements (status enum + edit buttons). The 3 acceptance criteria map directly to implementation tasks without needing user journey decomposition.",
+      "workflow": "Full workflow needed due to fullstack nature: database schema changes (migration), backend API updates (FastAPI), frontend component modifications (Next.js), and documentation for the new status field pattern"
+    }
+  },
+
+  "techStack": {
+    "detected": [
+      "nextjs-15",
+      "typescript",
+      "react-19",
+      "fastapi",
+      "postgresql",
+      "alembic"
+    ],
+    "versions": {
+      "next": "15.4.8",
+      "react": "19.1.2",
+      "fastapi": "0.115.0",
+      "typescript": "5.x"
+    }
+  },
+
+  "docsConsulted": {
+    "project": [],
+    "external": [],
+    "existingFeatures": []
+  },
+
+  "assets": {
+    "reuse": [
+      {
+        "path": "frontend/src/features/conversation/components/IdeationQueueCard.tsx",
+        "reason": "Needs Edit button added"
+      },
+      {
+        "path": "frontend/src/features/conversation/components/InlineIdeaView.tsx",
+        "reason": "Needs Edit button added"
+      }
+    ],
+    "create": [],
+    "extract": []
+  },
+
+  "files": {
+    "created": [],
+    "modified": [],
+    "pending": [
+      "server/database_migrations/versions/0013_add_conversation_status.py",
+      "server/app/models/conversations.py",
+      "server/app/api/conversations.py",
+      "server/app/services/database/conversations.py",
+      "frontend/src/features/conversation/components/IdeationQueueCard.tsx",
+      "frontend/src/features/conversation/components/InlineIdeaView.tsx",
+      "frontend/src/features/conversation/types/ideation-queue.types.ts",
+      ".agent/SOP/server_database_migrations.md",
+      ".agent/System/server_architecture.md"
+    ]
+  },
+
+  "phases": [
+    {
+      "id": "classification",
+      "agent": "task-classifier",
+      "status": "completed",
+      "completedAt": "2025-12-08T00:00:00Z"
+    },
+    {
+      "id": "planning",
+      "agent": "feature-planner",
+      "status": "pending",
+      "description": "Break down into backend (status field) and frontend (Edit buttons) tasks"
+    },
+    {
+      "id": "analysis",
+      "agent": "codebase-analyzer",
+      "status": "pending",
+      "description": "Analyze existing conversation schema, API patterns, and component structure"
+    },
+    {
+      "id": "architecture",
+      "agent": "feature-architecture-expert",
+      "status": "pending",
+      "description": "Design status enum, migration strategy, API changes, and UI patterns"
+    },
+    {
+      "id": "tech-guidance",
+      "parallel": true,
+      "subtasks": [
+        {
+          "agent": "fastapi-expert",
+          "status": "pending",
+          "description": "Guide database migration and API endpoint updates"
+        },
+        {
+          "agent": "nextjs-expert",
+          "status": "pending",
+          "description": "Guide component modifications and routing patterns"
+        }
+      ]
+    },
+    {
+      "id": "implementation",
+      "agent": "feature-executor",
+      "status": "pending",
+      "description": "Execute database migration, backend changes, and frontend updates"
+    },
+    {
+      "id": "documentation",
+      "agent": "documentation-reviewer",
+      "status": "pending",
+      "description": "Update architecture docs with new status field pattern"
+    }
+  ],
+
+  "decisions": [
+    {
+      "phase": "classification",
+      "key": "workflow",
+      "value": "fullstack-workflow",
+      "reason": "Requires database migration, backend API changes, and frontend component updates. Full coordination needed across tech stack."
+    },
+    {
+      "phase": "classification",
+      "key": "requiresUserStories",
+      "value": false,
+      "reason": "Despite being fullstack and user-facing, the scope is well-defined with 3 clear acceptance criteria that map directly to technical tasks. No user journey decomposition needed - file-driven approach is more efficient."
+    },
+    {
+      "phase": "classification",
+      "key": "skip-design-expert",
+      "value": true,
+      "reason": "Edit button is a simple standard UI pattern (button with text). No visual design or animation complexity."
+    },
+    {
+      "phase": "classification",
+      "key": "include-fastapi-expert",
+      "value": true,
+      "reason": "Database schema changes and migration patterns require FastAPI expertise"
+    },
+    {
+      "phase": "classification",
+      "key": "include-nextjs-expert",
+      "value": true,
+      "reason": "Component modifications and routing to /conversation/[id] require Next.js expertise"
+    }
+  ],
+
+  "searches": [],
+
+  "reviews": {
+    "copy": [],
+    "queries": []
+  },
+
+  "acceptanceCriteria": [
+    {
+      "id": "AC1",
+      "description": "Create a status for conversations: Draft | With Research (when we have launched research)",
+      "technicalRequirements": [
+        "Add status ENUM column to conversations table",
+        "Create Alembic migration 0013_add_conversation_status.py",
+        "Default status to 'draft'",
+        "Update status to 'with_research' when research run is created",
+        "Update API models to include status field",
+        "Update database service methods"
+      ]
+    },
+    {
+      "id": "AC2",
+      "description": "Have an 'Edit' button in the IdeationQueueCard so I can go to the /conversation/[id] page",
+      "technicalRequirements": [
+        "Add Edit button to IdeationQueueCard component",
+        "Button should use router.push to navigate to /conversation/[id]",
+        "Stop event propagation to prevent card click from firing",
+        "Use consistent styling with existing buttons",
+        "Include appropriate icon (e.g., Edit, Pencil)"
+      ]
+    },
+    {
+      "id": "AC3",
+      "description": "Have an 'Edit' button in the InlineIdeaView so I can go to the /conversation/[id] page",
+      "technicalRequirements": [
+        "Add Edit button to InlineIdeaView component header",
+        "Button should use router.push to navigate to /conversation/[id]",
+        "Position near metadata header",
+        "Use consistent styling with IdeationQueueCard Edit button",
+        "Include appropriate icon (e.g., Edit, Pencil)"
+      ]
+    }
+  ],
+
+  "currentPhase": "planning",
+  "nextAgent": "feature-planner",
+  "blockedBy": null
+}
