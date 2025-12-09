@@ -3,7 +3,7 @@
   "name": "Conversation Status Tracking",
   "description": "Add status column to conversations table (Draft | With Research) with auto-update when research runs are created, and Edit buttons in IdeationQueueCard and InlineIdeaView to navigate to /conversation/[id] page",
   "created": "2025-12-08T00:00:00Z",
-  "lastUpdated": "2025-12-09T11:39:27.157061",
+  "lastUpdated": "2025-12-09T11:50:45.483981",
   "classification": {
     "type": "fullstack",
     "scope": "single-feature",
@@ -978,6 +978,41 @@
       "results": 0,
       "at": "2025-12-09T11:26:00.781933",
       "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist"
+    },
+    {
+      "pattern": "ResearchPipelineRunsMixin",
+      "tool": "grep",
+      "results": 0,
+      "at": "2025-12-09T11:50:37.326642",
+      "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server"
+    },
+    {
+      "pattern": "**/*mixin*.py",
+      "tool": "glob",
+      "results": 0,
+      "at": "2025-12-09T11:50:37.375969",
+      "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server"
+    },
+    {
+      "pattern": "class.*Mixin.*ConnectionProvider",
+      "tool": "grep",
+      "results": 0,
+      "at": "2025-12-09T11:50:40.240400",
+      "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server"
+    },
+    {
+      "pattern": "_update_conversation_status",
+      "tool": "grep",
+      "results": 0,
+      "at": "2025-12-09T11:50:40.242734",
+      "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server"
+    },
+    {
+      "pattern": "class ConversationsMixin",
+      "tool": "grep",
+      "results": 0,
+      "at": "2025-12-09T11:50:45.483973",
+      "path": "/Users/jarbasmoraes/code/ae/ae-scientist/AE-Scientist/server"
     }
   ],
   "reviews": {
