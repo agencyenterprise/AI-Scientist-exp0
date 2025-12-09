@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime, timezone
-from typing import List, NamedTuple, Optional
+from typing import TYPE_CHECKING, List, NamedTuple, Optional
 
 import psycopg2
 import psycopg2.extras
@@ -58,6 +58,14 @@ class ResearchPipelineRunEvent(NamedTuple):
 
 
 class ResearchPipelineRunsMixin(ConnectionProvider):
+    if TYPE_CHECKING:
+        # Type hint for method provided by ConversationsMixin (via DatabaseManager)
+        def _update_conversation_status_with_cursor(
+            self, cursor: PsycopgCursor, conversation_id: int, status: str
+        ) -> None:
+            """Update conversation status within existing transaction."""
+            ...
+
     def create_research_pipeline_run(
         self,
         *,
