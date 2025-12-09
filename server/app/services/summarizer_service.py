@@ -6,17 +6,17 @@ maintain conversation summaries for imported conversations and live chats.
 """
 
 import logging
-from typing import Awaitable, Callable, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from langchain.agents import AgentState, create_agent
 from langchain.agents.middleware import SummarizationMiddleware, after_model
 from langchain.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, RemoveMessage
-from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph.state import CompiledStateGraph, RunnableConfig
 from langgraph.runtime import Runtime
 
+from app.api.llm_providers import LLM_PROVIDER_REGISTRY, get_llm_service_by_provider
 from app.config import settings
 from app.models import ChatMessageData, ImportedChatMessage
 from app.services.database import DatabaseManager
@@ -62,26 +62,41 @@ def remove_after_empty_message(state: AgentState, _runtime: Runtime) -> dict | N
 class SummarizerService:
     """Summarizer service for managing conversation summaries using LangChain."""
 
-    def __init__(self) -> None:
+    def __init__(self, model: BaseChatModel) -> None:
         """Initialize the Summarizer service."""
         self.db = DatabaseManager()
+        self.model = model
 
-    def get_summarizer_llm(self) -> BaseChatModel:
+    @staticmethod
+    def for_model(provider: str, model_id: str) -> "SummarizerService":
         """Get the summarizer LLM model."""
-        model = "gpt-5.1"
-        summarizer_llm = ChatOpenAI(model=model)
-        return summarizer_llm
+        provider_config = LLM_PROVIDER_REGISTRY.get(provider)
+        if not provider_config:
+            error_msg = f"Unsupported LLM provider: {provider}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        target_model = provider_config.models_by_id.get(model_id)
+        if not target_model:
+            error_msg = f"Unsupported model '{model_id}' for provider '{provider}'"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        service = get_llm_service_by_provider(target_model.provider)
+        chat_model = service.get_or_create_model(target_model.id)
+
+        return SummarizerService(chat_model)
 
     def get_summarizer(self) -> CustomSummarizationMiddleware:
         """
         Get the summarizer middleware.
 
-        With trigger=("messages", 1), it will trigger summarization of the entire conversation always.
+        With trigger=("fraction", 0.9), it will trigger summarization only when reaching 90% of the context window.
         With keep=("messages", 1), it will keep only the summary message.
         """
         summarizer_middleware = CustomSummarizationMiddleware(
-            model=self.get_summarizer_llm(),
-            trigger=("messages", 1),
+            model=self.model,
+            trigger=("fraction", 0.9),
             keep=("messages", 1),
         )
         return summarizer_middleware
@@ -102,11 +117,10 @@ class SummarizerService:
         self,
         conversation_id: int,
         chat_messages: list[ImportedChatMessage],
-        callback_function: Optional[Callable[[str], Awaitable[None]]] = None,
-    ) -> int:
+    ) -> tuple[int | None, str | None]:
         """Initialize a chat summary for a conversation with the provided chat history.
 
-        Returns the local imported_conversation_summary ID (DB primary key).
+        Returns the local imported_conversation_summary ID (DB primary key) and the latest summary, if any.
         """
         try:
             # Initial request to create conversation and enqueue all messages
@@ -128,7 +142,7 @@ class SummarizerService:
                 if "message" in response and isinstance(response["message"], str):
                     error_text = response["message"]
                 logger.error("Failed to create conversation: %s", error_text)
-                return 0
+                return None, None
 
             latest_summary = ""
             if "latest_summary" in response and isinstance(response["latest_summary"], str):
@@ -136,18 +150,18 @@ class SummarizerService:
 
             logger.info("Creating imported chat summary for conversation %s", conversation_id)
 
-            # Persist record immediately
-            imported_summary_id = self.db.create_imported_conversation_summary(
-                conversation_id=conversation_id,
-                summary=latest_summary,
-            )
-            if callback_function:
-                await callback_function(latest_summary)
+            if latest_summary:
+                # Persist record immediately
+                imported_summary_id = self.db.create_imported_conversation_summary(
+                    conversation_id=conversation_id,
+                    summary=latest_summary,
+                )
 
-            return imported_summary_id
+                return imported_summary_id, latest_summary
+            return None, None
         except Exception:
             logger.exception("Failed to create imported chat summary")
-        return 0
+        return None, None
 
     async def _create_chat_summary(
         self, conversation_id: int, chat_messages: list[ChatMessageData]
@@ -281,8 +295,12 @@ class SummarizerService:
                     settings.DATABASE_URL
                 ) as checkpointer:
                     await checkpointer.setup()  # auto create tables in PostgresSql
+
+                    # we don't need the answer, so we set a small max tokens
+                    temp_max_tokens = self.model.max_tokens  # type: ignore[attr-defined]
+                    self.model.max_tokens = 10  # type: ignore[attr-defined]
                     agent: CompiledStateGraph = create_agent(
-                        model=self.get_summarizer_llm(),
+                        model=self.model,
                         middleware=[self.get_summarizer(), remove_after_empty_message],
                         checkpointer=checkpointer,
                     )
@@ -292,10 +310,11 @@ class SummarizerService:
                             "messages": [
                                 *new_messages,
                                 HumanMessage(content="", id=EMPTY_MESSAGE_ID),
-                            ]
+                            ],
                         },
                         config=self._get_agent_config_for_conversation(conversation_id),
                     )
+                    self.model.max_tokens = temp_max_tokens  # type: ignore[attr-defined]
                     # Get the first message with summary flag from the result
                     summary_message = next(
                         (
@@ -313,12 +332,13 @@ class SummarizerService:
                             last_message_id = int(new_messages[-1].get("id", ""))
                         except Exception:
                             pass
-                    # Upsert the chat summary
-                    self._upsert_chat_summary(
-                        conversation_id=conversation_id,
-                        summary=summary,
-                        latest_message_id=last_message_id,
-                    )
+                    if summary:
+                        # Upsert the chat summary
+                        self._upsert_chat_summary(
+                            conversation_id=conversation_id,
+                            summary=summary,
+                            latest_message_id=last_message_id,
+                        )
             return True, {
                 "latest_summary": summary,
             }
