@@ -716,7 +716,7 @@ async def _stream_generation_flow(
     If the conversation does not fit in the model context, we will use the generated summary.
     """
 
-    yield json.dumps({"type": "state", "data": "summarizing"}) + "\n"
+    yield json.dumps({"type": "state", "data": "generating"}) + "\n"
     summarizer_service = SummarizerService.for_model(llm_provider, llm_model)
     _, latest_summary = await summarizer_service.init_chat_summary(
         conversation.id,
