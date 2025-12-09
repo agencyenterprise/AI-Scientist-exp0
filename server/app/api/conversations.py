@@ -16,6 +16,7 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.config import settings
 from app.middleware.auth import get_current_user
 from app.models import (
     ConversationResponse,
