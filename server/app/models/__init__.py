@@ -61,6 +61,9 @@ from app.models.llm_prompts import (
     LLMPromptResponse,
     LLMProvidersResponse,
 )
+
+# LLM token usage models
+from app.models.llm_token_usage import LlmTokenUsage
 from app.models.research_pipeline import (
     ArtifactPresignedUrlResponse,
     ResearchRunArtifactMetadata,
@@ -133,4 +136,6 @@ __all__ = [
     "GoogleOAuthCallbackRequest",
     # Imported conversation summary models
     "ImportedConversationSummaryUpdate",
+    # LLM token usage models
+    "LlmTokenUsage",
 ]

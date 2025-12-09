@@ -1,5 +1,8 @@
 from typing import Dict, NamedTuple
 
+from langchain.chat_models import BaseChatModel
+from langchain.chat_models.base import _parse_model
+
 from app.models import LLMModel
 from app.services import AnthropicService, GrokService, OpenAIService
 from app.services.anthropic_service import SUPPORTED_MODELS as ANTHROPIC_MODELS
@@ -38,3 +41,23 @@ def get_llm_service_by_provider(provider: str) -> LangChainLLMService:
     if not provider_config:
         raise ValueError(f"Unsupported LLM provider: {provider}")
     return provider_config.service
+
+
+def get_llm_model_by_id(provider: str, model_id: str) -> LLMModel:
+    provider_config = LLM_PROVIDER_REGISTRY.get(provider)
+    if not provider_config:
+        raise ValueError(f"Unsupported LLM provider: {provider}")
+    return provider_config.models_by_id[model_id]
+
+
+def extract_model_name_and_provider(model: str | BaseChatModel) -> tuple[str, str]:
+    if isinstance(model, BaseChatModel):
+        if hasattr(model, "model"):
+            model_name = model.model
+        elif hasattr(model, "model_name"):
+            model_name = model.model_name
+        else:
+            raise ValueError(f"Model {model} has no model or model_name attribute")
+    else:
+        model_name = model
+    return _parse_model(model_name, None)

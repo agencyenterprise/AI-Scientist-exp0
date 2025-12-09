@@ -16,6 +16,7 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.api.llm_providers import get_llm_service_by_provider
 from app.middleware.auth import get_current_user
 from app.models import (
     ConversationResponse,
@@ -399,20 +400,11 @@ async def _generate_imported_chat_keywords(
     llm_provider: str, llm_model: str, imported_conversation_text: str
 ) -> str:
     """Generate imported chat keywords."""
-    if llm_provider == "openai":
-        return await openai_service.generate_imported_chat_keywords(
-            llm_model, imported_conversation_text
-        )
-    elif llm_provider == "grok":
-        return await grok_service.generate_imported_chat_keywords(
-            llm_model, imported_conversation_text
-        )
-    elif llm_provider == "anthropic":
-        return await anthropic_service.generate_imported_chat_keywords(
-            llm_model, imported_conversation_text
-        )
-    else:
+    llm_service = get_llm_service_by_provider(llm_provider)
+    if not llm_service:
         raise ValueError(f"Unsupported LLM provider: {llm_provider}")
+
+    return await llm_service.generate_imported_chat_keywords(llm_model, imported_conversation_text)
 
 
 async def _generate_idea(
@@ -465,8 +457,7 @@ async def _generate_manual_seed_idea(
         )
     )
     idea_stream = service.generate_manual_seed_idea(
-        llm_model=llm_model,
-        user_prompt=user_prompt,
+        llm_model=llm_model, user_prompt=user_prompt, conversation_id=conversation_id
     )
     async for chunk in _stream_structured_idea(
         db=db,

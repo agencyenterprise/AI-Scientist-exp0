@@ -8,6 +8,8 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any, AsyncGenerator, Dict, List, Sequence, Union
 
+from langchain.agents import AgentState
+from langchain.agents.middleware import after_model
 from langchain.tools import tool
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import (
@@ -21,6 +23,7 @@ from langchain_core.messages import (
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 from langchain_core.utils.json import parse_partial_json
+from langgraph.runtime import Runtime
 from pydantic import BaseModel, Field, ValidationError
 
 from app.config import settings
@@ -63,6 +66,37 @@ IDEA_STREAM_FIELD_ORDER = (
     "expected_outcome",
     "risk_factors_and_limitations",
 )
+
+
+class TrackUsageSchema(BaseModel):
+    llm_provider: str = Field(..., description="The LLM provider")
+    llm_model: str = Field(..., description="The LLM model")
+    conversation_id: int = Field(..., description="The conversation ID")
+
+
+@after_model
+def track_usage_middleware(
+    state: AgentState, runtime: Runtime[TrackUsageSchema]
+) -> dict | None:  # noqa: ARG001
+    """Track usage metadata for the LLM model."""
+    db = get_database()
+    ctx = runtime.context
+    messages = state["messages"]
+    for message in messages:
+        if isinstance(message, AIMessage):
+            metadata = message.usage_metadata
+            if metadata:
+                input_tokens = metadata.get("input_tokens", 0)
+                output_tokens = metadata.get("output_tokens", 0)
+
+                db.create_llm_token_usage(
+                    conversation_id=ctx.conversation_id,
+                    provider=ctx.llm_provider,
+                    model=ctx.llm_model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
+    return None
 
 
 def get_idea_max_completion_tokens(model: BaseChatModel) -> int:
@@ -279,6 +313,7 @@ class LangChainLLMService(BaseLLMService, ABC):
         async for event_payload in self._stream_structured_schema_response(
             llm_model=llm_model,
             messages=messages,
+            conversation_id=conversation_id,
         ):
             yield event_payload
 
@@ -293,7 +328,7 @@ class LangChainLLMService(BaseLLMService, ABC):
         )
 
     async def generate_manual_seed_idea(
-        self, *, llm_model: str, user_prompt: str
+        self, *, llm_model: str, user_prompt: str, conversation_id: int
     ) -> AsyncGenerator[str, None]:
         """
         Generate an idea from a manual title and hypothesis seed.
@@ -307,6 +342,7 @@ class LangChainLLMService(BaseLLMService, ABC):
         async for event_payload in self._stream_structured_schema_response(
             llm_model=llm_model,
             messages=messages,
+            conversation_id=conversation_id,
         ):
             yield event_payload
 
@@ -315,6 +351,7 @@ class LangChainLLMService(BaseLLMService, ABC):
         *,
         llm_model: str,
         messages: List[BaseMessage],
+        conversation_id: int,
     ) -> AsyncGenerator[str, None]:
         base_model = self.get_or_create_model(llm_model=llm_model)
         tool_bound_model = base_model.bind_tools(
@@ -332,14 +369,25 @@ class LangChainLLMService(BaseLLMService, ABC):
         latest_emitted_fields: Dict[str, Union[str, List[str]]] = {}
         active_tool_index: int | None = None
         last_chunk_metadata: Dict[str, Any] | None = None
-
+        db = get_database()
         async for chunk in tool_bound_model.astream(
             input=messages,
             max_tokens=get_idea_max_completion_tokens(base_model),
         ):
             if not isinstance(chunk, AIMessageChunk):
                 continue
-
+            if isinstance(chunk, AIMessage):
+                metadata = chunk.usage_metadata
+                if metadata:
+                    input_tokens = metadata.get("input_tokens", 0)
+                    output_tokens = metadata.get("output_tokens", 0)
+                    db.create_llm_token_usage(
+                        conversation_id=conversation_id,
+                        provider=self.provider_name,
+                        model=llm_model,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                    )
             last_chunk_metadata = getattr(chunk, "response_metadata", None)
 
             for tool_chunk in chunk.tool_call_chunks:
@@ -641,6 +689,7 @@ class LangChainChatWithIdeaStream:
 
     def __init__(self, *, service: LangChainLLMService) -> None:
         self.service = service
+        self.db = get_database()
 
     async def chat_with_idea_stream(
         self,
@@ -690,6 +739,17 @@ class LangChainChatWithIdeaStream:
                 if not isinstance(response, AIMessage):
                     raise TypeError(
                         f"chat model returned unsupported message type: {type(response).__name__}"
+                    )
+                metadata = response.usage_metadata
+                if metadata:
+                    input_tokens = metadata.get("input_tokens", 0)
+                    output_tokens = metadata.get("output_tokens", 0)
+                    self.db.create_llm_token_usage(
+                        conversation_id=conversation_id,
+                        provider=llm_model.provider,
+                        model=llm_model.id,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
                     )
                 tool_calls: List[Dict[str, Any]] = self._normalize_tool_calls(response=response)
                 if tool_calls:

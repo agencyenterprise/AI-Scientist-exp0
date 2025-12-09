@@ -7,7 +7,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel
 
-from .token_tracker import track_token_usage
+from .token_tracker import TrackCostCallbackHandler, track_token_usage
 
 logger = logging.getLogger("ai-scientist")
 
@@ -75,7 +75,9 @@ def make_llm_call(
         retry_if_exception_type=(Exception,),
         stop_after_attempt=3,
     )
-    ai_message = retrying_chat.invoke(messages)
+    ai_message = retrying_chat.invoke(
+        messages, config={"callbacks": [TrackCostCallbackHandler(model)]}
+    )
     logger.debug(
         "LLM make_llm_call - response: %s - %s",
         getattr(ai_message, "type", type(ai_message).__name__),
@@ -199,7 +201,9 @@ def get_structured_response_from_llm(
         temperature=temperature,
     )
     structured_chat = chat.with_structured_output(schema=schema_class)
-    parsed_model = structured_chat.invoke(messages)
+    parsed_model = structured_chat.invoke(
+        messages, config={"callbacks": [TrackCostCallbackHandler(model)]}
+    )
     if not isinstance(parsed_model, BaseModel):
         raise TypeError("Structured output must be a Pydantic model instance.")
     parsed = parsed_model.model_dump(by_alias=True)
@@ -270,7 +274,7 @@ def _invoke_langchain_query(
         model=model,
         temperature=temperature,
     )
-    ai_message = chat.invoke(messages)
+    ai_message = chat.invoke(messages, config={"callbacks": [TrackCostCallbackHandler(model)]})
     logger.debug(
         "LLM _invoke_langchain_query - response: %s - %s",
         getattr(ai_message, "type", type(ai_message).__name__),
@@ -313,7 +317,9 @@ def _invoke_structured_langchain_query(
     )
     parser = JsonOutputParser()
     structured_chain = retrying_chat | parser
-    parsed: dict[str, Any] = structured_chain.invoke(messages)
+    parsed: dict[str, Any] = structured_chain.invoke(
+        messages, config={"callbacks": [TrackCostCallbackHandler(model)]}
+    )
     logger.debug("LLM _invoke_structured_langchain_query - parsed JSON: %s", parsed)
     return parsed
 
@@ -342,6 +348,7 @@ def structured_query_with_schema(
     )
     result = structured_chat.invoke(
         input=messages,
+        config={"callbacks": [TrackCostCallbackHandler(model)]},
     )
     return cast(TStructured, result)
 

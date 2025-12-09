@@ -13,16 +13,11 @@ from fastapi import APIRouter, File, Form, Request, Response, UploadFile
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
+from app.api.llm_providers import get_llm_model_by_id, get_llm_service_by_provider
 from app.middleware.auth import get_current_user
 from app.models.chat import FileAttachment
-from app.services.anthropic_service import SUPPORTED_MODELS as ANTHROPIC_MODELS
-from app.services.anthropic_service import AnthropicService
 from app.services.base_llm_service import BaseLLMService
 from app.services.database import DatabaseManager, get_database
-from app.services.grok_service import SUPPORTED_MODELS as GROK_MODELS
-from app.services.grok_service import GrokService
-from app.services.openai_service import SUPPORTED_MODELS as OPENAI_MODELS
-from app.services.openai_service import OpenAIService
 from app.services.pdf_service import PDFService
 from app.services.s3_service import S3Service
 
@@ -64,9 +59,6 @@ class FileListResponse(BaseModel):
     file_count: int = Field(..., description="Number of files")
 
 
-anthropic_service = AnthropicService()
-grok_service = GrokService()
-openai_service = OpenAIService()
 pdf_service = PDFService()
 s3_service = S3Service()
 
@@ -82,13 +74,7 @@ async def process_attachment_background(
     llm_provider: str,
 ) -> None:
     try:
-        service: BaseLLMService
-        if llm_provider == "anthropic":
-            service = anthropic_service
-        elif llm_provider == "grok":
-            service = grok_service
-        else:
-            service = openai_service
+        service: BaseLLMService = get_llm_service_by_provider(llm_provider)
 
         extracted_text = ""
         if file_type == "application/pdf":
@@ -97,14 +83,9 @@ async def process_attachment_background(
             # Generate a detailed caption using the selected provider's model if it supports images
             image_url = s3_service.generate_download_url(s3_key=s3_key)
 
-            if llm_provider == "openai":
-                model_obj = next(m for m in OPENAI_MODELS if m.id == llm_model)
-            elif llm_provider == "anthropic":
-                model_obj = next(m for m in ANTHROPIC_MODELS if m.id == llm_model)
-            elif llm_provider == "grok":
-                model_obj = next(m for m in GROK_MODELS if m.id == llm_model)
-            else:
-                raise ValueError(f"Unknown LLM provider: {llm_provider}")
+            model_obj = get_llm_model_by_id(llm_provider, llm_model)
+            if not model_obj:
+                raise ValueError(f"Unknown LLM model: {llm_model}")
 
             try:
                 # If the selected model isn't vision, we still attempt; service will fail gracefully if unsupported
