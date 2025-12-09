@@ -49,6 +49,10 @@ async def stream_chat_with_idea(
 
     db = get_database()
 
+    summarizer_service = SummarizerService.for_model(
+        request_data.llm_provider, request_data.llm_model
+    )
+    
     try:
         # Validate conversation exists
         existing_conversation = db.get_conversation_by_id(conversation_id)
@@ -136,9 +140,6 @@ async def stream_chat_with_idea(
                     )
                     logger.debug(
                         f"Syncing attachment {fa.id}, name: {fa.filename}, type: {doc_type}, to summarizer: {fa.extracted_text} {fa.summary_text}"
-                    )
-                    summarizer_service = SummarizerService.for_model(
-                        request_data.llm_provider, request_data.llm_model
                     )
                     await summarizer_service.add_document_to_chat_summary(
                         conversation_id=conversation_id,
