@@ -48,7 +48,7 @@ def save_cost_track(
         if output_tokens is None and usage_metadata:
             output_tokens = int(usage_metadata.get("output_tokens", 0) or 0)
 
-    provider, model_name = extract_model_name_and_provider(model)
+    model_name, provider = extract_model_name_and_provider(model)
     now = datetime.now()
     try:
         save_db_cost_track(
@@ -192,6 +192,7 @@ class TrackCostCallbackHandler(BaseCallbackHandler):
 
 
 def extract_model_name_and_provider(model: str | BaseChatModel) -> tuple[str, str]:
+    """Extract the model name and provider from a model."""
     if isinstance(model, BaseChatModel):
         if hasattr(model, "model"):
             model_name = model.model
