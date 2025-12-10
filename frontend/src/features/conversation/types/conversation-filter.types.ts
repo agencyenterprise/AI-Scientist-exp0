@@ -2,13 +2,13 @@
  * Conversation status filter options for API query
  * 'all' = no filter applied (omit param from request)
  */
-export type ConversationStatusFilter = 'all' | 'draft' | 'with_research';
+export type ConversationStatusFilter = "all" | "draft" | "with_research";
 
 /**
  * Run status filter options for API query
  * 'all' = no filter applied (omit param from request)
  */
-export type RunStatusFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed';
+export type RunStatusFilter = "all" | "pending" | "running" | "completed" | "failed";
 
 /**
  * Filter configuration for toggle buttons (OCP-compliant)

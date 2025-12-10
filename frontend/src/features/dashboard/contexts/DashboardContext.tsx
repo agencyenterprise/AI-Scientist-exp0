@@ -2,7 +2,10 @@
 
 import { createContext, useContext } from "react";
 import type { Conversation } from "@/shared/lib/api-adapters";
-import type { ConversationStatusFilter, RunStatusFilter } from "@/features/conversation/types/conversation-filter.types";
+import type {
+  ConversationStatusFilter,
+  RunStatusFilter,
+} from "@/features/conversation/types/conversation-filter.types";
 
 export type SortKey = "updated" | "imported" | "title" | "score";
 export type SortDir = "asc" | "desc";

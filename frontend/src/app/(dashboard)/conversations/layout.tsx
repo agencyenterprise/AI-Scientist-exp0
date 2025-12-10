@@ -1,7 +1,10 @@
 "use client";
 
 import { DashboardContext, SortDir, SortKey } from "@/features/dashboard/contexts/DashboardContext";
-import type { ConversationStatusFilter, RunStatusFilter } from "@/features/conversation/types/conversation-filter.types";
+import type {
+  ConversationStatusFilter,
+  RunStatusFilter,
+} from "@/features/conversation/types/conversation-filter.types";
 
 import { ProtectedRoute } from "@/shared/components/ProtectedRoute";
 import type { Conversation } from "@/shared/lib/api-adapters";
@@ -23,7 +26,8 @@ export default function ConversationsLayout({ children }: ConversationsLayoutPro
   const [isLoading, setIsLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>("updated");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationStatusFilter>("all");
+  const [conversationStatusFilter, setConversationStatusFilter] =
+    useState<ConversationStatusFilter>("all");
   const [runStatusFilter, setRunStatusFilter] = useState<RunStatusFilter>("all");
 
   const selectedConversationId = pathname.startsWith("/conversations/")
