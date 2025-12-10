@@ -294,7 +294,8 @@
         "Loading state shown while fetching filtered results"
       ],
       "priority": "high",
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     },
     {
       "id": "US002",
@@ -311,7 +312,8 @@
         "Results update immediately when a filter is selected"
       ],
       "priority": "high",
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     },
     {
       "id": "US003",
@@ -326,7 +328,8 @@
         "Empty state shown when no conversations match the combined filters"
       ],
       "priority": "medium",
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     }
   ],
 
@@ -336,14 +339,16 @@
       "description": "Add conversation_status and run_status query parameters to GET /conversations endpoint",
       "storyId": "US001",
       "files": ["server/app/api/conversations.py"],
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     },
     {
       "id": "T002",
       "description": "Update list_conversations database method to support status filtering with JOIN for run status",
       "storyId": "US001",
       "files": ["server/app/services/database/conversations.py"],
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     },
     {
       "id": "T003",
@@ -353,51 +358,57 @@
         "frontend/src/features/conversation/utils/conversation-filter-utils.ts",
         "frontend/src/features/conversation/types/conversation-filter.types.ts"
       ],
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     },
     {
       "id": "T004",
       "description": "Update IdeationQueueHeader to include filter toggle buttons",
       "storyId": "US001",
       "files": ["frontend/src/features/conversation/components/IdeationQueueHeader.tsx"],
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     },
     {
       "id": "T005",
       "description": "Update DashboardContext to manage filter state",
       "storyId": "US001",
       "files": ["frontend/src/features/dashboard/contexts/DashboardContext.tsx"],
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     },
     {
       "id": "T006",
       "description": "Update ConversationsLayout to manage filter state and build query strings",
       "storyId": "US001",
       "files": ["frontend/src/app/(dashboard)/conversations/layout.tsx"],
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     },
     {
       "id": "T007",
       "description": "Update ConversationsPage to pass filter props to header",
       "storyId": "US003",
       "files": ["frontend/src/app/(dashboard)/conversations/page.tsx"],
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     }
   ],
 
   "files": {
-    "created": [],
-    "modified": [],
-    "pending": [
-      "server/app/api/conversations.py",
-      "server/app/services/database/conversations.py",
-      "frontend/src/features/conversation/utils/conversation-filter-utils.ts",
-      "frontend/src/features/conversation/types/conversation-filter.types.ts",
-      "frontend/src/features/conversation/components/IdeationQueueHeader.tsx",
-      "frontend/src/features/dashboard/contexts/DashboardContext.tsx",
-      "frontend/src/app/(dashboard)/conversations/layout.tsx",
-      "frontend/src/app/(dashboard)/conversations/page.tsx"
-    ]
+    "created": [
+      {"path": "frontend/src/features/conversation/types/conversation-filter.types.ts", "by": "executor", "at": "2025-12-10T11:13:00Z"},
+      {"path": "frontend/src/features/conversation/utils/conversation-filter-utils.ts", "by": "executor", "at": "2025-12-10T11:13:00Z"}
+    ],
+    "modified": [
+      {"path": "server/app/api/conversations.py", "by": "executor", "reason": "Added conversation_status and run_status query parameters with validation", "at": "2025-12-10T11:13:00Z"},
+      {"path": "server/app/services/database/conversations.py", "by": "executor", "reason": "Updated list_conversations method to support optional conversation_status and run_status filters with dynamic WHERE clauses and conditional JOIN", "at": "2025-12-10T11:13:00Z"},
+      {"path": "frontend/src/features/dashboard/contexts/DashboardContext.tsx", "by": "executor", "reason": "Added conversationStatusFilter, setConversationStatusFilter, runStatusFilter, setRunStatusFilter to context interface", "at": "2025-12-10T11:13:00Z"},
+      {"path": "frontend/src/app/(dashboard)/conversations/layout.tsx", "by": "executor", "reason": "Added useState for filters and updated loadConversations to build query string with optional filter parameters", "at": "2025-12-10T11:13:00Z"},
+      {"path": "frontend/src/features/conversation/components/IdeationQueueHeader.tsx", "by": "executor", "reason": "Added toggle button filter UI for conversation status and run status using the IdeationQueueFilters pattern", "at": "2025-12-10T11:13:00Z"},
+      {"path": "frontend/src/app/(dashboard)/conversations/page.tsx", "by": "executor", "reason": "Extended to get filter state from context and pass filter props to IdeationQueueHeader", "at": "2025-12-10T11:13:00Z"}
+    ],
+    "pending": []
   },
 
   "phases": [
@@ -447,7 +458,8 @@
     {
       "id": "implementation",
       "agent": "feature-executor",
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T11:13:00Z"
     },
     {
       "id": "copy-review",
@@ -665,7 +677,7 @@
     "queries": []
   },
 
-  "currentPhase": "tech-guidance",
-  "nextAgent": "nextjs-expert",
+  "currentPhase": "implementation",
+  "nextAgent": "copy-reviewer",
   "blockedBy": null
 }
