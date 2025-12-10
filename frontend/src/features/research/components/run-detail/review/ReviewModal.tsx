@@ -88,18 +88,18 @@ export function ReviewModal({
   );
 
   useEffect(() => {
-    if (isClient) {
-      document.addEventListener("keydown", handleKeyDown);
-      // Focus the modal when it opens
-      modalRef.current?.focus();
-      return () => {
-        document.removeEventListener("keydown", handleKeyDown);
-        // Restore focus when modal closes
-        if (previousActiveElement.current instanceof HTMLElement) {
-          previousActiveElement.current.focus();
-        }
-      };
-    }
+    if (!isClient) return;
+
+    document.addEventListener("keydown", handleKeyDown);
+    // Focus the modal when it opens
+    modalRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      // Restore focus when modal closes
+      if (previousActiveElement.current instanceof HTMLElement) {
+        previousActiveElement.current.focus();
+      }
+    };
   }, [isClient, handleKeyDown]);
 
   if (!isClient) return null;
