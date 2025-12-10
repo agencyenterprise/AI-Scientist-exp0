@@ -4,6 +4,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from app.config import settings
 from app.services import get_database
 from app.services.database import DatabaseManager
 from app.services.database.research_pipeline_runs import ResearchPipelineRun
@@ -102,7 +103,12 @@ class ResearchPipelineMonitor:
                     remaining,
                 )
         if deadline and now > deadline:
-            self._fail_run(db, run, "Pipeline did not start within the grace period.")
+            self._fail_run(
+                db,
+                run,
+                "Pipeline did not start within the grace period.",
+                "pipeline_monitor",
+            )
 
     def _handle_running_run(
         self, db: "DatabaseManager", run: ResearchPipelineRun, now: datetime
@@ -113,6 +119,7 @@ class ResearchPipelineMonitor:
                 db,
                 run,
                 f"Pipeline exceeded maximum runtime of {self._max_runtime.total_seconds() / 3600:.1f} hours.",
+                "pipeline_monitor",
             )
             return
 
@@ -132,7 +139,12 @@ class ResearchPipelineMonitor:
                     max(0, remaining),
                 )
             if deadline and now > deadline:
-                self._fail_run(db, run, "Pipeline failed to send an initial heartbeat.")
+                self._fail_run(
+                    db,
+                    run,
+                    "Pipeline failed to send an initial heartbeat.",
+                    "pipeline_monitor",
+                )
             return
 
         delta = now - run.last_heartbeat_at
@@ -147,7 +159,12 @@ class ResearchPipelineMonitor:
                 self._max_missed_heartbeats,
             )
             if failures >= self._max_missed_heartbeats:
-                self._fail_run(db, run, "Pipeline heartbeats exceeded failure threshold.")
+                self._fail_run(
+                    db,
+                    run,
+                    "Pipeline heartbeats exceeded failure threshold.",
+                    "pipeline_monitor",
+                )
             return
 
         if run.heartbeat_failures > 0:
@@ -170,11 +187,24 @@ class ResearchPipelineMonitor:
                         run.pod_id,
                         status,
                     )
-                    self._fail_run(db, run, f"Pod status is {status}; terminating run.")
+                    self._fail_run(
+                        db,
+                        run,
+                        f"Pod status is {status}; terminating run.",
+                        "pipeline_monitor",
+                    )
             except RunPodError as exc:
                 logger.warning("Failed to poll RunPod status for %s: %s", run.pod_id, exc)
 
-    def _fail_run(self, db: "DatabaseManager", run: ResearchPipelineRun, message: str) -> None:
+        self._bill_run_if_needed(db, run, now)
+
+    def _fail_run(
+        self,
+        db: "DatabaseManager",
+        run: ResearchPipelineRun,
+        message: str,
+        reason: str,
+    ) -> None:
         logger.warning("Marking run %s as failed: %s", run.run_id, message)
         db.update_research_pipeline_run(
             run_id=run.run_id,
@@ -187,7 +217,7 @@ class ResearchPipelineMonitor:
             metadata={
                 "from_status": run.status,
                 "to_status": "failed",
-                "reason": "pipeline_monitor",
+                "reason": reason,
                 "error_message": message,
             },
             occurred_at=datetime.now(timezone.utc),
@@ -202,7 +232,65 @@ class ResearchPipelineMonitor:
                 db=db,
                 run_id=run.run_id,
                 pod_id=run.pod_id,
-                context="pipeline_monitor_failure",
+                context=f"{reason}_failure",
+            )
+
+    def _bill_run_if_needed(
+        self, db: "DatabaseManager", run: ResearchPipelineRun, now: datetime
+    ) -> None:
+        rate = max(0, settings.RESEARCH_RUN_CREDITS_PER_MINUTE)
+        if rate == 0:
+            return
+
+        last_billed = run.last_billed_at or run.created_at
+        elapsed_minutes = int((now - last_billed).total_seconds() // 60)
+        if elapsed_minutes <= 0:
+            return
+
+        user_id = db.get_run_owner_user_id(run.run_id)
+        if user_id is None:
+            logger.warning("Unable to determine owner for run %s; skipping billing.", run.run_id)
+            return
+
+        available = db.get_user_wallet_balance(user_id)
+        if available < rate:
+            self._fail_run(
+                db,
+                run,
+                "Insufficient credits to continue research run.",
+                "insufficient_credits",
+            )
+            return
+
+        billable_minutes = min(elapsed_minutes, available // rate)
+        if billable_minutes <= 0:
+            self._fail_run(
+                db,
+                run,
+                "Insufficient credits to continue research run.",
+                "insufficient_credits",
+            )
+            return
+
+        charge_amount = billable_minutes * rate
+        db.add_completed_transaction(
+            user_id=user_id,
+            amount=-charge_amount,
+            transaction_type="debit",
+            description=f"Research run {run.run_id} ({billable_minutes} minute(s))",
+            metadata={"run_id": run.run_id, "minutes_billed": billable_minutes},
+        )
+        db.update_research_pipeline_run(
+            run_id=run.run_id,
+            last_billed_at=last_billed + timedelta(minutes=billable_minutes),
+        )
+
+        if billable_minutes < elapsed_minutes:
+            self._fail_run(
+                db,
+                run,
+                "Credits exhausted during research run.",
+                "insufficient_credits",
             )
 
     def _record_pod_billing_event(

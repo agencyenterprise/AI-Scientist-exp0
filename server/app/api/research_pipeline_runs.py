@@ -137,6 +137,7 @@ def _create_and_launch_research_run(
         status="pending",
         start_deadline_at=None,
         cost=0.0,
+        last_billed_at=datetime.now(timezone.utc),
     )
     idea_payload = _idea_version_to_payload(idea_data)
     cancel_event = threading.Event()

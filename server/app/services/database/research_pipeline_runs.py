@@ -45,6 +45,7 @@ class ResearchPipelineRun(NamedTuple):
     start_deadline_at: Optional[datetime]
     last_heartbeat_at: Optional[datetime]
     heartbeat_failures: int
+    last_billed_at: datetime
     created_at: datetime
     updated_at: datetime
 
@@ -75,6 +76,7 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
         status: str,
         start_deadline_at: Optional[datetime],
         cost: float,
+        last_billed_at: datetime,
     ) -> int:
         if status not in PIPELINE_RUN_STATUSES:
             raise ValueError(f"Invalid status '{status}'")
@@ -91,13 +93,24 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
                         status,
                         cost,
                         start_deadline_at,
+                        last_billed_at,
                         created_at,
                         updated_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                     """,
-                    (run_id, idea_id, idea_version_id, status, cost, deadline, now, now),
+                    (
+                        run_id,
+                        idea_id,
+                        idea_version_id,
+                        status,
+                        cost,
+                        deadline,
+                        last_billed_at,
+                        now,
+                        now,
+                    ),
                 )
                 new_id_row = cursor.fetchone()
                 if not new_id_row:
@@ -146,6 +159,7 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
         heartbeat_failures: Optional[int] = None,
         start_deadline_at: Optional[datetime] = None,
         cost: Optional[float] = None,
+        last_billed_at: Optional[datetime] = None,
     ) -> None:
         fields = []
         values: list[object] = []
@@ -181,6 +195,9 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
         if cost is not None:
             fields.append("cost = %s")
             values.append(cost)
+        if last_billed_at is not None:
+            fields.append("last_billed_at = %s")
+            values.append(last_billed_at)
         fields.append("updated_at = %s")
         values.append(datetime.now())
         values.append(run_id)
@@ -333,6 +350,21 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
             return None
         return int(result[0])
 
+    def get_run_owner_user_id(self, run_id: str) -> Optional[int]:
+        query = """
+            SELECT i.created_by_user_id
+            FROM research_pipeline_runs r
+            JOIN ideas i ON r.idea_id = i.id
+            WHERE r.run_id = %s
+        """
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, (run_id,))
+                result = cursor.fetchone()
+        if not result:
+            return None
+        return int(result[0])
+
     def _row_to_run(self, row: dict) -> ResearchPipelineRun:
         return ResearchPipelineRun(
             id=row["id"],
@@ -351,6 +383,7 @@ class ResearchPipelineRunsMixin(ConnectionProvider):
             start_deadline_at=row.get("start_deadline_at"),
             last_heartbeat_at=row.get("last_heartbeat_at"),
             heartbeat_failures=row.get("heartbeat_failures", 0),
+            last_billed_at=row.get("last_billed_at") or row["created_at"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
