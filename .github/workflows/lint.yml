@@ -108,6 +108,7 @@ jobs:
 
       - name: Generate API types
         env:
+          SKIP_DB_CONNECTION: "true"
           AWS_ACCESS_KEY_ID: dummy
           AWS_SECRET_ACCESS_KEY: dummy
           AWS_REGION: us-east-1
