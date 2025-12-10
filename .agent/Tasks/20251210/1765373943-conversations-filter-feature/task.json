@@ -3,7 +3,7 @@
   "name": "Add Conversation and Run Status Filters",
   "description": "As a user I, in the page /conversations I want to filter conversations by conversation status and run status, so I can easily find what I want. Use toggle buttons to allow the user to filter. Use server side filters.",
   "created": "2025-12-10T00:00:00Z",
-  "lastUpdated": "2025-12-10T00:00:00Z",
+  "lastUpdated": "2025-12-10T14:30:00Z",
 
   "classification": {
     "type": "fullstack",
@@ -60,8 +60,11 @@
     "existingFeatures": [
       "frontend/src/features/conversation/hooks/useConversationsFilter.ts",
       "frontend/src/features/conversation/components/IdeationQueueHeader.tsx",
+      "frontend/src/features/conversation/components/IdeationQueueFilters.tsx",
+      "frontend/src/features/conversation/utils/ideation-queue-utils.tsx",
       "frontend/src/features/conversation/types/ideation-queue.types.ts",
-      "server/app/services/database/research_pipeline_runs.py"
+      "server/app/services/database/research_pipeline_runs.py",
+      "frontend/src/app/(dashboard)/conversations/layout.tsx"
     ]
   },
 
@@ -424,7 +427,8 @@
     {
       "id": "architecture",
       "agent": "feature-architecture-expert",
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2025-12-10T14:30:00Z"
     },
     {
       "id": "tech-guidance",
@@ -563,6 +567,48 @@
       "key": "context-extension",
       "value": "extend-dashboard-context",
       "reason": "DashboardContext already manages conversations state and loadConversations. Extend with filter state rather than creating new context."
+    },
+    {
+      "phase": "architecture",
+      "key": "solid-srp",
+      "value": "responsibilities-separated",
+      "reason": "Types file = only types; Utils file = only configs; Context = only interface; Layout = state + API; Page = composition; Header = UI rendering"
+    },
+    {
+      "phase": "architecture",
+      "key": "solid-ocp",
+      "value": "config-based-extension",
+      "reason": "Filter configs use Record<FilterOption, FilterConfig> pattern. New filters added by extending config objects, not modifying component code."
+    },
+    {
+      "phase": "architecture",
+      "key": "solid-isp",
+      "value": "minimal-props-extension",
+      "reason": "IdeationQueueHeaderProps extended with only necessary filter props. Filter props are optional for backward compatibility."
+    },
+    {
+      "phase": "architecture",
+      "key": "solid-dip",
+      "value": "interface-based-types",
+      "reason": "Components depend on types/interfaces (FilterConfig), not concrete implementations. Configs injected via props."
+    },
+    {
+      "phase": "architecture",
+      "key": "api-contract",
+      "value": "optional-query-params-omit-for-all",
+      "reason": "conversation_status and run_status are optional. When 'all' selected, param is omitted from request (not sent as 'all')."
+    },
+    {
+      "phase": "architecture",
+      "key": "database-join-strategy",
+      "value": "conditional-join-with-distinct",
+      "reason": "LEFT JOIN research_pipeline_runs only when run_status provided. DISTINCT added when joining to handle multiple runs per conversation."
+    },
+    {
+      "phase": "architecture",
+      "key": "implementation-order",
+      "value": "backend-first",
+      "reason": "Backend (T001, T002) first for API contract. Then types/config (T003). Then state management (T005, T006). Finally UI (T004, T007)."
     }
   ],
 
@@ -619,7 +665,7 @@
     "queries": []
   },
 
-  "currentPhase": "architecture",
-  "nextAgent": "feature-architecture-expert",
+  "currentPhase": "tech-guidance",
+  "nextAgent": "nextjs-expert",
   "blockedBy": null
 }
