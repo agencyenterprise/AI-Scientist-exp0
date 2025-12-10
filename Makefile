@@ -34,6 +34,9 @@ dev-frontend: gen-api-types
 dev-server:
 	$(MAKE) -C server dev
 
+fake-runpod:
+	$(MAKE) -C server fake-runpod
+
 # OpenAPI export and TS type generation
 export-openapi:
 	$(MAKE) -C server export-openapi
@@ -45,4 +48,4 @@ gen-api-types:
 migrate-db:
 	$(MAKE) -C server migrate
 
-.PHONY: install-research install-server install lint-research lint-server lint lint-frontend dev-frontend dev-server export-openapi gen-api-types migrate-db
+.PHONY: install-research install-server install lint-research lint-server lint lint-frontend dev-frontend dev-server export-openapi gen-api-types migrate-db fake-runpod

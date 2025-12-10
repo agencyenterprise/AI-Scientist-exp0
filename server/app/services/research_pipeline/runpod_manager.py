@@ -29,8 +29,10 @@ class RunPodError(Exception):
 class RunPodManager:
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.base_url = "https://rest.runpod.io/v1"
-        self.graphql_url = "https://api.runpod.io/graphql"
+        base_url_override = os.environ.get("FAKE_RUNPOD_BASE_URL")
+        graphql_url_override = os.environ.get("FAKE_RUNPOD_GRAPHQL_URL")
+        self.base_url = base_url_override or "https://rest.runpod.io/v1"
+        self.graphql_url = graphql_url_override or "https://api.runpod.io/graphql"
         self._session = requests.Session()
 
     def _make_request(

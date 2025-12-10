@@ -322,6 +322,9 @@ PIPELINE_MONITOR_HEARTBEAT_TIMEOUT_SECONDS="60"
 PIPELINE_MONITOR_MAX_MISSED_HEARTBEATS="5"
 PIPELINE_MONITOR_STARTUP_GRACE_SECONDS="600"
 RUN_POD_SSH_ACCESS_KEY="-----BEGIN OPENSSH PRIVATE KEY-----\n...replace...\n-----END OPENSSH PRIVATE KEY-----"
+FAKE_RUNPOD_BASE_URL="http://127.0.0.1:9000"          # Point RunPodManager at the fake server
+FAKE_RUNPOD_PORT="9000"                               # Port for the fake RunPod server
+FAKE_RUNPOD_GRAPHQL_URL="http://127.0.0.1:9000/graphql"
 
 ```
 
@@ -383,6 +386,21 @@ python -m isort .                         # Sort Python imports
 python -m flake8 .                        # Lint Python code
 python -m mypy .                          # Type check Python code
 ```
+
+## Fake RunPod server (fast local validation)
+
+Use this to exercise the research pipeline flow without provisioning a real RunPod GPU.
+
+- Start the fake RunPod server in a separate terminal:
+  - Set `FAKE_RUNPOD_PORT`, `FAKE_RUNPOD_BASE_URL`, and `FAKE_RUNPOD_GRAPHQL_URL`.
+  - Run `make fake-runpod`.
+- Point the launcher at the fake endpoint via `FAKE_RUNPOD_BASE_URL` (and `FAKE_RUNPOD_GRAPHQL_URL`).
+- Behavior:
+  - Exposes `/pods`, `/pods/{id}`, `/billing/pods`, and `/graphql` with the same shape the real RunPod API uses.
+  - Creates a per-run fake runner that finishes in ~5 minutes, emitting:
+    - `run-started`, heartbeats every 10s, stage progress (4 stages × 3 iterations), substage-completed, logs, and `run-finished`.
+    - One small fake artifact uploaded to S3 and recorded in `rp_artifacts`.
+  - Pod metadata uses `pod_id=fake-...`, `publicIp=127.0.0.1`, `portMappings={"22": "0"}` so readiness checks pass; SSH log upload is effectively skipped.
 
 ## API Type Generation
 

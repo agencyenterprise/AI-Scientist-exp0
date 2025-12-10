@@ -30,6 +30,11 @@ export-openapi:
 	@echo "📝 Exporting OpenAPI schema..."
 	VIRTUAL_ENV= uv run export_openapi.py > openapi.json
 
+# Fake RunPod server for local validation
+fake-runpod:
+	@echo "🎭 Starting fake RunPod server..."
+	VIRTUAL_ENV= PYTHONPATH=../research_pipeline:..:$(PYTHONPATH) uv run python -m app.services.research_pipeline.fake_runpod_server
+
 # Generate API types for frontend
 gen-api-types: export-openapi
 	@echo "🧬 Generating frontend API types from OpenAPI schema..."
@@ -40,5 +45,5 @@ migrate:
 	@echo "📊 Running database migrations..."
 	VIRTUAL_ENV= uv run migrate.py upgrade
 
-.PHONY: install lint test dev export-openapi gen-api-types migrate
+.PHONY: install lint test dev export-openapi gen-api-types migrate fake-runpod
 

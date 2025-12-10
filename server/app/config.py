@@ -102,6 +102,7 @@ class Settings:
     STRIPE_PRICE_TO_CREDITS: Dict[str, int] = _parse_price_map(
         os.getenv("STRIPE_PRICE_TO_CREDITS", "{}")
     )
+    RESEARCH_RUN_CREDITS_PER_MINUTE: int = int(os.getenv("RESEARCH_RUN_CREDITS_PER_MINUTE", "1"))
 
     @property
     def is_production(self) -> bool:
