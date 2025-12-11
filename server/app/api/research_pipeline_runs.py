@@ -717,6 +717,7 @@ async def stream_research_run_events(
         last_progress_event: Optional[StageProgressEvent] = None
         last_heartbeat = datetime.now(timezone.utc)
         initial_sent = False
+        last_run_event_id: Optional[int] = None
 
         while True:
             # Check if client is still connected
@@ -753,6 +754,8 @@ async def stream_research_run_events(
                         _run_event_to_model(e).model_dump()
                         for e in db.list_research_pipeline_run_events(run_id=run_id)
                     ]
+                    if run_events:
+                        last_run_event_id = max(event["id"] for event in run_events)
                     initial_data = {
                         "run": _run_to_info(current_run).model_dump(),
                         "stage_progress": stage_events,
@@ -778,6 +781,17 @@ async def stream_research_run_events(
                         progress_data = _stage_event_to_model(curr_progress)
                         yield f"data: {json.dumps({'type': 'stage_progress', 'data': progress_data.model_dump()})}\n\n"
                         last_progress_event = curr_progress
+
+                run_events = db.list_research_pipeline_run_events(run_id=run_id)
+                if run_events:
+                    new_events = (
+                        [e for e in run_events if last_run_event_id is None or e.id > last_run_event_id]
+                        if last_run_event_id is not None
+                        else run_events
+                    )
+                    for event in new_events:
+                        yield f"data: {json.dumps({'type': 'run_event', 'data': _run_event_to_model(event).model_dump()})}\n\n"
+                        last_run_event_id = event.id
 
                 # Emit heartbeat every SSE_HEARTBEAT_INTERVAL_SECONDS
                 now = datetime.now(timezone.utc)
