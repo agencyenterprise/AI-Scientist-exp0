@@ -131,13 +131,14 @@ def save_file_cost_track(
     output_tokens: int | None,
     now: datetime | None,
 ) -> None:
-    if not os.path.exists("cost_track.csv"):
-        with open("cost_track.csv", "w", newline="") as f:
+    file_path = os.path.join(os.environ.get("RUN_DIR_PATH") or "", "cost_track.csv")
+    if not os.path.exists(file_path):
+        with open(file_path, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
                 ["run_id", "provider", "model_name", "input_tokens", "output_tokens", "created_at"]
             )
-    with open("cost_track.csv", "a", newline="") as f:
+    with open(file_path, "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
             [
