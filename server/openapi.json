@@ -1673,6 +1673,51 @@
         }
       }
     },
+    "/api/research-pipeline/events/paper-generation-progress": {
+      "post": {
+        "tags": [
+          "research-pipeline-events"
+        ],
+        "summary": "Ingest Paper Generation Progress",
+        "operationId": "ingest_paper_generation_progress_api_research_pipeline_events_paper_generation_progress_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaperGenerationProgressPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/research-pipeline/events/run-started": {
       "post": {
         "tags": [
@@ -4161,6 +4206,69 @@
         "title": "MessageResponse",
         "description": "Simple message response."
       },
+      "PaperGenerationProgressEvent": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "substep": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Substep"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "step_progress": {
+            "type": "number",
+            "title": "Step Progress"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "progress",
+          "step_progress"
+        ],
+        "title": "PaperGenerationProgressEvent"
+      },
+      "PaperGenerationProgressPayload": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "event": {
+            "$ref": "#/components/schemas/PaperGenerationProgressEvent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "event"
+        ],
+        "title": "PaperGenerationProgressPayload"
+      },
       "ResearchRunAcceptedResponse": {
         "properties": {
           "run_id": {
@@ -4274,6 +4382,14 @@
             "type": "array",
             "title": "Artifacts",
             "description": "Artifacts uploaded for the run"
+          },
+          "paper_generation_progress": {
+            "items": {
+              "$ref": "#/components/schemas/ResearchRunPaperGenerationProgress"
+            },
+            "type": "array",
+            "title": "Paper Generation Progress",
+            "description": "Paper generation progress events (Stage 5)"
           }
         },
         "type": "object",
@@ -4673,6 +4789,75 @@
           "created_at"
         ],
         "title": "ResearchRunLogEntry"
+      },
+      "ResearchRunPaperGenerationProgress": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Unique identifier of the paper generation event"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id",
+            "description": "Research run identifier"
+          },
+          "step": {
+            "type": "string",
+            "title": "Step",
+            "description": "Current step: plot_aggregation, citation_gathering, paper_writeup, or paper_review"
+          },
+          "substep": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Substep",
+            "description": "Substep identifier (e.g., 'round_1', 'revision_2')"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress",
+            "description": "Overall progress (0.0-1.0)"
+          },
+          "step_progress": {
+            "type": "number",
+            "title": "Step Progress",
+            "description": "Progress within current step (0.0-1.0)"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details",
+            "description": "Step-specific metadata (figures, citations, scores, etc.)"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "description": "ISO timestamp when the event was recorded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "run_id",
+          "step",
+          "progress",
+          "step_progress",
+          "created_at"
+        ],
+        "title": "ResearchRunPaperGenerationProgress"
       },
       "ResearchRunStageProgress": {
         "properties": {

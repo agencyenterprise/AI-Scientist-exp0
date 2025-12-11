@@ -23,6 +23,8 @@ Key capabilities:
 | [Frontend Architecture](System/frontend_architecture.md) | Next.js frontend: feature-based architecture, conventions, migration guide |
 | [Server Architecture](System/server_architecture.md) | FastAPI server: API routes, services, database schema, LLM integrations |
 | [Orchestrator Architecture](System/orchestrator_architecture.md) | Next.js orchestrator: event processing, RunPod, MongoDB, state machine |
+| [Fake RunPod Server](System/fake_runpod_server.md) | Local development tool simulating RunPod GPU infrastructure for testing |
+| [Billing System](System/billing_system.md) | Credit-based billing: Stripe integration, how credits flow, manual testing |
 | [Design Guidelines](System/design-guidelines.md) | Visual design system: typography, colors, motion, backgrounds, component patterns |
 
 ### Root-Level Documentation

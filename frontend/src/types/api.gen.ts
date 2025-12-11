@@ -682,6 +682,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research-pipeline/events/paper-generation-progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ingest Paper Generation Progress */
+        post: operations["ingest_paper_generation_progress_api_research_pipeline_events_paper_generation_progress_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/research-pipeline/events/run-started": {
         parameters: {
             query?: never;
@@ -2088,6 +2105,27 @@ export interface components {
              */
             message: string;
         };
+        /** PaperGenerationProgressEvent */
+        PaperGenerationProgressEvent: {
+            /** Step */
+            step: string;
+            /** Substep */
+            substep?: string | null;
+            /** Progress */
+            progress: number;
+            /** Step Progress */
+            step_progress: number;
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** PaperGenerationProgressPayload */
+        PaperGenerationProgressPayload: {
+            /** Run Id */
+            run_id: string;
+            event: components["schemas"]["PaperGenerationProgressEvent"];
+        };
         /** ResearchRunAcceptedResponse */
         ResearchRunAcceptedResponse: {
             /** Run Id */
@@ -2165,6 +2203,11 @@ export interface components {
              * @description Artifacts uploaded for the run
              */
             artifacts?: components["schemas"]["ResearchRunArtifactMetadata"][];
+            /**
+             * Paper Generation Progress
+             * @description Paper generation progress events (Stage 5)
+             */
+            paper_generation_progress?: components["schemas"]["ResearchRunPaperGenerationProgress"][];
         };
         /** ResearchRunEvent */
         ResearchRunEvent: {
@@ -2403,6 +2446,51 @@ export interface components {
             /**
              * Created At
              * @description ISO timestamp of the log event
+             */
+            created_at: string;
+        };
+        /** ResearchRunPaperGenerationProgress */
+        ResearchRunPaperGenerationProgress: {
+            /**
+             * Id
+             * @description Unique identifier of the paper generation event
+             */
+            id: number;
+            /**
+             * Run Id
+             * @description Research run identifier
+             */
+            run_id: string;
+            /**
+             * Step
+             * @description Current step: plot_aggregation, citation_gathering, paper_writeup, or paper_review
+             */
+            step: string;
+            /**
+             * Substep
+             * @description Substep identifier (e.g., 'round_1', 'revision_2')
+             */
+            substep?: string | null;
+            /**
+             * Progress
+             * @description Overall progress (0.0-1.0)
+             */
+            progress: number;
+            /**
+             * Step Progress
+             * @description Progress within current step (0.0-1.0)
+             */
+            step_progress: number;
+            /**
+             * Details
+             * @description Step-specific metadata (figures, citations, scores, etc.)
+             */
+            details?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Created At
+             * @description ISO timestamp when the event was recorded
              */
             created_at: string;
         };
@@ -3803,6 +3891,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SubstageCompletedPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_paper_generation_progress_api_research_pipeline_events_paper_generation_progress_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaperGenerationProgressPayload"];
             };
         };
         responses: {

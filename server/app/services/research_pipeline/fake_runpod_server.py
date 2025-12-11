@@ -277,6 +277,15 @@ def telemetry_gpu_shortage(payload: Dict[str, object] = Body(...)) -> None:
     )
 
 
+@app.post("/telemetry/paper-generation-progress", status_code=204)
+def telemetry_paper_generation_progress(payload: Dict[str, object] = Body(...)) -> None:
+    _telemetry_events.append(
+        TelemetryRecord(
+            path="/telemetry/paper-generation-progress", payload=payload, received_at=time.time()
+        )
+    )
+
+
 @app.get("/telemetry")
 def list_telemetry() -> List[Dict[str, object]]:
     return [
@@ -434,6 +443,92 @@ class FakeRunner:
                     },
                 )
             )
+
+        # Stage 5: Paper Generation
+        self._emit_paper_generation_flow()
+
+    def _emit_paper_generation_flow(self) -> None:
+        """Emit Stage 5 paper generation progress events."""
+        # Define the paper generation steps with their substeps
+        paper_steps: list[tuple[str, list[str], dict[str, object]]] = [
+            (
+                "plot_aggregation",
+                ["collecting_figures", "validating_plots", "generating_captions"],
+                {"figures_collected": 8, "valid_plots": 7},
+            ),
+            (
+                "citation_gathering",
+                ["searching_literature", "filtering_relevant", "formatting_citations"],
+                {"citations_found": 15, "relevant_citations": 12},
+            ),
+            (
+                "paper_writeup",
+                [
+                    "writing_abstract",
+                    "writing_introduction",
+                    "writing_methodology",
+                    "writing_results",
+                    "writing_discussion",
+                    "writing_conclusion",
+                ],
+                {"sections_completed": 6, "word_count": 4500},
+            ),
+            (
+                "paper_review",
+                ["review_1", "review_2", "review_3"],
+                {
+                    "avg_score": 7.2,
+                    "review_scores": [7.0, 7.5, 7.1],
+                    "strengths": ["novel approach", "thorough experiments"],
+                    "weaknesses": ["limited comparison", "minor clarity issues"],
+                },
+            ),
+        ]
+
+        total_steps = len(paper_steps)
+        for step_idx, (step_name, substeps, step_details) in enumerate(paper_steps):
+            for substep_idx, substep_name in enumerate(substeps):
+                step_progress = (substep_idx + 1) / len(substeps)
+                overall_progress = (step_idx + step_progress) / total_steps
+
+                self._persistence.queue.put(
+                    PersistableEvent(
+                        kind="paper_generation_progress",
+                        data={
+                            "step": step_name,
+                            "substep": substep_name,
+                            "progress": overall_progress,
+                            "step_progress": step_progress,
+                            "details": {
+                                **step_details,
+                                "current_substep": substep_idx + 1,
+                                "total_substeps": len(substeps),
+                            },
+                        },
+                    )
+                )
+                self._persistence.queue.put(
+                    PersistableEvent(
+                        kind="run_log",
+                        data={
+                            "message": f"Paper generation: {step_name} - {substep_name}",
+                            "level": "info",
+                        },
+                    )
+                )
+                # Shorter delay for paper generation steps (5s instead of 20s)
+                time.sleep(5)
+
+        # Log completion
+        self._persistence.queue.put(
+            PersistableEvent(
+                kind="run_log",
+                data={
+                    "message": "Paper generation completed",
+                    "level": "info",
+                },
+            )
+        )
 
     def _publish_fake_artifact(self) -> None:
         temp_dir = Path(os.environ.get("TMPDIR") or "/tmp")
