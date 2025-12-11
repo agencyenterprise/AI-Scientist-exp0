@@ -6,17 +6,21 @@ maintain conversation summaries for imported conversations and live chats.
 """
 
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from langchain.agents import AgentState, create_agent
 from langchain.agents.middleware import SummarizationMiddleware, after_model
 from langchain.chat_models import BaseChatModel
-from langchain_core.messages import HumanMessage, RemoveMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, RemoveMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph.state import CompiledStateGraph, RunnableConfig
 from langgraph.runtime import Runtime
 
-from app.api.llm_providers import LLM_PROVIDER_REGISTRY, get_llm_service_by_provider
+from app.api.llm_providers import (
+    LLM_PROVIDER_REGISTRY,
+    extract_model_name_and_provider,
+    get_llm_service_by_provider,
+)
 from app.config import settings
 from app.models import ChatMessageData, ImportedChatMessage
 from app.services.database import DatabaseManager
@@ -29,12 +33,60 @@ EMPTY_MESSAGE_ID = "__empty_message__"
 class CustomSummarizationMiddleware(SummarizationMiddleware):
     """Custom summarization middleware that mark the summary message with the summary flag."""
 
+    model: BaseChatModel
+
+    def __init__(
+        self, model: BaseChatModel, conversation_id: int, **kwargs: Any  # noqa: ANN401
+    ) -> None:
+        super().__init__(model, **kwargs)
+        self.model = model
+        self.conversation_id = conversation_id
+
     def _build_new_messages(self, summary: str) -> list[HumanMessage]:
         return [
             HumanMessage(
                 content=f"Here is a summary of the conversation to date:\n\n{summary}", summary=True
             )
         ]
+
+    def _save_usage_metadata(self, response: AIMessage) -> None:
+        """Save the usage metadata to the database."""
+
+        metadata = response.usage_metadata
+        if metadata is None:
+            return
+        input_tokens = metadata.get("input_tokens", 0)
+        output_tokens = metadata.get("output_tokens", 0)
+        model_name, provider_name = extract_model_name_and_provider(self.model)
+
+        db = DatabaseManager()
+        db.create_llm_token_usage(
+            conversation_id=self.conversation_id,
+            provider=provider_name,
+            model=model_name,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+    async def _acreate_summary(self, messages_to_summarize: list[AnyMessage]) -> str:
+        """Generate summary for the given messages."""
+        if not messages_to_summarize:
+            return "No previous conversation history."
+
+        trimmed_messages = self._trim_messages_for_summary(messages_to_summarize)
+        if not trimmed_messages:
+            return "Previous conversation was too long to summarize."
+
+        try:
+            response = await self.model.ainvoke(
+                self.summary_prompt.format(messages=trimmed_messages)
+            )
+
+            self._save_usage_metadata(response)
+
+            return response.text.strip()
+        except Exception as e:  # noqa: BLE001
+            return f"Error generating summary: {e!s}"
 
 
 @after_model  # type: ignore[arg-type]
@@ -87,7 +139,7 @@ class SummarizerService:
 
         return SummarizerService(chat_model)
 
-    def get_summarizer(self) -> CustomSummarizationMiddleware:
+    def _get_summarizer(self, conversation_id: int) -> CustomSummarizationMiddleware:
         """
         Get the summarizer middleware.
 
@@ -96,6 +148,7 @@ class SummarizerService:
         """
         summarizer_middleware = CustomSummarizationMiddleware(
             model=self.model,
+            conversation_id=conversation_id,
             trigger=("fraction", 0.9),
             keep=("messages", 1),
         )
@@ -301,7 +354,10 @@ class SummarizerService:
                     self.model.max_tokens = 10  # type: ignore[attr-defined]
                     agent: CompiledStateGraph = create_agent(
                         model=self.model,
-                        middleware=[self.get_summarizer(), remove_after_empty_message],
+                        middleware=[
+                            self._get_summarizer(conversation_id),
+                            remove_after_empty_message,
+                        ],
                         checkpointer=checkpointer,
                     )
                     # Add a blank human message to trigger summarization of the entire conversation history

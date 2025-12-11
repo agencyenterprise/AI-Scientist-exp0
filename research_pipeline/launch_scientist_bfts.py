@@ -29,7 +29,6 @@ from omegaconf import OmegaConf
 
 from ai_scientist.artifact_manager import ArtifactPublisher, ArtifactSpec
 from ai_scientist.latest_run_finder import normalize_run_name
-from ai_scientist.llm import token_tracker
 from ai_scientist.perform_icbinb_writeup import gather_citations
 from ai_scientist.perform_icbinb_writeup import perform_writeup as perform_icbinb_writeup
 from ai_scientist.perform_llm_review import ReviewResponseModel, load_paper, perform_review
@@ -73,19 +72,6 @@ class TelemetryHooks(NamedTuple):
 
 
 ArtifactCallback = Callable[[ArtifactSpec], None]
-
-
-def save_token_tracker(idea_dir: str) -> None:
-    try:
-        with open(osp.join(idea_dir, "token_tracker.json"), "w") as f:
-            json.dump(token_tracker.get_summary(), f)
-    except Exception:
-        traceback.print_exc()
-    try:
-        with open(osp.join(idea_dir, "token_tracker_interactions.json"), "w") as f:
-            json.dump(token_tracker.get_interactions(), f)
-    except Exception:
-        traceback.print_exc()
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -369,19 +355,27 @@ def setup_artifact_publisher(
     return publisher, _callback
 
 
-def resume_run(
+def get_resume_run_dir(
     base_cfg: Config,
-    idea_json_path: str,
     resume_arg: str,
+) -> Path | None:
+    logs_root = base_cfg.log_dir
+    raw_exp_name = base_cfg.exp_name
+    exp_name = str(raw_exp_name) if raw_exp_name else "run"
+    run_name = normalize_run_name(run_arg=resume_arg, exp_name=exp_name)
+    run_dir = (logs_root / run_name).resolve()
+    if not run_dir.exists():
+        return None
+    return run_dir
+
+
+def resume_run(
+    idea_json_path: str,
+    run_dir: Path | None,
     event_callback: Callable[[BaseEvent], None],
-) -> Path:
+) -> None:
     try:
-        logs_root = base_cfg.log_dir
-        raw_exp_name = base_cfg.exp_name
-        exp_name = str(raw_exp_name) if raw_exp_name else "run"
-        run_name = normalize_run_name(run_arg=resume_arg, exp_name=exp_name)
-        run_dir = (logs_root / run_name).resolve()
-        if not run_dir.exists():
+        if run_dir is None or not run_dir.exists():
             raise FileNotFoundError(str(run_dir))
 
         cfg_obj = load_cfg_from_run(run_dir=run_dir)
@@ -390,7 +384,7 @@ def resume_run(
             logger.info(
                 "All summary files found; skipping stage execution and proceeding to reports."
             )
-            return run_dir
+            return
 
         s1 = stage_exists(run_dir=run_dir, prefix="stage_1_")
         s2 = stage_exists(run_dir=run_dir, prefix="stage_2_")
@@ -406,7 +400,7 @@ def resume_run(
             next_stage = 4
 
         if next_stage is None:
-            return run_dir
+            return
 
         fake_config = copy.deepcopy(cfg_obj)
         fake_config.desc_file = Path(idea_json_path)
@@ -527,17 +521,12 @@ def resume_run(
             initial_substage=next_meta,
             step_callback=step_callback,
         )
-        return run_dir
     except Exception:
         logger.exception("Resume failed; exiting.")
         sys.exit(1)
 
 
-def determine_run_directory(
-    top_log_dir: Path, existing_runs_before: set[str], resume_run_dir: Path | None
-) -> Path | None:
-    if resume_run_dir is not None:
-        return resume_run_dir
+def determine_run_directory(top_log_dir: Path, existing_runs_before: set[str]) -> Path | None:
     try:
         new_runs = [
             p for p in top_log_dir.iterdir() if p.is_dir() and p.name not in existing_runs_before
@@ -893,22 +882,23 @@ def execute_launcher(args: argparse.Namespace) -> None:
             idea = json.load(f)
             logger.info(f"Loaded idea from {idea_json_path}")
 
-        resume_run_dir: Path | None = None
+        run_dir_path: Path | None = None
         if args.resume is not None:
-            resume_run_dir = resume_run(
-                base_cfg=base_cfg,
+            run_dir_path = get_resume_run_dir(base_cfg=base_cfg, resume_arg=args.resume)
+            os.environ["RUN_DIR_PATH"] = str(run_dir_path)
+            resume_run(
                 idea_json_path=idea_json_path,
-                resume_arg=args.resume,
+                run_dir=run_dir_path,
                 event_callback=event_callback,
             )
         else:
+            run_dir_path = determine_run_directory(
+                top_log_dir=top_log_dir,
+                existing_runs_before=existing_runs_before,
+            )
+            os.environ["RUN_DIR_PATH"] = str(run_dir_path)
             perform_experiments_bfts(base_config_path, event_callback)
 
-        run_dir_path = determine_run_directory(
-            top_log_dir=top_log_dir,
-            existing_runs_before=existing_runs_before,
-            resume_run_dir=resume_run_dir,
-        )
         write_research_idea_to_run(run_dir_path=run_dir_path, idea=idea)
 
         should_run_reports = should_generate_reports(run_dir_path=run_dir_path)
@@ -924,10 +914,6 @@ def execute_launcher(args: argparse.Namespace) -> None:
         )
 
         cleanup_aggregated_results(reports_base=reports_base)
-
-        save_token_tracker(
-            idea_dir=run_dir_path.as_posix() if run_dir_path is not None else reports_base
-        )
 
         writeup_success = run_writeup_stage(
             writeup_cfg=writeup_cfg,
