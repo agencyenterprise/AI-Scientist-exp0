@@ -1,7 +1,7 @@
 """add llm_token_usages table
 
-Revision ID: 0018
-Revises: 0017
+Revision ID: 0019
+Revises: 0018
 Create Date: 2025-12-10 14:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "0018"
-down_revision = "0017"
+revision = "0019"
+down_revision = "0018"
 branch_labels = None
 depends_on = None
 
