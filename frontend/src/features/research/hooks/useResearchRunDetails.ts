@@ -8,6 +8,7 @@ import type {
   StageProgress,
   LogEntry,
   ArtifactMetadata,
+  PaperGenerationEvent,
   TreeVizItem,
 } from "@/types/research";
 import { useResearchRunSSE } from "./useResearchRunSSE";
@@ -77,6 +78,17 @@ export function useResearchRunDetails({
         ? {
             ...prev,
             artifacts: [...prev.artifacts, event],
+          }
+        : null
+    );
+  }, []);
+
+  const handlePaperGenerationProgress = useCallback((event: PaperGenerationEvent) => {
+    setDetails(prev =>
+      prev
+        ? {
+            ...prev,
+            paper_generation_progress: [...prev.paper_generation_progress, event],
           }
         : null
     );
@@ -178,6 +190,7 @@ export function useResearchRunDetails({
     onStageProgress: handleStageProgress,
     onLog: handleLog,
     onArtifact: handleArtifact,
+    onPaperGenerationProgress: handlePaperGenerationProgress,
     onRunUpdate: handleRunUpdate,
     onComplete: handleComplete,
     onRunEvent: handleRunEvent,

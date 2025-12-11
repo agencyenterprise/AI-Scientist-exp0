@@ -285,6 +285,15 @@ def telemetry_gpu_shortage(payload: Dict[str, object] = Body(...)) -> None:
     )
 
 
+@app.post("/telemetry/paper-generation-progress", status_code=204)
+def telemetry_paper_generation_progress(payload: Dict[str, object] = Body(...)) -> None:
+    _telemetry_events.append(
+        TelemetryRecord(
+            path="/telemetry/paper-generation-progress", payload=payload, received_at=time.time()
+        )
+    )
+
+
 @app.get("/telemetry")
 def list_telemetry() -> List[Dict[str, object]]:
     return [
@@ -360,6 +369,9 @@ class FakeRunner:
         self._plot_filename: str | None = None
 
     def run(self) -> None:
+        logger.info(
+            "[FakeRunner %s] Starting simulation for pod %s", self._run_id[:8], self._pod_id[:13]
+        )
         self._persistence.start()
         logger.info("FakeRunner started for run_id=%s pod_id=%s", self._run_id, self._pod_id)
         self._publish_run_started()
@@ -367,6 +379,11 @@ class FakeRunner:
             target=self._heartbeat_loop, name=f"heartbeat-{self._run_id}", daemon=True
         )
         heartbeat_thread.start()
+        logger.info(
+            "[FakeRunner %s] Heartbeat thread started (interval=%ds)",
+            self._run_id[:8],
+            self._heartbeat_interval_seconds,
+        )
         try:
             self._publish_fake_plot_artifact()
             self._emit_progress_flow()
@@ -377,6 +394,7 @@ class FakeRunner:
             heartbeat_thread.join(timeout=self._heartbeat_interval_seconds + 1)
             self._persistence.stop()
             logger.info("FakeRunner stopped for run_id=%s", self._run_id)
+            logger.info("[FakeRunner %s] Simulation complete", self._run_id[:8])
 
     def _heartbeat_loop(self) -> None:
         webhook_client = self._webhook_client
@@ -396,7 +414,13 @@ class FakeRunner:
         total_iterations = len(self._stage_plan) * self._iterations_per_stage
         current_iter = 0
         for stage_index, (stage_name, max_iterations) in enumerate(self._stage_plan):
-            logger.info("Starting fake stage %s (%s iterations)", stage_name, max_iterations)
+            logger.info(
+                "[FakeRunner %s] Stage %d/%d: %s",
+                self._run_id[:8],
+                stage_index + 1,
+                len(self._stage_plan),
+                stage_name,
+            )
             iterations_to_emit = min(self._iterations_per_stage, max_iterations)
             for iteration in range(iterations_to_emit):
                 current_iter += 1
@@ -445,6 +469,13 @@ class FakeRunner:
                             iteration + 1,
                         )
                 time.sleep(20)
+                logger.info(
+                    "[FakeRunner %s]   Iteration %d/%d complete (%.0f%% overall)",
+                    self._run_id[:8],
+                    iteration + 1,
+                    iterations_to_emit,
+                    (current_iter / total_iterations) * 100,
+                )
             summary = {
                 "goals": f"Goals for {stage_name}",
                 "feedback": "Reached max iterations",
@@ -467,10 +498,113 @@ class FakeRunner:
                     },
                 )
             )
-            try:
-                self._store_tree_viz(stage_number=stage_index + 1)
-            except Exception:
-                logger.exception("Failed to store fake tree viz for stage %s", stage_name)
+            logger.info(
+                "[FakeRunner %s] Stage %d/%d complete",
+                self._run_id[:8],
+                stage_index + 1,
+                len(self._stage_plan),
+            )
+
+        # Stage 5: Paper Generation
+        logger.info("[FakeRunner %s] Starting paper generation (Stage 5)", self._run_id[:8])
+        self._emit_paper_generation_flow()
+
+    def _emit_paper_generation_flow(self) -> None:
+        """Emit Stage 5 paper generation progress events."""
+        # Define the paper generation steps with their substeps
+        paper_steps: list[tuple[str, list[str], dict[str, object]]] = [
+            (
+                "plot_aggregation",
+                ["collecting_figures", "validating_plots", "generating_captions"],
+                {"figures_collected": 8, "valid_plots": 7},
+            ),
+            (
+                "citation_gathering",
+                ["searching_literature", "filtering_relevant", "formatting_citations"],
+                {"citations_found": 15, "relevant_citations": 12},
+            ),
+            (
+                "paper_writeup",
+                [
+                    "writing_abstract",
+                    "writing_introduction",
+                    "writing_methodology",
+                    "writing_results",
+                    "writing_discussion",
+                    "writing_conclusion",
+                ],
+                {"sections_completed": 6, "word_count": 4500},
+            ),
+            (
+                "paper_review",
+                ["review_1", "review_2", "review_3"],
+                {
+                    "avg_score": 7.2,
+                    "review_scores": [7.0, 7.5, 7.1],
+                    "strengths": ["novel approach", "thorough experiments"],
+                    "weaknesses": ["limited comparison", "minor clarity issues"],
+                },
+            ),
+        ]
+
+        total_steps = len(paper_steps)
+        for step_idx, (step_name, substeps, step_details) in enumerate(paper_steps):
+            logger.info(
+                "[FakeRunner %s] Paper step %d/%d: %s",
+                self._run_id[:8],
+                step_idx + 1,
+                total_steps,
+                step_name,
+            )
+            for substep_idx, substep_name in enumerate(substeps):
+                step_progress = (substep_idx + 1) / len(substeps)
+                overall_progress = (step_idx + step_progress) / total_steps
+
+                self._persistence.queue.put(
+                    PersistableEvent(
+                        kind="paper_generation_progress",
+                        data={
+                            "step": step_name,
+                            "substep": substep_name,
+                            "progress": overall_progress,
+                            "step_progress": step_progress,
+                            "details": {
+                                **step_details,
+                                "current_substep": substep_idx + 1,
+                                "total_substeps": len(substeps),
+                            },
+                        },
+                    )
+                )
+                self._persistence.queue.put(
+                    PersistableEvent(
+                        kind="run_log",
+                        data={
+                            "message": f"Paper generation: {step_name} - {substep_name}",
+                            "level": "info",
+                        },
+                    )
+                )
+                # Shorter delay for paper generation steps (5s instead of 20s)
+                time.sleep(5)
+                logger.info(
+                    "[FakeRunner %s]   %s complete (%.0f%% step)",
+                    self._run_id[:8],
+                    substep_name,
+                    step_progress * 100,
+                )
+
+        # Log completion
+        self._persistence.queue.put(
+            PersistableEvent(
+                kind="run_log",
+                data={
+                    "message": "Paper generation completed",
+                    "level": "info",
+                },
+            )
+        )
+        logger.info("[FakeRunner %s] Paper generation complete", self._run_id[:8])
 
     def _publish_fake_artifact(self) -> None:
         temp_dir = Path(os.environ.get("TMPDIR") or "/tmp")
@@ -494,6 +628,7 @@ class FakeRunner:
         )
         try:
             publisher.publish(spec=spec)
+            logger.info("[FakeRunner %s] Artifact published to S3", self._run_id[:8])
         except Exception:
             logger.exception("Failed to publish fake artifact for run %s", self._run_id)
         finally:

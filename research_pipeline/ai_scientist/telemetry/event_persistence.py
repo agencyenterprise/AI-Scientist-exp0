@@ -42,6 +42,7 @@ class WebhookClient:
         "run_log": "",
         # Sub-stage completion events are also forwarded to the web server.
         "substage_completed": "/substage-completed",
+        "paper_generation_progress": "/paper-generation-progress",
     }
     _RUN_STARTED_PATH = "/run-started"
     _RUN_FINISHED_PATH = "/run-finished"
@@ -257,6 +258,8 @@ class EventPersistenceManager:
                 self._insert_run_log(connection=connection, payload=event.data)
             elif event.kind == "substage_completed":
                 self._insert_substage_completed(connection=connection, payload=event.data)
+            elif event.kind == "paper_generation_progress":
+                self._insert_paper_generation_progress(connection=connection, payload=event.data)
         if self._webhook_client is not None:
             self._webhook_client.publish(kind=event.kind, payload=event.data)
 
@@ -330,6 +333,33 @@ class EventPersistenceManager:
                     self._run_id,
                     payload.get("stage"),
                     psycopg2.extras.Json(summary),
+                ),
+            )
+
+    def _insert_paper_generation_progress(
+        self, *, connection: psycopg2.extensions.connection, payload: dict[str, Any]
+    ) -> None:
+        details = payload.get("details") or {}
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO rp_paper_generation_events (
+                    run_id,
+                    step,
+                    substep,
+                    progress,
+                    step_progress,
+                    details
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    self._run_id,
+                    payload.get("step"),
+                    payload.get("substep"),
+                    payload.get("progress"),
+                    payload.get("step_progress"),
+                    psycopg2.extras.Json(details),
                 ),
             )
 

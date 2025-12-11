@@ -22,7 +22,6 @@ def upgrade() -> None:
     # Step 1: Drop the conversation_dashboard_view if it exists
     conn = op.get_bind()
     conn.execute(sa.text("DROP VIEW IF EXISTS conversation_dashboard_view"))
-    conn.commit()
 
     # Step 2: Add column with server default
     op.add_column(
@@ -54,7 +53,6 @@ def upgrade() -> None:
     """
         )
     )
-    conn.commit()
 
 
 def downgrade() -> None:

@@ -22,6 +22,7 @@ from app.models import (
     ResearchRunEvent,
     ResearchRunInfo,
     ResearchRunLogEntry,
+    ResearchRunPaperGenerationProgress,
     ResearchRunStageProgress,
     ResearchRunSubstageEvent,
     TreeVizItem,
@@ -34,8 +35,13 @@ from app.services.database.research_pipeline_runs import (
     ResearchPipelineRunEvent,
 )
 from app.services.database.rp_artifacts import ResearchPipelineArtifact
-from app.services.database.rp_events import RunLogEvent, StageProgressEvent, SubstageCompletedEvent
 from app.services.database.rp_tree_viz import TreeVizRecord
+from app.services.database.rp_events import (
+    PaperGenerationEvent,
+    RunLogEvent,
+    StageProgressEvent,
+    SubstageCompletedEvent,
+)
 from app.services.research_pipeline.runpod_manager import (
     RunPodError,
     fetch_pod_billing_summary,
@@ -347,6 +353,19 @@ def _node_event_to_model(event: SubstageCompletedEvent) -> ResearchRunSubstageEv
     )
 
 
+def _paper_generation_event_to_model(event: PaperGenerationEvent) -> ResearchRunPaperGenerationProgress:
+    return ResearchRunPaperGenerationProgress(
+        id=event.id,
+        run_id=event.run_id,
+        step=event.step,
+        substep=event.substep,
+        progress=event.progress,
+        step_progress=event.step_progress,
+        details=event.details,
+        created_at=event.created_at.isoformat(),
+    )
+
+
 def _artifact_to_model(
     artifact: ResearchPipelineArtifact, conversation_id: int, run_id: str
 ) -> ResearchRunArtifactMetadata:
@@ -456,6 +475,9 @@ def get_research_run_details(
         _run_event_to_model(event) for event in db.list_research_pipeline_run_events(run_id=run_id)
     ]
     tree_viz = [_tree_viz_to_model(record) for record in db.list_tree_viz_for_run(run_id=run_id)]
+    paper_gen_events = [
+        _paper_generation_event_to_model(event) for event in db.list_paper_generation_events(run_id=run_id)
+    ]
 
     return ResearchRunDetailsResponse(
         run=_run_to_info(run),
@@ -464,6 +486,7 @@ def get_research_run_details(
         substage_events=substage_events,
         events=run_events,
         artifacts=artifacts,
+        paper_generation_progress=paper_gen_events,
         tree_viz=tree_viz,
     )
 
@@ -786,6 +809,7 @@ async def stream_research_run_events(
     async def event_generator() -> AsyncGenerator[str, None]:
         """Generate SSE events until the run completes or client disconnects."""
         last_progress_event: Optional[StageProgressEvent] = None
+        last_paper_gen_event: Optional[PaperGenerationEvent] = None
         last_heartbeat = datetime.now(timezone.utc)
         initial_sent = False
         last_run_event_id: Optional[int] = None
@@ -825,6 +849,10 @@ async def stream_research_run_events(
                         _tree_viz_to_model(record).model_dump()
                         for record in db.list_tree_viz_for_run(run_id=run_id)
                     ]
+                    paper_gen_events = [
+                        _paper_generation_event_to_model(e).model_dump()
+                        for e in db.list_paper_generation_events(run_id=run_id)
+                    ]
                     run_events_raw = db.list_research_pipeline_run_events(run_id=run_id)
                     run_events = [_run_event_to_model(e).model_dump() for e in run_events_raw]
                     if run_events_raw:
@@ -837,6 +865,7 @@ async def stream_research_run_events(
                         "artifacts": artifacts,
                         "tree_viz": tree_viz,
                         "events": run_events,
+                        "paper_generation_progress": paper_gen_events,
                     }
                     yield f"data: {json.dumps({'type': 'initial', 'data': initial_data})}\n\n"
                     initial_sent = True
@@ -870,6 +899,15 @@ async def stream_research_run_events(
                     for event in new_events:
                         yield f"data: {json.dumps({'type': 'run_event', 'data': _run_event_to_model(event).model_dump()})}\n\n"
                         last_run_event_id = event.id
+
+                # Check and emit paper generation progress events
+                all_paper_gen = db.list_paper_generation_events(run_id=run_id)
+                if all_paper_gen:
+                    curr_paper_gen = all_paper_gen[-1]  # Most recent
+                    if curr_paper_gen != last_paper_gen_event:
+                        paper_gen_data = _paper_generation_event_to_model(curr_paper_gen)
+                        yield f"data: {json.dumps({'type': 'paper_generation_progress', 'data': paper_gen_data.model_dump()})}\n\n"
+                        last_paper_gen_event = curr_paper_gen
 
                 # Emit heartbeat every SSE_HEARTBEAT_INTERVAL_SECONDS
                 now = datetime.now(timezone.utc)
