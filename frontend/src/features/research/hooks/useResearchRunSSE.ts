@@ -25,6 +25,7 @@ interface UseResearchRunSSEOptions {
   onArtifact: (event: ArtifactMetadata) => void;
   onRunUpdate: (run: ResearchRunInfo) => void;
   onComplete: (status: string) => void;
+  onRunEvent?: (event: unknown) => void;
   onError?: (error: string) => void;
 }
 
@@ -45,6 +46,7 @@ export function useResearchRunSSE({
   onArtifact,
   onRunUpdate,
   onComplete,
+  onRunEvent,
   onError,
 }: UseResearchRunSSEOptions): UseResearchRunSSEReturn {
   const [isConnected, setIsConnected] = useState(false);
@@ -127,6 +129,9 @@ export function useResearchRunSSE({
               case "run_update":
                 onRunUpdate(event.data as ResearchRunInfo);
                 break;
+              case "run_event":
+                onRunEvent?.(event.data);
+                break;
               case "complete":
                 onComplete((event.data as { status: string }).status);
                 setIsConnected(false);
@@ -169,6 +174,7 @@ export function useResearchRunSSE({
     onLog,
     onArtifact,
     onRunUpdate,
+    onRunEvent,
     onComplete,
     onError,
   ]);

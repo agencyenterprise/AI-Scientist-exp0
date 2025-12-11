@@ -20,6 +20,7 @@ from .research_pipeline_runs import ResearchPipelineRunsMixin
 from .rp_artifacts import ResearchPipelineArtifactsMixin
 from .rp_events import ResearchPipelineEventsMixin
 from .rp_llm_reviews import ResearchPipelineLlmReviewsMixin
+from .rp_tree_viz import ResearchPipelineTreeVizMixin
 from .users import UsersDatabaseMixin
 
 
@@ -39,6 +40,7 @@ class DatabaseManager(
     ResearchPipelineArtifactsMixin,
     ResearchPipelineEventsMixin,
     ResearchPipelineLlmReviewsMixin,
+    ResearchPipelineTreeVizMixin,
     BillingDatabaseMixin,
 ):
     """
