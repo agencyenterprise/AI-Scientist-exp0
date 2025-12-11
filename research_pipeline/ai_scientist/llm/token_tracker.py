@@ -3,6 +3,7 @@ import logging
 import os
 import traceback
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -15,17 +16,13 @@ from langchain_core.outputs import ChatGeneration, LLMResult
 
 from ai_scientist.telemetry.event_persistence import _parse_database_url
 
-
-def _require_env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        raise SystemExit(f"Environment variable {name} is required")
-    return value
+database_url = os.environ.get("DATABASE_PUBLIC_URL")
+RUN_ID = os.environ.get("RUN_ID")
+pg_config = _parse_database_url(database_url) if database_url else None
 
 
-database_url = _require_env("DATABASE_PUBLIC_URL")
-RUN_ID = _require_env("RUN_ID")
-pg_config = _parse_database_url(database_url)
+def _should_use_db_tracking(run_id: str | None) -> bool:
+    return run_id is not None and pg_config is not None
 
 
 def save_cost_track(
@@ -49,7 +46,7 @@ def save_cost_track(
 
     model_name, provider = extract_model_name_and_provider(model)
     now = datetime.now()
-    try:
+    if _should_use_db_tracking(run_id):
         save_db_cost_track(
             run_id,
             provider,
@@ -58,14 +55,13 @@ def save_cost_track(
             output_tokens,
             now,
         )
-    except Exception:
+    else:
         save_file_cost_track(
-            run_id,
-            provider,
-            model_name,
-            input_tokens,
-            output_tokens,
-            now,
+            provider=provider,
+            model_name=model_name,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            now=now,
         )
 
 
@@ -77,6 +73,8 @@ def save_db_cost_track(
     output_tokens: int | None,
     now: datetime | None,
 ) -> None:
+    if pg_config is None:
+        raise ValueError("Database configuration missing; cannot save cost track to DB")
     with psycopg2.connect(**pg_config) as conn:
         with conn.cursor() as cursor:
             cursor.execute(
@@ -124,25 +122,25 @@ def save_db_cost_track(
 
 
 def save_file_cost_track(
-    run_id: str | None,
+    *,
     provider: str | None,
     model_name: str | None,
     input_tokens: int | None,
     output_tokens: int | None,
     now: datetime | None,
 ) -> None:
-    file_path = os.path.join(os.environ.get("RUN_DIR_PATH") or "", "cost_track.csv")
-    if not os.path.exists(file_path):
-        with open(file_path, "w", newline="") as f:
+    file_path = Path(os.environ.get("RUN_DIR_PATH") or "") / "cost_track.csv"
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    if not file_path.exists():
+        with file_path.open(mode="w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
-                ["run_id", "provider", "model_name", "input_tokens", "output_tokens", "created_at"]
+                ["provider", "model_name", "input_tokens", "output_tokens", "created_at"]
             )
-    with open(file_path, "a", newline="") as f:
+    with file_path.open(mode="a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
             [
-                run_id or "",
                 provider or "",
                 model_name or "",
                 input_tokens or "",
