@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useMemo, useState } from "react";
 import type { ArtifactMetadata, TreeVizItem } from "@/types/research";
 import { config } from "@/shared/lib/config";
@@ -43,14 +42,13 @@ type TreeVizPayload = TreeVizItem["viz"] & {
 interface Props {
   viz: TreeVizItem;
   artifacts: ArtifactMetadata[];
-  conversationId: number | null;
 }
 
 const NODE_SIZE = 14;
 const BLUE = "#1a73e8";
 const GRAY = "#6b7280";
 
-export function TreeVizViewer({ viz, artifacts, conversationId }: Props) {
+export function TreeVizViewer({ viz, artifacts }: Props) {
   const payload = viz.viz as TreeVizPayload;
   const [selected, setSelected] = useState<number>(0);
 
@@ -90,23 +88,30 @@ export function TreeVizViewer({ viz, artifacts, conversationId }: Props) {
   }, [payload, selected, selectedNode]);
 
   const plotUrls = useMemo(() => {
-    if (!conversationId) return [];
     const baseUrl = config.apiUrl.replace(/\/$/, "");
     return plotList
       .map(p => {
-        const filename = p?.toString().split("/").pop();
-        if (!filename) return null;
-        const artifact = artifacts.find(a => a.filename === filename);
-        if (!artifact) return null;
-        const downloadPath = artifact.download_path || "";
-        const normalizedPath =
-          downloadPath.startsWith("/api") && baseUrl.endsWith("/api")
-            ? downloadPath.slice(4)
-            : downloadPath;
-        return `${baseUrl}${normalizedPath}`;
+        if (!p) return null;
+        const asString = p.toString();
+        if (asString.startsWith("http://") || asString.startsWith("https://")) {
+          return asString;
+        }
+        const filename = asString.split("/").pop();
+        const artifact =
+          artifacts.find(a => a.filename === filename) ||
+          artifacts.find(a => a.download_path && a.download_path.endsWith(asString));
+        if (artifact) {
+          const downloadPath = artifact.download_path || "";
+          const normalizedPath =
+            downloadPath.startsWith("/api") && baseUrl.endsWith("/api")
+              ? downloadPath.slice(4)
+              : downloadPath;
+          return `${baseUrl}${normalizedPath}`;
+        }
+        return null;
       })
       .filter((u): u is string => Boolean(u));
-  }, [artifacts, conversationId, plotList]);
+  }, [artifacts, plotList]);
 
   return (
     <div className="flex w-full gap-4">
@@ -183,13 +188,11 @@ export function TreeVizViewer({ viz, artifacts, conversationId }: Props) {
                   <div className="text-xs font-semibold text-slate-300">Plots</div>
                   <div className="grid grid-cols-1 gap-2">
                     {plotUrls.map(url => (
-                      <Image
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
                         key={url}
                         src={url}
                         alt="Plot"
-                        width={800}
-                        height={400}
-                        unoptimized
                         className="w-full rounded border border-slate-700 bg-slate-900"
                       />
                     ))}

@@ -100,7 +100,25 @@ export function useResearchRunDetails({
         const treeViz = await apiFetch<TreeVizItem[]>(
           `/conversations/${conversationId}/idea/research-run/${runId}/tree-viz`
         );
-        setDetails(prev => (prev ? { ...prev, tree_viz: treeViz } : prev));
+        let artifacts: ArtifactMetadata[] | null = null;
+        try {
+          artifacts = await apiFetch<ArtifactMetadata[]>(
+            `/conversations/${conversationId}/idea/research-run/${runId}/artifacts`
+          );
+        } catch (artifactErr) {
+          // Ignore artifact fetch failures (e.g., 404 when not yet available)
+          // eslint-disable-next-line no-console
+          console.warn("Artifacts not refreshed after tree viz SSE:", artifactErr);
+        }
+        setDetails(prev =>
+          prev
+            ? {
+                ...prev,
+                tree_viz: treeViz,
+                artifacts: artifacts ?? prev.artifacts,
+              }
+            : prev
+        );
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("Failed to refresh tree viz", err);

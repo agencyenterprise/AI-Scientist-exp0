@@ -58,7 +58,7 @@ export function TreeVizCard({ treeViz, conversationId, artifacts }: Props) {
               {new Date(selectedViz.updated_at).toLocaleString()}
             </span>
           </div>
-          <TreeVizViewer viz={selectedViz} artifacts={artifacts} conversationId={conversationId} />
+          <TreeVizViewer viz={selectedViz} artifacts={artifacts} />
         </>
       )}
     </div>
