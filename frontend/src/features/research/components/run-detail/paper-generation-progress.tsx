@@ -30,16 +30,18 @@ export function PaperGenerationProgress({ events }: PaperGenerationProgressProps
   }
 
   // Get the latest event to show overall progress
-  // Safe to assert non-null since we return early if events.length === 0
-  const latestEvent = events[events.length - 1]!;
+  // Safe since we return early if events.length === 0
+  const latestEvent = events.at(-1) as PaperGenerationEvent;
 
   // Get unique steps from events
   const eventsByStep = new Map<string, PaperGenerationEvent[]>();
   events.forEach(event => {
-    if (!eventsByStep.has(event.step)) {
-      eventsByStep.set(event.step, []);
+    const stepEvents = eventsByStep.get(event.step);
+    if (stepEvents) {
+      stepEvents.push(event);
+    } else {
+      eventsByStep.set(event.step, [event]);
     }
-    eventsByStep.get(event.step)!.push(event);
   });
 
   // Render each step in order

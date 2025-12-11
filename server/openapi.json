@@ -4463,6 +4463,24 @@
         "title": "MessageResponse",
         "description": "Simple message response."
       },
+      "ModelCost": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "cost": {
+            "type": "number",
+            "title": "Cost"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "cost"
+        ],
+        "title": "ModelCost"
+      },
       "PaperGenerationProgressEvent": {
         "properties": {
           "step": {
@@ -4525,24 +4543,6 @@
           "event"
         ],
         "title": "PaperGenerationProgressPayload"
-      },
-      "ModelCost": {
-        "properties": {
-          "model": {
-            "type": "string",
-            "title": "Model"
-          },
-          "cost": {
-            "type": "number",
-            "title": "Cost"
-          }
-        },
-        "type": "object",
-        "required": [
-          "model",
-          "cost"
-        ],
-        "title": "ModelCost"
       },
       "ResearchCost": {
         "properties": {

@@ -147,3 +147,41 @@ class GpuShortageEvent(BaseEvent):
             "available_gpus": self.available_gpus,
             "message": self.message,
         }
+
+
+@dataclass(frozen=True)
+class PaperGenerationProgressEvent(BaseEvent):
+    """Event emitted during paper generation (Stage 5) progress."""
+
+    run_id: str
+    step: str  # "plot_aggregation" | "citation_gathering" | "paper_writeup" | "paper_review"
+    substep: Optional[str] = None
+    progress: float = 0.0
+    step_progress: float = 0.0
+    details: Optional[Dict[str, Any]] = None
+
+    def type(self) -> str:
+        return "ai.run.paper_generation_progress"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "run_id": self.run_id,
+            "step": self.step,
+            "substep": self.substep,
+            "progress": self.progress,
+            "step_progress": self.step_progress,
+            "details": self.details,
+        }
+
+    def persistence_record(self) -> PersistenceRecord:
+        return (
+            "paper_generation_progress",
+            {
+                "run_id": self.run_id,
+                "step": self.step,
+                "substep": self.substep,
+                "progress": self.progress,
+                "step_progress": self.step_progress,
+                "details": self.details,
+            },
+        )

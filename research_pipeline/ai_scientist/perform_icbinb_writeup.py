@@ -852,7 +852,9 @@ def gather_citations(
                             substep=f"Round {round_idx + 1} of {num_cite_rounds}",
                             progress=0.15 + 0.15 * step_progress,  # citation_gathering is 15-30%
                             step_progress=step_progress,
-                            details={"citations_found": citation_count} if citation_count > 0 else None,
+                            details=(
+                                {"citations_found": citation_count} if citation_count > 0 else None
+                            ),
                         )
                     )
 

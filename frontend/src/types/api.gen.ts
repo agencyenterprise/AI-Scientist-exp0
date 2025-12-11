@@ -2215,6 +2215,13 @@ export interface components {
              */
             message: string;
         };
+        /** ModelCost */
+        ModelCost: {
+            /** Model */
+            model: string;
+            /** Cost */
+            cost: number;
+        };
         /** PaperGenerationProgressEvent */
         PaperGenerationProgressEvent: {
             /** Step */
@@ -2235,13 +2242,6 @@ export interface components {
             /** Run Id */
             run_id: string;
             event: components["schemas"]["PaperGenerationProgressEvent"];
-        };
-        /** ModelCost */
-        ModelCost: {
-            /** Model */
-            model: string;
-            /** Cost */
-            cost: number;
         };
         /** ResearchCost */
         ResearchCost: {
@@ -2335,15 +2335,15 @@ export interface components {
              */
             artifacts?: components["schemas"]["ResearchRunArtifactMetadata"][];
             /**
-             * Paper Generation Progress
-             * @description Paper generation progress events (Stage 5)
-             */
-            paper_generation_progress?: components["schemas"]["ResearchRunPaperGenerationProgress"][];
-            /**
              * Tree Viz
              * @description Tree visualizations stored for this run
              */
             tree_viz?: components["schemas"]["TreeVizItem"][];
+            /**
+             * Paper Generation Progress
+             * @description Paper generation progress events (Stage 5)
+             */
+            paper_generation_progress?: components["schemas"]["ResearchRunPaperGenerationProgress"][];
         };
         /** ResearchRunEvent */
         ResearchRunEvent: {
