@@ -605,10 +605,6 @@ class FakeRunner:
             )
         )
         logger.info("[FakeRunner %s] Paper generation complete", self._run_id[:8])
-            try:
-                self._store_tree_viz(stage_number=stage_index + 1)
-            except Exception:
-                logger.exception("Failed to store fake tree viz for stage %s", stage_name)
 
     def _publish_fake_artifact(self) -> None:
         temp_dir = Path(os.environ.get("TMPDIR") or "/tmp")
