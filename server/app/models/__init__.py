@@ -83,6 +83,7 @@ from app.models.research_pipeline import (
     ResearchRunPaperGenerationProgress,
     ResearchRunStageProgress,
     ResearchRunSubstageEvent,
+    TreeVizItem,
 )
 
 __all__ = [
@@ -103,6 +104,7 @@ __all__ = [
     "ResearchRunDetailsResponse",
     "ResearchRunListItem",
     "ResearchRunListResponse",
+    "TreeVizItem",
     "LlmReviewResponse",
     "LlmReviewNotFoundResponse",
     "ImportChatGPTConversation",

@@ -27,6 +27,7 @@ interface UseResearchRunSSEOptions {
   onRunUpdate: (run: ResearchRunInfo) => void;
   onPaperGenerationProgress: (event: PaperGenerationEvent) => void;
   onComplete: (status: string) => void;
+  onRunEvent?: (event: unknown) => void;
   onError?: (error: string) => void;
 }
 
@@ -48,6 +49,7 @@ export function useResearchRunSSE({
   onRunUpdate,
   onPaperGenerationProgress,
   onComplete,
+  onRunEvent,
   onError,
 }: UseResearchRunSSEOptions): UseResearchRunSSEReturn {
   const [isConnected, setIsConnected] = useState(false);
@@ -130,6 +132,9 @@ export function useResearchRunSSE({
               case "run_update":
                 onRunUpdate(event.data as ResearchRunInfo);
                 break;
+              case "run_event":
+                onRunEvent?.(event.data);
+                break;
               case "paper_generation_progress":
                 onPaperGenerationProgress(event.data as PaperGenerationEvent);
                 break;
@@ -175,6 +180,7 @@ export function useResearchRunSSE({
     onLog,
     onArtifact,
     onRunUpdate,
+    onRunEvent,
     onPaperGenerationProgress,
     onComplete,
     onError,

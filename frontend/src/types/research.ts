@@ -139,6 +139,7 @@ export interface ResearchRunDetailsApi {
   substage_events: SubstageEventApi[];
   artifacts: ArtifactMetadataApi[];
   paper_generation_progress: PaperGenerationEventApi[];
+  tree_viz: TreeVizItemApi[];
 }
 
 // Frontend types (camelCase) - using same structure for SSE compatibility
@@ -224,6 +225,27 @@ export interface ResearchRunDetails {
   substage_events: SubstageEvent[];
   artifacts: ArtifactMetadata[];
   paper_generation_progress: PaperGenerationEvent[];
+  tree_viz: TreeVizItem[];
+}
+
+export interface TreeVizItemApi {
+  id: number;
+  run_id: string;
+  stage_id: string;
+  version: number;
+  viz: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TreeVizItem {
+  id: number;
+  run_id: string;
+  stage_id: string;
+  version: number;
+  viz: unknown;
+  created_at: string;
+  updated_at: string;
 }
 
 // ==========================================

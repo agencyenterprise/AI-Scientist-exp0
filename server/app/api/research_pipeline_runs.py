@@ -25,6 +25,7 @@ from app.models import (
     ResearchRunPaperGenerationProgress,
     ResearchRunStageProgress,
     ResearchRunSubstageEvent,
+    TreeVizItem,
 )
 from app.services import get_database
 from app.services.billing_guard import enforce_minimum_credits
@@ -34,6 +35,7 @@ from app.services.database.research_pipeline_runs import (
     ResearchPipelineRunEvent,
 )
 from app.services.database.rp_artifacts import ResearchPipelineArtifact
+from app.services.database.rp_tree_viz import TreeVizRecord
 from app.services.database.rp_events import (
     PaperGenerationEvent,
     RunLogEvent,
@@ -380,6 +382,18 @@ def _artifact_to_model(
     )
 
 
+def _tree_viz_to_model(record: TreeVizRecord) -> TreeVizItem:
+    return TreeVizItem(
+        id=record.id,
+        run_id=record.run_id,
+        stage_id=record.stage_id,
+        version=record.version,
+        viz=record.viz,
+        created_at=record.created_at.isoformat(),
+        updated_at=record.updated_at.isoformat(),
+    )
+
+
 @router.post(
     "/{conversation_id}/idea/research-run",
     response_model=ResearchRunAcceptedResponse,
@@ -460,6 +474,7 @@ def get_research_run_details(
     run_events = [
         _run_event_to_model(event) for event in db.list_research_pipeline_run_events(run_id=run_id)
     ]
+    tree_viz = [_tree_viz_to_model(record) for record in db.list_tree_viz_for_run(run_id=run_id)]
     paper_gen_events = [
         _paper_generation_event_to_model(event) for event in db.list_paper_generation_events(run_id=run_id)
     ]
@@ -472,6 +487,7 @@ def get_research_run_details(
         events=run_events,
         artifacts=artifacts,
         paper_generation_progress=paper_gen_events,
+        tree_viz=tree_viz,
     )
 
 
@@ -691,6 +707,61 @@ def get_artifact_presigned_url(
     )
 
 
+@router.get(
+    "/{conversation_id}/idea/research-run/{run_id}/tree-viz",
+    response_model=list[TreeVizItem],
+)
+def list_tree_viz(
+    conversation_id: int,
+    run_id: str,
+    request: Request,
+) -> list[TreeVizItem]:
+    """List stored tree visualizations for a run."""
+    if conversation_id <= 0:
+        raise HTTPException(status_code=400, detail="conversation_id must be positive")
+    user = get_current_user(request)
+    db = get_database()
+    conversation = db.get_conversation_by_id(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if conversation.user_id != user.id:
+        raise HTTPException(status_code=403, detail="You do not own this conversation")
+    run = db.get_run_for_conversation(run_id=run_id, conversation_id=conversation_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Research run not found")
+    records = db.list_tree_viz_for_run(run_id=run_id)
+    return [_tree_viz_to_model(record) for record in records]
+
+
+@router.get(
+    "/{conversation_id}/idea/research-run/{run_id}/tree-viz/{stage_id}",
+    response_model=TreeVizItem,
+)
+def get_tree_viz(
+    conversation_id: int,
+    run_id: str,
+    stage_id: str,
+    request: Request,
+) -> TreeVizItem:
+    """Fetch tree viz payload for a specific stage."""
+    if conversation_id <= 0:
+        raise HTTPException(status_code=400, detail="conversation_id must be positive")
+    user = get_current_user(request)
+    db = get_database()
+    conversation = db.get_conversation_by_id(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if conversation.user_id != user.id:
+        raise HTTPException(status_code=403, detail="You do not own this conversation")
+    run = db.get_run_for_conversation(run_id=run_id, conversation_id=conversation_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Research run not found")
+    record = db.get_tree_viz(run_id=run_id, stage_id=stage_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Tree viz not found")
+    return _tree_viz_to_model(record)
+
+
 SSE_POLL_INTERVAL_SECONDS = 2.0
 SSE_HEARTBEAT_INTERVAL_SECONDS = 30.0
 
@@ -741,6 +812,7 @@ async def stream_research_run_events(
         last_paper_gen_event: Optional[PaperGenerationEvent] = None
         last_heartbeat = datetime.now(timezone.utc)
         initial_sent = False
+        last_run_event_id: Optional[int] = None
 
         while True:
             # Check if client is still connected
@@ -773,20 +845,25 @@ async def stream_research_run_events(
                         _artifact_to_model(a, conversation_id, run_id).model_dump()
                         for a in db.list_run_artifacts(run_id=run_id)
                     ]
-                    run_events = [
-                        _run_event_to_model(e).model_dump()
-                        for e in db.list_research_pipeline_run_events(run_id=run_id)
+                    tree_viz = [
+                        _tree_viz_to_model(record).model_dump()
+                        for record in db.list_tree_viz_for_run(run_id=run_id)
                     ]
                     paper_gen_events = [
                         _paper_generation_event_to_model(e).model_dump()
                         for e in db.list_paper_generation_events(run_id=run_id)
                     ]
+                    run_events_raw = db.list_research_pipeline_run_events(run_id=run_id)
+                    run_events = [_run_event_to_model(e).model_dump() for e in run_events_raw]
+                    if run_events_raw:
+                        last_run_event_id = max(event.id for event in run_events_raw)
                     initial_data = {
                         "run": _run_to_info(current_run).model_dump(),
                         "stage_progress": stage_events,
                         "logs": log_events,
                         "substage_events": substage_events,
                         "artifacts": artifacts,
+                        "tree_viz": tree_viz,
                         "events": run_events,
                         "paper_generation_progress": paper_gen_events,
                     }
@@ -807,6 +884,21 @@ async def stream_research_run_events(
                         progress_data = _stage_event_to_model(curr_progress)
                         yield f"data: {json.dumps({'type': 'stage_progress', 'data': progress_data.model_dump()})}\n\n"
                         last_progress_event = curr_progress
+
+                run_events_raw = db.list_research_pipeline_run_events(run_id=run_id)
+                if run_events_raw:
+                    new_events = (
+                        [
+                            e
+                            for e in run_events_raw
+                            if last_run_event_id is None or e.id > last_run_event_id
+                        ]
+                        if last_run_event_id is not None
+                        else run_events_raw
+                    )
+                    for event in new_events:
+                        yield f"data: {json.dumps({'type': 'run_event', 'data': _run_event_to_model(event).model_dump()})}\n\n"
+                        last_run_event_id = event.id
 
                 # Check and emit paper generation progress events
                 all_paper_gen = db.list_paper_generation_events(run_id=run_id)
