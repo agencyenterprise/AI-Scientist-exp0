@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from PIL import Image
 from pydantic import BaseModel
 
-from .token_tracker import track_token_usage
+from .token_tracker import TrackCostCallbackHandler
 
 logger = logging.getLogger("ai-scientist")
 
@@ -55,7 +55,6 @@ def _build_vlm_messages(
     return messages
 
 
-@track_token_usage
 def make_vlm_call(
     model: str,
     temperature: float,
@@ -96,7 +95,9 @@ def make_vlm_call(
         retry_if_exception_type=(Exception,),
         stop_after_attempt=3,
     )
-    ai_message = retrying_chat.invoke(messages)
+    ai_message = retrying_chat.invoke(
+        messages, config={"callbacks": [TrackCostCallbackHandler(model)]}
+    )
     logger.debug(
         "VLM make_vlm_call - response: %s - %s",
         ai_message.type,
@@ -184,7 +185,9 @@ def get_structured_response_from_vlm(
         temperature=temperature,
     )
     structured_chat = chat.with_structured_output(schema=schema_class)
-    parsed = structured_chat.invoke(messages)
+    parsed = structured_chat.invoke(
+        messages, config={"callbacks": [TrackCostCallbackHandler(model)]}
+    )
     if not isinstance(parsed, BaseModel):
         raise TypeError("Structured VLM response did not return a Pydantic model instance.")
 

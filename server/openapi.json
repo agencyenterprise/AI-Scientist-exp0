@@ -817,6 +817,54 @@
         }
       }
     },
+    "/api/conversations/{conversation_id}/costs": {
+      "get": {
+        "summary": "Get Conversation Costs",
+        "description": "Get the cost breakdown for a specific conversation.",
+        "operationId": "get_conversation_costs_api_conversations__conversation_id__costs_get",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ConversationCostResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    }
+                  ],
+                  "title": "Response Get Conversation Costs Api Conversations  Conversation Id  Costs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/conversations/{conversation_id}/imported_chat_summary": {
       "get": {
         "summary": "Get Conversation Summary",
@@ -2489,6 +2537,49 @@
         }
       }
     },
+    "/api/research-runs/{run_id}/costs": {
+      "get": {
+        "tags": [
+          "research-runs"
+        ],
+        "summary": "Get Research Run Costs",
+        "description": "Get the cost breakdown for a specific research run.",
+        "operationId": "get_research_run_costs_api_research_runs__run_id__costs_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchRunCostResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users/": {
       "get": {
         "tags": [
@@ -2850,6 +2941,35 @@
           "checkout_url"
         ],
         "title": "CheckoutSessionCreateResponse"
+      },
+      "ConversationCostResponse": {
+        "properties": {
+          "total_cost": {
+            "type": "number",
+            "title": "Total Cost"
+          },
+          "cost_by_model": {
+            "items": {
+              "$ref": "#/components/schemas/ModelCost"
+            },
+            "type": "array",
+            "title": "Cost By Model"
+          },
+          "cost_by_research": {
+            "items": {
+              "$ref": "#/components/schemas/ResearchCost"
+            },
+            "type": "array",
+            "title": "Cost By Research"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_cost",
+          "cost_by_model",
+          "cost_by_research"
+        ],
+        "title": "ConversationCostResponse"
       },
       "ConversationListItem": {
         "properties": {
@@ -4298,6 +4418,42 @@
         "title": "MessageResponse",
         "description": "Simple message response."
       },
+      "ModelCost": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "cost": {
+            "type": "number",
+            "title": "Cost"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "cost"
+        ],
+        "title": "ModelCost"
+      },
+      "ResearchCost": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "cost": {
+            "type": "number",
+            "title": "Cost"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "cost"
+        ],
+        "title": "ResearchCost"
+      },
       "ResearchRunAcceptedResponse": {
         "properties": {
           "run_id": {
@@ -4365,6 +4521,27 @@
           "download_path"
         ],
         "title": "ResearchRunArtifactMetadata"
+      },
+      "ResearchRunCostResponse": {
+        "properties": {
+          "total_cost": {
+            "type": "number",
+            "title": "Total Cost"
+          },
+          "cost_by_model": {
+            "items": {
+              "$ref": "#/components/schemas/ModelCost"
+            },
+            "type": "array",
+            "title": "Cost By Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_cost",
+          "cost_by_model"
+        ],
+        "title": "ResearchRunCostResponse"
       },
       "ResearchRunDetailsResponse": {
         "properties": {

@@ -392,6 +392,26 @@ export interface paths {
         patch: operations["update_conversation_api_conversations__conversation_id__patch"];
         trace?: never;
     };
+    "/api/conversations/{conversation_id}/costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Conversation Costs
+         * @description Get the cost breakdown for a specific conversation.
+         */
+        get: operations["get_conversation_costs_api_conversations__conversation_id__costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/conversations/{conversation_id}/imported_chat_summary": {
         parameters: {
             query?: never;
@@ -996,6 +1016,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research-runs/{run_id}/costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Research Run Costs
+         * @description Get the cost breakdown for a specific research run.
+         */
+        get: operations["get_research_run_costs_api_research_runs__run_id__costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users/": {
         parameters: {
             query?: never;
@@ -1246,6 +1286,15 @@ export interface components {
              * Format: uri
              */
             checkout_url: string;
+        };
+        /** ConversationCostResponse */
+        ConversationCostResponse: {
+            /** Total Cost */
+            total_cost: number;
+            /** Cost By Model */
+            cost_by_model: components["schemas"]["ModelCost"][];
+            /** Cost By Research */
+            cost_by_research: components["schemas"]["ResearchCost"][];
         };
         /**
          * ConversationListItem
@@ -2149,6 +2198,20 @@ export interface components {
              */
             message: string;
         };
+        /** ModelCost */
+        ModelCost: {
+            /** Model */
+            model: string;
+            /** Cost */
+            cost: number;
+        };
+        /** ResearchCost */
+        ResearchCost: {
+            /** Run Id */
+            run_id: string;
+            /** Cost */
+            cost: number;
+        };
         /** ResearchRunAcceptedResponse */
         ResearchRunAcceptedResponse: {
             /** Run Id */
@@ -2196,6 +2259,13 @@ export interface components {
              * @description API path to initiate a download
              */
             download_path: string;
+        };
+        /** ResearchRunCostResponse */
+        ResearchRunCostResponse: {
+            /** Total Cost */
+            total_cost: number;
+            /** Cost By Model */
+            cost_by_model: components["schemas"]["ModelCost"][];
         };
         /** ResearchRunDetailsResponse */
         ResearchRunDetailsResponse: {
@@ -3381,6 +3451,37 @@ export interface operations {
             };
         };
     };
+    get_conversation_costs_api_conversations__conversation_id__costs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationCostResponse"] | components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_conversation_summary_api_conversations__conversation_id__imported_chat_summary_get: {
         parameters: {
             query?: never;
@@ -4431,6 +4532,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResearchRunListItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_research_run_costs_api_research_runs__run_id__costs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchRunCostResponse"];
                 };
             };
             /** @description Validation Error */
