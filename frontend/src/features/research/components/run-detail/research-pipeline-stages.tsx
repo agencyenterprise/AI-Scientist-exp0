@@ -369,7 +369,9 @@ export function ResearchPipelineStages({
                     Current Best Node
                   </p>
                   <div className="mt-1 space-y-1">
-                    <p className="text-sm font-mono text-emerald-300">{formatNodeId(bestNode.node_id)}</p>
+                    <p className="text-sm font-mono text-emerald-300">
+                      {formatNodeId(bestNode.node_id)}
+                    </p>
                     <p className="text-xs leading-relaxed text-slate-200 line-clamp-4">
                       {bestNode.reasoning}
                     </p>
