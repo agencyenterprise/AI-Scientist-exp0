@@ -132,6 +132,14 @@ export interface ArtifactMetadataApi {
   download_path: string;
 }
 
+export interface BestNodeSelectionApi {
+  id: number;
+  stage: string;
+  node_id: string;
+  reasoning: string;
+  created_at: string;
+}
+
 export interface ResearchRunDetailsApi {
   run: ResearchRunInfoApi;
   stage_progress: StageProgressApi[];
@@ -140,6 +148,7 @@ export interface ResearchRunDetailsApi {
   artifacts: ArtifactMetadataApi[];
   paper_generation_progress: PaperGenerationEventApi[];
   tree_viz: TreeVizItemApi[];
+  best_node_selections?: BestNodeSelectionApi[];
 }
 
 // Frontend types (camelCase) - using same structure for SSE compatibility
@@ -218,6 +227,14 @@ export interface ArtifactPresignedUrlResponse {
   filename: string;
 }
 
+export interface BestNodeSelection {
+  id: number;
+  stage: string;
+  node_id: string;
+  reasoning: string;
+  created_at: string;
+}
+
 export interface ResearchRunDetails {
   run: ResearchRunInfo;
   stage_progress: StageProgress[];
@@ -226,6 +243,7 @@ export interface ResearchRunDetails {
   artifacts: ArtifactMetadata[];
   paper_generation_progress: PaperGenerationEvent[];
   tree_viz: TreeVizItem[];
+  best_node_selections?: BestNodeSelection[];
 }
 
 export interface TreeVizItemApi {

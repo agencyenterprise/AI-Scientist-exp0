@@ -150,6 +150,8 @@ Your research idea:\n\n
             summary_temperature=self.cfg.report.temperature,
             node_selection_temperature=self.cfg.agent.feedback.temperature,
             event_callback=self.event_callback,
+            stage_name=initial_stage.name,
+            run_id=self.cfg.telemetry.run_id if self.cfg.telemetry else None,
         )
 
     def _curate_task_desc(self, stage: StageMeta) -> str:
@@ -727,6 +729,8 @@ Your research idea:\n\n
                         summary_temperature=self.cfg.report.temperature,
                         node_selection_temperature=self.cfg.agent.feedback.temperature,
                         event_callback=self.event_callback,
+                        stage_name=next_substage.name,
+                        run_id=self.cfg.telemetry.run_id if self.cfg.telemetry else None,
                     )
                     return False, next_substage
 
@@ -759,6 +763,8 @@ Your research idea:\n\n
                 summary_temperature=self.cfg.report.temperature,
                 node_selection_temperature=self.cfg.agent.feedback.temperature,
                 event_callback=self.event_callback,
+                stage_name=next_main_stage.name,
+                run_id=self.cfg.telemetry.run_id if self.cfg.telemetry else None,
             )
             self.current_stage = next_main_stage
         else:

@@ -294,6 +294,17 @@ def telemetry_paper_generation_progress(payload: Dict[str, object] = Body(...)) 
     )
 
 
+@app.post("/telemetry/best-node-selection", status_code=204)
+def telemetry_best_node_selection(payload: Dict[str, object] = Body(...)) -> None:
+    _telemetry_events.append(
+        TelemetryRecord(
+            path="/telemetry/best-node-selection",
+            payload=payload,
+            received_at=time.time(),
+        )
+    )
+
+
 @app.get("/telemetry")
 def list_telemetry() -> List[Dict[str, object]]:
     return [
@@ -353,6 +364,7 @@ class FakeRunner:
             token=self._webhook_token,
             run_id=self._run_id,
         )
+        self._persistence: EventPersistenceManager | LocalPersistence
         try:
             self._persistence = EventPersistenceManager(
                 database_url=self._database_url,
@@ -476,6 +488,7 @@ class FakeRunner:
                     iterations_to_emit,
                     (current_iter / total_iterations) * 100,
                 )
+            self._emit_fake_best_node(stage_name=stage_name, stage_index=stage_index)
             summary = {
                 "goals": f"Goals for {stage_name}",
                 "feedback": "Reached max iterations",
@@ -750,6 +763,46 @@ class FakeRunner:
                                 }
                             ),
                         ),
+                    )
+        finally:
+            conn.close()
+
+    def _emit_fake_best_node(self, *, stage_name: str, stage_index: int) -> None:
+        node_id = f"{stage_name}-best-{uuid.uuid4().hex[:8]}"
+        reasoning = (
+            f"Selected synthetic best node for {stage_name} after stage index {stage_index + 1}."
+        )
+        try:
+            self._store_best_node_reasoning(
+                stage_name=stage_name, node_id=node_id, reasoning=reasoning
+            )
+        except Exception:
+            logger.exception("Failed to store fake best node reasoning for stage %s", stage_name)
+        try:
+            self._persistence.queue.put(
+                PersistableEvent(
+                    kind="best_node_selection",
+                    data={
+                        "stage": stage_name,
+                        "node_id": node_id,
+                        "reasoning": reasoning,
+                    },
+                )
+            )
+        except Exception:
+            logger.exception("Failed to enqueue fake best node event for stage %s", stage_name)
+
+    def _store_best_node_reasoning(self, *, stage_name: str, node_id: str, reasoning: str) -> None:
+        conn = psycopg2.connect(self._database_url)
+        try:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        INSERT INTO rp_best_node_reasoning_events (run_id, stage, node_id, reasoning)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (self._run_id, stage_name, node_id, reasoning),
                     )
         finally:
             conn.close()

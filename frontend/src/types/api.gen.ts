@@ -740,6 +740,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research-pipeline/events/best-node-selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ingest Best Node Selection */
+        post: operations["ingest_best_node_selection_api_research_pipeline_events_best_node_selection_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/research-pipeline/events/run-started": {
         parameters: {
             query?: never;
@@ -1178,6 +1195,21 @@ export interface components {
              * @description User display name
              */
             name: string;
+        };
+        /** BestNodeSelectionEvent */
+        BestNodeSelectionEvent: {
+            /** Stage */
+            stage: string;
+            /** Node Id */
+            node_id: string;
+            /** Reasoning */
+            reasoning: string;
+        };
+        /** BestNodeSelectionPayload */
+        BestNodeSelectionPayload: {
+            /** Run Id */
+            run_id: string;
+            event: components["schemas"]["BestNodeSelectionEvent"];
         };
         /** BillingWalletResponse */
         BillingWalletResponse: {
@@ -2298,6 +2330,34 @@ export interface components {
              */
             download_path: string;
         };
+        /** ResearchRunBestNodeSelection */
+        ResearchRunBestNodeSelection: {
+            /**
+             * Id
+             * @description Unique identifier of the reasoning record
+             */
+            id: number;
+            /**
+             * Stage
+             * @description Stage identifier where the selection happened
+             */
+            stage: string;
+            /**
+             * Node Id
+             * @description Identifier of the selected node
+             */
+            node_id: string;
+            /**
+             * Reasoning
+             * @description LLM reasoning that justified the selection
+             */
+            reasoning: string;
+            /**
+             * Created At
+             * @description ISO timestamp when the reasoning was recorded
+             */
+            created_at: string;
+        };
         /** ResearchRunCostResponse */
         ResearchRunCostResponse: {
             /** Total Cost */
@@ -2324,6 +2384,11 @@ export interface components {
              * @description Sub-stage completion events
              */
             substage_events?: components["schemas"]["ResearchRunSubstageEvent"][];
+            /**
+             * Best Node Selections
+             * @description Reasoning records captured whenever a best node is selected
+             */
+            best_node_selections?: components["schemas"]["ResearchRunBestNodeSelection"][];
             /**
              * Events
              * @description Audit events describing run-level lifecycle transitions
@@ -4154,6 +4219,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PaperGenerationProgressPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_best_node_selection_api_research_pipeline_events_best_node_selection_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BestNodeSelectionPayload"];
             };
         };
         responses: {

@@ -89,6 +89,17 @@ class PaperGenerationProgressPayload(BaseModel):
     event: PaperGenerationProgressEvent
 
 
+class BestNodeSelectionEvent(BaseModel):
+    stage: str
+    node_id: str
+    reasoning: str
+
+
+class BestNodeSelectionPayload(BaseModel):
+    run_id: str
+    event: BestNodeSelectionEvent
+
+
 def _verify_bearer_token(authorization: str = Header(...)) -> None:
     expected_token = settings.TELEMETRY_WEBHOOK_TOKEN
     if not expected_token:
@@ -182,6 +193,24 @@ def ingest_paper_generation_progress(
         event.substep or "N/A",
         event.progress * 100,
         event.step_progress * 100,
+    )
+
+
+@router.post("/best-node-selection", status_code=status.HTTP_204_NO_CONTENT)
+def ingest_best_node_selection(
+    payload: BestNodeSelectionPayload,
+    _: None = Depends(_verify_bearer_token),
+) -> None:
+    event = payload.event
+    reasoning_preview = (
+        event.reasoning if len(event.reasoning) <= 200 else f"{event.reasoning[:197]}..."
+    )
+    logger.info(
+        "RP best-node selection: run=%s stage=%s node=%s reasoning=%s",
+        payload.run_id,
+        event.stage,
+        event.node_id,
+        reasoning_preview,
     )
 
 

@@ -1786,6 +1786,51 @@
         }
       }
     },
+    "/api/research-pipeline/events/best-node-selection": {
+      "post": {
+        "tags": [
+          "research-pipeline-events"
+        ],
+        "summary": "Ingest Best Node Selection",
+        "operationId": "ingest_best_node_selection_api_research_pipeline_events_best_node_selection_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BestNodeSelectionPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/research-pipeline/events/run-started": {
       "post": {
         "tags": [
@@ -2781,6 +2826,46 @@
         ],
         "title": "AuthUser",
         "description": "User information returned by authentication endpoints."
+      },
+      "BestNodeSelectionEvent": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "reasoning": {
+            "type": "string",
+            "title": "Reasoning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stage",
+          "node_id",
+          "reasoning"
+        ],
+        "title": "BestNodeSelectionEvent"
+      },
+      "BestNodeSelectionPayload": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "event": {
+            "$ref": "#/components/schemas/BestNodeSelectionEvent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "event"
+        ],
+        "title": "BestNodeSelectionPayload"
       },
       "BillingWalletResponse": {
         "properties": {
@@ -4630,6 +4715,44 @@
         ],
         "title": "ResearchRunArtifactMetadata"
       },
+      "ResearchRunBestNodeSelection": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Unique identifier of the reasoning record"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "description": "Stage identifier where the selection happened"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id",
+            "description": "Identifier of the selected node"
+          },
+          "reasoning": {
+            "type": "string",
+            "title": "Reasoning",
+            "description": "LLM reasoning that justified the selection"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "description": "ISO timestamp when the reasoning was recorded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "stage",
+          "node_id",
+          "reasoning",
+          "created_at"
+        ],
+        "title": "ResearchRunBestNodeSelection"
+      },
       "ResearchRunCostResponse": {
         "properties": {
           "total_cost": {
@@ -4680,6 +4803,14 @@
             "type": "array",
             "title": "Substage Events",
             "description": "Sub-stage completion events"
+          },
+          "best_node_selections": {
+            "items": {
+              "$ref": "#/components/schemas/ResearchRunBestNodeSelection"
+            },
+            "type": "array",
+            "title": "Best Node Selections",
+            "description": "Reasoning records captured whenever a best node is selected"
           },
           "events": {
             "items": {
