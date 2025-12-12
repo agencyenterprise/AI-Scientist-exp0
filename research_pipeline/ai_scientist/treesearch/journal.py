@@ -566,6 +566,10 @@ class Journal:
             sel_metric_val = (
                 selected_metric_node.metric.value if selected_metric_node.metric else None
             )
+            self._emit_best_node_reasoning(
+                node=selected_metric_node,
+                reasoning=f"Metric-only selection (use_val_metric_only=True). Metric value: {sel_metric_val}",
+            )
             logger.info(
                 f"best-node (val_only=True): selected by metric -> "
                 f"{selected_metric_node.id[:8]} (metric={sel_metric_val}). Cached."
@@ -578,6 +582,10 @@ class Journal:
             self._best_cache_time_map[sig] = time.time()
             self._best_cache_candidate_ids_map[sig] = candidate_ids
             self._best_cache_total_nodes_count_map[sig] = total_nodes_count
+            self._emit_best_node_reasoning(
+                node=selected_single,
+                reasoning="Only one candidate available; bypassed LLM selection.",
+            )
             logger.debug(
                 f"Only one candidate; bypassing LLM selection. "
                 f"Selected {selected_single.id[:8]}. Cached.",
