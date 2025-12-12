@@ -6,6 +6,7 @@ EventKind = Literal[
     "run_log",
     "substage_completed",
     "paper_generation_progress",
+    "best_node_selection",
 ]
 PersistenceRecord = Tuple[EventKind, Dict[str, Any]]
 
@@ -128,6 +129,37 @@ class SubstageCompletedEvent(BaseEvent):
                 "substage_name": self.substage_name,
                 "reason": self.reason,
                 "summary": self.summary,
+            },
+        )
+
+
+@dataclass(frozen=True)
+class BestNodeSelectedEvent(BaseEvent):
+    """Event emitted when an LLM picks the current best node."""
+
+    run_id: str
+    stage: str
+    node_id: str
+    reasoning: str
+
+    def type(self) -> str:
+        return "ai.run.best_node_selected"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "run_id": self.run_id,
+            "stage": self.stage,
+            "node_id": self.node_id,
+            "reasoning": self.reasoning,
+        }
+
+    def persistence_record(self) -> PersistenceRecord:
+        return (
+            "best_node_selection",
+            {
+                "stage": self.stage,
+                "node_id": self.node_id,
+                "reasoning": self.reasoning,
             },
         )
 

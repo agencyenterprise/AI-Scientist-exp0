@@ -18,6 +18,7 @@ from app.models import (
     LlmReviewNotFoundResponse,
     LlmReviewResponse,
     ResearchRunArtifactMetadata,
+    ResearchRunBestNodeSelection,
     ResearchRunDetailsResponse,
     ResearchRunEvent,
     ResearchRunInfo,
@@ -36,6 +37,7 @@ from app.services.database.research_pipeline_runs import (
 )
 from app.services.database.rp_artifacts import ResearchPipelineArtifact
 from app.services.database.rp_events import (
+    BestNodeReasoningEvent,
     PaperGenerationEvent,
     RunLogEvent,
     StageProgressEvent,
@@ -353,6 +355,18 @@ def _node_event_to_model(event: SubstageCompletedEvent) -> ResearchRunSubstageEv
     )
 
 
+def _best_node_event_to_model(
+    event: BestNodeReasoningEvent,
+) -> ResearchRunBestNodeSelection:
+    return ResearchRunBestNodeSelection(
+        id=event.id,
+        stage=event.stage,
+        node_id=event.node_id,
+        reasoning=event.reasoning,
+        created_at=event.created_at.isoformat(),
+    )
+
+
 def _paper_generation_event_to_model(
     event: PaperGenerationEvent,
 ) -> ResearchRunPaperGenerationProgress:
@@ -465,6 +479,10 @@ def get_research_run_details(
     substage_events = [
         _node_event_to_model(event) for event in db.list_substage_completed_events(run_id=run_id)
     ]
+    best_node_selections = [
+        _best_node_event_to_model(event)
+        for event in db.list_best_node_reasoning_events(run_id=run_id)
+    ]
     artifacts = [
         _artifact_to_model(
             artifact=artifact,
@@ -487,6 +505,7 @@ def get_research_run_details(
         stage_progress=stage_events,
         logs=log_events,
         substage_events=substage_events,
+        best_node_selections=best_node_selections,
         events=run_events,
         artifacts=artifacts,
         paper_generation_progress=paper_gen_events,
@@ -816,6 +835,7 @@ async def stream_research_run_events(
         last_heartbeat = datetime.now(timezone.utc)
         initial_sent = False
         last_run_event_id: Optional[int] = None
+        last_best_node_event_id: Optional[int] = None
 
         while True:
             # Check if client is still connected
@@ -860,6 +880,12 @@ async def stream_research_run_events(
                     run_events = [_run_event_to_model(e).model_dump() for e in run_events_raw]
                     if run_events_raw:
                         last_run_event_id = max(event.id for event in run_events_raw)
+                    best_node_events = db.list_best_node_reasoning_events(run_id=run_id)
+                    best_node_payload = [
+                        _best_node_event_to_model(event).model_dump() for event in best_node_events
+                    ]
+                    if best_node_events:
+                        last_best_node_event_id = max(event.id for event in best_node_events)
                     initial_data = {
                         "run": _run_to_info(current_run).model_dump(),
                         "stage_progress": stage_events,
@@ -869,6 +895,7 @@ async def stream_research_run_events(
                         "tree_viz": tree_viz,
                         "events": run_events,
                         "paper_generation_progress": paper_gen_events,
+                        "best_node_selections": best_node_payload,
                     }
                     yield f"data: {json.dumps({'type': 'initial', 'data': initial_data})}\n\n"
                     initial_sent = True
@@ -902,6 +929,23 @@ async def stream_research_run_events(
                     for event in new_events:
                         yield f"data: {json.dumps({'type': 'run_event', 'data': _run_event_to_model(event).model_dump()})}\n\n"
                         last_run_event_id = event.id
+
+                best_node_events = db.list_best_node_reasoning_events(run_id=run_id)
+                if best_node_events:
+                    new_best_nodes = (
+                        [
+                            best_event
+                            for best_event in best_node_events
+                            if last_best_node_event_id is None
+                            or best_event.id > last_best_node_event_id
+                        ]
+                        if last_best_node_event_id is not None
+                        else best_node_events
+                    )
+                    for best_event in new_best_nodes:
+                        payload = _best_node_event_to_model(best_event).model_dump()
+                        yield f"data: {json.dumps({'type': 'best_node_selection', 'data': payload})}\n\n"
+                        last_best_node_event_id = best_event.id
 
                 # Check and emit paper generation progress events
                 all_paper_gen = db.list_paper_generation_events(run_id=run_id)

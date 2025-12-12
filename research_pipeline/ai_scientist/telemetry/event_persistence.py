@@ -43,6 +43,7 @@ class WebhookClient:
         # Sub-stage completion events are also forwarded to the web server.
         "substage_completed": "/substage-completed",
         "paper_generation_progress": "/paper-generation-progress",
+        "best_node_selection": "/best-node-selection",
     }
     _RUN_STARTED_PATH = "/run-started"
     _RUN_FINISHED_PATH = "/run-finished"
@@ -260,6 +261,8 @@ class EventPersistenceManager:
                 self._insert_substage_completed(connection=connection, payload=event.data)
             elif event.kind == "paper_generation_progress":
                 self._insert_paper_generation_progress(connection=connection, payload=event.data)
+            elif event.kind == "best_node_selection":
+                self._insert_best_node_reasoning(connection=connection, payload=event.data)
         if self._webhook_client is not None:
             self._webhook_client.publish(kind=event.kind, payload=event.data)
 
@@ -360,6 +363,28 @@ class EventPersistenceManager:
                     payload.get("progress"),
                     payload.get("step_progress"),
                     psycopg2.extras.Json(details),
+                ),
+            )
+
+    def _insert_best_node_reasoning(
+        self, *, connection: psycopg2.extensions.connection, payload: dict[str, Any]
+    ) -> None:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO rp_best_node_reasoning_events (
+                    run_id,
+                    stage,
+                    node_id,
+                    reasoning
+                )
+                VALUES (%s, %s, %s, %s)
+                """,
+                (
+                    self._run_id,
+                    payload.get("stage"),
+                    payload.get("node_id"),
+                    payload.get("reasoning"),
                 ),
             )
 

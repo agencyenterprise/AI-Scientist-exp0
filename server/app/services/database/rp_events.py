@@ -54,6 +54,15 @@ class PaperGenerationEvent(NamedTuple):
     created_at: datetime
 
 
+class BestNodeReasoningEvent(NamedTuple):
+    id: int
+    run_id: str
+    stage: str
+    node_id: str
+    reasoning: str
+    created_at: datetime
+
+
 class ResearchPipelineEventsMixin(ConnectionProvider):
     """Methods to read pipeline telemetry events."""
 
@@ -149,6 +158,20 @@ class ResearchPipelineEventsMixin(ConnectionProvider):
                 cursor.execute(query, (run_id,))
                 rows = cursor.fetchall() or []
         return [PaperGenerationEvent(**row) for row in rows]
+
+    def list_best_node_reasoning_events(self, run_id: str) -> List[BestNodeReasoningEvent]:
+        """Fetch reasoning emitted when the best node is chosen."""
+        query = """
+            SELECT id, run_id, stage, node_id, reasoning, created_at
+            FROM rp_best_node_reasoning_events
+            WHERE run_id = %s
+            ORDER BY created_at ASC
+        """
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                cursor.execute(query, (run_id,))
+                rows = cursor.fetchall() or []
+        return [BestNodeReasoningEvent(**row) for row in rows]
 
     def get_latest_paper_generation_event(self, run_id: str) -> Optional[PaperGenerationEvent]:
         """Fetch most recent paper generation event for a run."""

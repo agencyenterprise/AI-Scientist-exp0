@@ -205,6 +205,7 @@ def load_stage_journal(stage_dir: Path) -> tuple[str, Journal]:
     if not journal_path.exists():
         raise FileNotFoundError(str(journal_path))
     journal = load_json_dc(path=journal_path, cls=Journal)
+    journal.stage_name = stage_name
     return stage_name, journal
 
 
@@ -408,6 +409,8 @@ def resume_run(
         if s1:
             stage1_dir = select_stage_dir(run_dir=run_dir, prefix="stage_1_")
             stage1_name, stage1_journal = load_stage_journal(stage_dir=stage1_dir)
+            if cfg_obj.telemetry:
+                stage1_journal.run_id = cfg_obj.telemetry.run_id
             stage1_meta = StageMeta(
                 name=stage1_name,
                 number=1,
@@ -425,6 +428,8 @@ def resume_run(
             try:
                 stage2_dir = select_stage_dir(run_dir=run_dir, prefix="stage_2_")
                 stage2_name, stage2_journal = load_stage_journal(stage_dir=stage2_dir)
+                if cfg_obj.telemetry:
+                    stage2_journal.run_id = cfg_obj.telemetry.run_id
                 stage2_meta = StageMeta(
                     name=stage2_name,
                     number=2,
@@ -444,6 +449,8 @@ def resume_run(
             try:
                 stage3_dir = select_stage_dir(run_dir=run_dir, prefix="stage_3_")
                 stage3_name, stage3_journal = load_stage_journal(stage_dir=stage3_dir)
+                if cfg_obj.telemetry:
+                    stage3_journal.run_id = cfg_obj.telemetry.run_id
                 stage3_meta = StageMeta(
                     name=stage3_name,
                     number=3,
@@ -501,6 +508,8 @@ def resume_run(
             summary_temperature=cfg_obj.report.temperature,
             node_selection_temperature=cfg_obj.agent.feedback.temperature,
             event_callback=event_callback,
+            stage_name=next_meta.name,
+            run_id=cfg_obj.telemetry.run_id if cfg_obj.telemetry else None,
         )
 
         def step_callback(stage: StageMeta, journal: Journal) -> None:

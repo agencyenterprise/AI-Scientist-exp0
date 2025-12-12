@@ -7,6 +7,7 @@ import type {
   ArtifactMetadata,
   ResearchRunDetails,
   PaperGenerationEvent,
+  BestNodeSelection,
 } from "@/types/research";
 
 export type { ResearchRunDetails };
@@ -28,6 +29,7 @@ interface UseResearchRunSSEOptions {
   onPaperGenerationProgress: (event: PaperGenerationEvent) => void;
   onComplete: (status: string) => void;
   onRunEvent?: (event: unknown) => void;
+  onBestNodeSelection?: (event: BestNodeSelection) => void;
   onError?: (error: string) => void;
 }
 
@@ -50,6 +52,7 @@ export function useResearchRunSSE({
   onPaperGenerationProgress,
   onComplete,
   onRunEvent,
+  onBestNodeSelection,
   onError,
 }: UseResearchRunSSEOptions): UseResearchRunSSEReturn {
   const [isConnected, setIsConnected] = useState(false);
@@ -135,6 +138,9 @@ export function useResearchRunSSE({
               case "run_event":
                 onRunEvent?.(event.data);
                 break;
+              case "best_node_selection":
+                onBestNodeSelection?.(event.data as BestNodeSelection);
+                break;
               case "paper_generation_progress":
                 onPaperGenerationProgress(event.data as PaperGenerationEvent);
                 break;
@@ -181,6 +187,7 @@ export function useResearchRunSSE({
     onArtifact,
     onRunUpdate,
     onRunEvent,
+    onBestNodeSelection,
     onPaperGenerationProgress,
     onComplete,
     onError,
