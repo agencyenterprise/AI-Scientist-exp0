@@ -97,6 +97,14 @@ class ResearchRunSubstageEvent(BaseModel):
     created_at: str = Field(..., description="ISO timestamp of the event")
 
 
+class ResearchRunBestNodeSelection(BaseModel):
+    id: int = Field(..., description="Unique identifier of the reasoning record")
+    stage: str = Field(..., description="Stage identifier where the selection happened")
+    node_id: str = Field(..., description="Identifier of the selected node")
+    reasoning: str = Field(..., description="LLM reasoning that justified the selection")
+    created_at: str = Field(..., description="ISO timestamp when the reasoning was recorded")
+
+
 class ResearchRunPaperGenerationProgress(BaseModel):
     id: int = Field(..., description="Unique identifier of the paper generation event")
     run_id: str = Field(..., description="Research run identifier")
@@ -156,6 +164,10 @@ class ResearchRunDetailsResponse(BaseModel):
     )
     substage_events: List[ResearchRunSubstageEvent] = Field(
         default_factory=list, description="Sub-stage completion events"
+    )
+    best_node_selections: List[ResearchRunBestNodeSelection] = Field(
+        default_factory=list,
+        description="Reasoning records captured whenever a best node is selected",
     )
     events: List[ResearchRunEvent] = Field(
         default_factory=list,

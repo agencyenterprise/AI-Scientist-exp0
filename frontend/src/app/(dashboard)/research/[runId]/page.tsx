@@ -92,8 +92,15 @@ export default function ResearchRunDetailPage() {
     );
   }
 
-  const { run, stage_progress, logs, artifacts, substage_events, paper_generation_progress } =
-    details;
+  const {
+    run,
+    stage_progress,
+    logs,
+    artifacts,
+    substage_events,
+    paper_generation_progress,
+    best_node_selections = [],
+  } = details;
   const latestProgress = stage_progress[stage_progress.length - 1];
   const canStopRun =
     conversationId !== null && (run.status === "running" || run.status === "pending");
@@ -127,11 +134,13 @@ export default function ResearchRunDetailPage() {
         />
 
         <div className="flex flew-row gap-6">
-          <div className="flex w-full sm:w-[60%] max-h-[600px] overflow-y-auto">
+          <div className="flex w-full sm:w-[60%]">
             <ResearchPipelineStages
               stageProgress={stage_progress}
               substageEvents={substage_events}
               paperGenerationProgress={paper_generation_progress}
+              bestNodeSelections={best_node_selections ?? []}
+              className="max-h-[600px] overflow-y-auto"
             />
           </div>
           <div className="flex flex-col w-full sm:w-[40%] max-h-[600px] overflow-y-auto">

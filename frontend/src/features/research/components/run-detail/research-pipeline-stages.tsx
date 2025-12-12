@@ -1,12 +1,20 @@
 "use client";
 
-import type { SubstageEvent, StageProgress, PaperGenerationEvent } from "@/types/research";
+import type {
+  SubstageEvent,
+  StageProgress,
+  PaperGenerationEvent,
+  BestNodeSelection,
+} from "@/types/research";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/shared/components/ui/tooltip";
+import { cn } from "@/shared/lib/utils";
 
 interface ResearchPipelineStagesProps {
   stageProgress: StageProgress[];
   substageEvents: SubstageEvent[];
   paperGenerationProgress: PaperGenerationEvent[];
+  bestNodeSelections: BestNodeSelection[];
+  className?: string;
 }
 
 // Define pipeline stages with their metadata
@@ -168,6 +176,26 @@ const getNodeSegments = (
   }));
 };
 
+const formatNodeId = (nodeId: string): string => {
+  if (nodeId.length <= 12) return nodeId;
+  return `${nodeId.slice(0, 6)}…${nodeId.slice(-4)}`;
+};
+
+const getBestNodeForStage = (
+  stageKey: string,
+  selections: BestNodeSelection[]
+): BestNodeSelection | null => {
+  const matches = selections.filter(selection => extractStageSlug(selection.stage) === stageKey);
+  if (matches.length === 0) {
+    return null;
+  }
+  return (
+    matches.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )[0] ?? null
+  );
+};
+
 // Paper generation step labels for Stage 5
 const PAPER_GENERATION_STEPS = [
   { key: "plot_aggregation", label: "Plot Aggregation" },
@@ -206,6 +234,8 @@ export function ResearchPipelineStages({
   stageProgress,
   substageEvents,
   paperGenerationProgress,
+  bestNodeSelections,
+  className,
 }: ResearchPipelineStagesProps) {
   /**
    * Get aggregated stage information for a given main stage
@@ -290,7 +320,7 @@ export function ResearchPipelineStages({
   };
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 w-full">
+    <div className={cn("rounded-xl border border-slate-800 bg-slate-900/50 p-6 w-full", className)}>
       <h2 className="mb-6 text-xl font-semibold text-white">Pipeline Stages</h2>
 
       <div className="flex flex-col gap-6">
@@ -301,6 +331,9 @@ export function ResearchPipelineStages({
             ? getPaperGenerationSegments(paperGenerationProgress)
             : getNodeSegments(stage.key, substageEvents, stageProgress);
           const emptyMessage = isPaperGeneration ? "No steps yet" : "No nodes yet";
+          const bestNode = isPaperGeneration
+            ? null
+            : getBestNodeForStage(stage.key, bestNodeSelections);
 
           return (
             <div key={stage.id} className="flex flex-col gap-3">
@@ -329,6 +362,22 @@ export function ResearchPipelineStages({
 
               {/* Unified progress bar for all stages */}
               <SegmentedProgressBar segments={segments} emptyMessage={emptyMessage} />
+
+              {!isPaperGeneration && bestNode && (
+                <div className="mt-2 w-full rounded-lg border border-slate-800/60 bg-slate-900/60 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    Current Best Node
+                  </p>
+                  <div className="mt-1 space-y-1">
+                    <p className="text-sm font-mono text-emerald-300">
+                      {formatNodeId(bestNode.node_id)}
+                    </p>
+                    <div className="max-h-24 overflow-y-auto text-xs leading-relaxed text-slate-200 whitespace-pre-wrap">
+                      {bestNode.reasoning}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

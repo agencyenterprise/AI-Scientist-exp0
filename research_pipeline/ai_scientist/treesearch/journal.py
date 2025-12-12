@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from ai_scientist.llm import query, structured_query_with_schema
 
-from .events import BaseEvent, RunLogEvent
+from .events import BaseEvent, BestNodeSelectedEvent, RunLogEvent
 from .interpreter import ExecutionResult
 from .utils.metric import MetricValue, WorstMetricValue
 from .utils.response import trim_long_string
@@ -352,6 +352,8 @@ class Journal:
     summary_temperature: float
     node_selection_temperature: float
     event_callback: Callable[[BaseEvent], None] = field(repr=False)
+    stage_name: str = "unknown"
+    run_id: str | None = None
     nodes: list[Node] = field(default_factory=list)
     # Multi-entry memoization to avoid repeated LLM selection calls across modes
     _best_cache: dict[str, Node | None] = field(default_factory=dict, repr=False)
@@ -385,6 +387,23 @@ class Journal:
         """Append a new node to the journal."""
         node.step = len(self.nodes)
         self.nodes.append(node)
+
+    def _emit_best_node_reasoning(self, *, node: Node, reasoning: str) -> None:
+        """Persist LLM reasoning for the selected best node when telemetry is enabled."""
+        if self.run_id is None:
+            return
+        reasoning_text = reasoning if reasoning.strip() else "No reasoning provided."
+        try:
+            self.event_callback(
+                BestNodeSelectedEvent(
+                    run_id=self.run_id,
+                    stage=self.stage_name,
+                    node_id=node.id,
+                    reasoning=reasoning_text,
+                )
+            )
+        except Exception:
+            logger.exception("Failed to emit BestNodeSelectedEvent for node %s", node.id)
 
     @property
     def draft_nodes(self) -> list[Node]:
@@ -547,6 +566,10 @@ class Journal:
             sel_metric_val = (
                 selected_metric_node.metric.value if selected_metric_node.metric else None
             )
+            self._emit_best_node_reasoning(
+                node=selected_metric_node,
+                reasoning=f"Metric-only selection (use_val_metric_only=True). Metric value: {sel_metric_val}",
+            )
             logger.info(
                 f"best-node (val_only=True): selected by metric -> "
                 f"{selected_metric_node.id[:8]} (metric={sel_metric_val}). Cached."
@@ -559,6 +582,10 @@ class Journal:
             self._best_cache_time_map[sig] = time.time()
             self._best_cache_candidate_ids_map[sig] = candidate_ids
             self._best_cache_total_nodes_count_map[sig] = total_nodes_count
+            self._emit_best_node_reasoning(
+                node=selected_single,
+                reasoning="Only one candidate available; bypassed LLM selection.",
+            )
             logger.debug(
                 f"Only one candidate; bypassing LLM selection. "
                 f"Selected {selected_single.id[:8]}. Cached.",
@@ -652,6 +679,8 @@ class Journal:
                     RunLogEvent(message=f"💡 Reasoning: {reasoning_preview}", level="info")
                 )
 
+                self._emit_best_node_reasoning(node=selected_node, reasoning=reasoning_text)
+
                 # Update cache
                 self._best_cache[sig] = selected_node
                 self._best_cache_time_map[sig] = time.time()
@@ -666,6 +695,15 @@ class Journal:
                     if nodes_with_metric
                     else None
                 )
+                if selected_fallback:
+                    fallback_reason = (
+                        f"LLM selected unknown node id {selected_id}; "
+                        "stored best metric candidate instead."
+                    )
+                    self._emit_best_node_reasoning(
+                        node=selected_fallback,
+                        reasoning=fallback_reason,
+                    )
                 self._best_cache[sig] = selected_fallback
                 self._best_cache_time_map[sig] = time.time()
                 self._best_cache_candidate_ids_map[sig] = candidate_ids
@@ -685,6 +723,11 @@ class Journal:
                 if nodes_with_metric
                 else None
             )
+            if selected_on_error:
+                self._emit_best_node_reasoning(
+                    node=selected_on_error,
+                    reasoning=f"LLM selection error: {e}. Falling back to best metric.",
+                )
             self._best_cache[sig] = selected_on_error
             self._best_cache_time_map[sig] = time.time()
             self._best_cache_candidate_ids_map[sig] = candidate_ids
@@ -782,10 +825,14 @@ class Journal:
         )
         return summary_text
 
-    def to_dict(self) -> dict[str, list[dict[str, object]] | str]:
+    def to_dict(self) -> dict[str, object]:
         """Convert journal to a JSON-serializable dictionary"""
         return {
             "nodes": [node.to_dict() for node in self.nodes],
             "summary_model": self.summary_model,
             "node_selection_model": self.node_selection_model,
+            "summary_temperature": self.summary_temperature,
+            "node_selection_temperature": self.node_selection_temperature,
+            "stage_name": self.stage_name,
+            "run_id": self.run_id,
         }

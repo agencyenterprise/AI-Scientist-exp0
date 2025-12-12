@@ -10,6 +10,7 @@ import type {
   ArtifactMetadata,
   PaperGenerationEvent,
   TreeVizItem,
+  BestNodeSelection,
 } from "@/types/research";
 import { useResearchRunSSE } from "./useResearchRunSSE";
 
@@ -89,6 +90,17 @@ export function useResearchRunDetails({
         ? {
             ...prev,
             paper_generation_progress: [...prev.paper_generation_progress, event],
+          }
+        : null
+    );
+  }, []);
+
+  const handleBestNodeSelection = useCallback((event: BestNodeSelection) => {
+    setDetails(prev =>
+      prev
+        ? {
+            ...prev,
+            best_node_selections: [...(prev.best_node_selections ?? []), event],
           }
         : null
     );
@@ -194,6 +206,7 @@ export function useResearchRunDetails({
     onRunUpdate: handleRunUpdate,
     onComplete: handleComplete,
     onRunEvent: handleRunEvent,
+    onBestNodeSelection: handleBestNodeSelection,
     onError: handleSSEError,
   });
 

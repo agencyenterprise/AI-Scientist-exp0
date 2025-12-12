@@ -18,6 +18,7 @@ from app.models import (
     LlmReviewNotFoundResponse,
     LlmReviewResponse,
     ResearchRunArtifactMetadata,
+    ResearchRunBestNodeSelection,
     ResearchRunDetailsResponse,
     ResearchRunEvent,
     ResearchRunInfo,
@@ -36,6 +37,7 @@ from app.services.database.research_pipeline_runs import (
 )
 from app.services.database.rp_artifacts import ResearchPipelineArtifact
 from app.services.database.rp_events import (
+    BestNodeReasoningEvent,
     PaperGenerationEvent,
     RunLogEvent,
     StageProgressEvent,
@@ -53,6 +55,21 @@ from app.services.s3_service import get_s3_service
 
 router = APIRouter(prefix="/conversations", tags=["research-pipeline"])
 logger = logging.getLogger(__name__)
+
+REQUESTER_NAME_FALLBACK = "Scientist"
+
+
+def extract_first_name(*, full_name: str) -> str:
+    """Return a cleaned first-name token suitable for pod naming."""
+    stripped = full_name.strip()
+    if not stripped:
+        return REQUESTER_NAME_FALLBACK
+    token = stripped.split()[0]
+    alnum_only = "".join(char for char in token if char.isalnum())
+    if not alnum_only:
+        return REQUESTER_NAME_FALLBACK
+    return f"{alnum_only[0].upper()}{alnum_only[1:]}"
+
 
 _launch_cancel_events: dict[str, threading.Event] = {}
 _launch_cancel_lock = threading.Lock()
@@ -136,6 +153,7 @@ def _idea_version_to_payload(idea_data: IdeaPayloadSource) -> Dict[str, object]:
 def _create_and_launch_research_run(
     *,
     idea_data: IdeaPayloadSource,
+    requested_by_first_name: str,
     background_tasks: BackgroundTasks | None = None,
 ) -> str:
     db = get_database()
@@ -159,6 +177,7 @@ def _create_and_launch_research_run(
             _launch_research_pipeline_job,
             run_id=run_id,
             idea_payload=idea_payload,
+            requested_by_first_name=requested_by_first_name,
             cancel_event=cancel_event,
         )
     else:
@@ -167,6 +186,7 @@ def _create_and_launch_research_run(
             kwargs={
                 "run_id": run_id,
                 "idea_payload": idea_payload,
+                "requested_by_first_name": requested_by_first_name,
                 "cancel_event": cancel_event,
             },
             daemon=True,
@@ -201,6 +221,7 @@ def _launch_research_pipeline_job(
     *,
     run_id: str,
     idea_payload: Dict[str, object],
+    requested_by_first_name: str,
     cancel_event: threading.Event | None = None,
 ) -> None:
     """Background task that launches the RunPod job and updates DB state."""
@@ -223,6 +244,7 @@ def _launch_research_pipeline_job(
             idea=idea_payload,
             config_name=config_name,
             run_id=run_id,
+            requested_by_first_name=requested_by_first_name,
         )
 
         if cancel_event and cancel_event.is_set():
@@ -353,6 +375,18 @@ def _node_event_to_model(event: SubstageCompletedEvent) -> ResearchRunSubstageEv
     )
 
 
+def _best_node_event_to_model(
+    event: BestNodeReasoningEvent,
+) -> ResearchRunBestNodeSelection:
+    return ResearchRunBestNodeSelection(
+        id=event.id,
+        stage=event.stage,
+        node_id=event.node_id,
+        reasoning=event.reasoning,
+        created_at=event.created_at.isoformat(),
+    )
+
+
 def _paper_generation_event_to_model(
     event: PaperGenerationEvent,
 ) -> ResearchRunPaperGenerationProgress:
@@ -428,8 +462,10 @@ def submit_idea_for_research(
         action="research_pipeline",
     )
 
+    requester_first_name = extract_first_name(full_name=user.name)
     run_id = _create_and_launch_research_run(
         idea_data=cast(IdeaPayloadSource, idea_data),
+        requested_by_first_name=requester_first_name,
         background_tasks=background_tasks,
     )
     return ResearchRunAcceptedResponse(run_id=run_id)
@@ -465,6 +501,10 @@ def get_research_run_details(
     substage_events = [
         _node_event_to_model(event) for event in db.list_substage_completed_events(run_id=run_id)
     ]
+    best_node_selections = [
+        _best_node_event_to_model(event)
+        for event in db.list_best_node_reasoning_events(run_id=run_id)
+    ]
     artifacts = [
         _artifact_to_model(
             artifact=artifact,
@@ -487,6 +527,7 @@ def get_research_run_details(
         stage_progress=stage_events,
         logs=log_events,
         substage_events=substage_events,
+        best_node_selections=best_node_selections,
         events=run_events,
         artifacts=artifacts,
         paper_generation_progress=paper_gen_events,
@@ -816,6 +857,7 @@ async def stream_research_run_events(
         last_heartbeat = datetime.now(timezone.utc)
         initial_sent = False
         last_run_event_id: Optional[int] = None
+        last_best_node_event_id: Optional[int] = None
 
         while True:
             # Check if client is still connected
@@ -860,6 +902,12 @@ async def stream_research_run_events(
                     run_events = [_run_event_to_model(e).model_dump() for e in run_events_raw]
                     if run_events_raw:
                         last_run_event_id = max(event.id for event in run_events_raw)
+                    best_node_events = db.list_best_node_reasoning_events(run_id=run_id)
+                    best_node_payload = [
+                        _best_node_event_to_model(event).model_dump() for event in best_node_events
+                    ]
+                    if best_node_events:
+                        last_best_node_event_id = max(event.id for event in best_node_events)
                     initial_data = {
                         "run": _run_to_info(current_run).model_dump(),
                         "stage_progress": stage_events,
@@ -869,6 +917,7 @@ async def stream_research_run_events(
                         "tree_viz": tree_viz,
                         "events": run_events,
                         "paper_generation_progress": paper_gen_events,
+                        "best_node_selections": best_node_payload,
                     }
                     yield f"data: {json.dumps({'type': 'initial', 'data': initial_data})}\n\n"
                     initial_sent = True
@@ -902,6 +951,23 @@ async def stream_research_run_events(
                     for event in new_events:
                         yield f"data: {json.dumps({'type': 'run_event', 'data': _run_event_to_model(event).model_dump()})}\n\n"
                         last_run_event_id = event.id
+
+                best_node_events = db.list_best_node_reasoning_events(run_id=run_id)
+                if best_node_events:
+                    new_best_nodes = (
+                        [
+                            best_event
+                            for best_event in best_node_events
+                            if last_best_node_event_id is None
+                            or best_event.id > last_best_node_event_id
+                        ]
+                        if last_best_node_event_id is not None
+                        else best_node_events
+                    )
+                    for best_event in new_best_nodes:
+                        payload = _best_node_event_to_model(best_event).model_dump()
+                        yield f"data: {json.dumps({'type': 'best_node_selection', 'data': payload})}\n\n"
+                        last_best_node_event_id = best_event.id
 
                 # Check and emit paper generation progress events
                 all_paper_gen = db.list_paper_generation_events(run_id=run_id)
