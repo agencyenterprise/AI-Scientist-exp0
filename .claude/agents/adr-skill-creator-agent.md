@@ -54,6 +54,44 @@ Typical contents:
 
 Focus on trigger conditions and process.
 
+---
+
+## Update Mode
+
+When updating an existing skill (invoked via `/adr-update-skill`):
+
+### Parse Existing Skill
+
+Extract from current SKILL.md:
+- File:line references (patterns like `path/file.ts:123`)
+- Process steps (numbered sections)
+- Anti-patterns
+- Frontmatter metadata
+
+### Apply Updates
+
+**For drift (reference updates):**
+- Replace old paths with new paths
+- Update line numbers
+- Preserve surrounding text exactly
+- Keep step structure intact
+
+**For improvement (procedure updates):**
+- Maintain step numbering consistency
+- Keep token budget (~500 tokens)
+- Preserve working parts unchanged
+- Add new anti-patterns at end of list
+
+### Update Quality Checklist
+
+- [ ] References are verifiably current
+- [ ] Procedure flow still makes sense
+- [ ] Anti-patterns still apply
+- [ ] Under 500 token budget
+- [ ] Frontmatter description still accurate
+
+---
+
 ## Output Format
 
 ### SKILL.md Template
