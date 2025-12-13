@@ -32,6 +32,16 @@ export interface UseManualIdeaImportReturn {
   streamingRef: React.RefObject<HTMLTextAreaElement | null>;
 }
 
+const SECTION_ORDER = [
+  "title",
+  "short_hypothesis",
+  "related_work",
+  "abstract",
+  "experiments",
+  "expected_outcome",
+  "risk_factors_and_limitations",
+] as const;
+
 export function useManualIdeaImport(
   options: UseManualIdeaImportOptions = {}
 ): UseManualIdeaImportReturn {
@@ -103,6 +113,15 @@ export function useManualIdeaImport(
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let accumulatedContent = "";
+        const sectionMap: Record<string, string> = {};
+        const buildSectionContent = () =>
+          SECTION_ORDER.filter(key => sectionMap[key])
+            .map(key => sectionMap[key])
+            .join("\n");
+        const updateStreamingContent = () => {
+          const sectionContent = buildSectionContent();
+          setStreamingContent(sectionContent || accumulatedContent);
+        };
         let buffer = "";
 
         while (true) {
@@ -128,13 +147,13 @@ export function useManualIdeaImport(
             switch (eventData.type) {
               case "content": {
                 accumulatedContent += eventData.data;
-                setStreamingContent(accumulatedContent);
+                updateStreamingContent();
                 break;
               }
               case "section_update": {
-                const { data } = eventData;
-                accumulatedContent += data;
-                setStreamingContent(accumulatedContent);
+                const { field, data } = eventData;
+                sectionMap[field] = data;
+                updateStreamingContent();
                 break;
               }
               case "state": {

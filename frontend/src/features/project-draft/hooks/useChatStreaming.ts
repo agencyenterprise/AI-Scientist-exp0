@@ -223,20 +223,24 @@ export function useChatStreaming({
           }
         }
 
-        // Add the final assistant message if we have content
-        if (accumulatedContent.trim()) {
-          const assistantMessage: ChatMessage = {
-            role: "assistant",
-            content: accumulatedContent.trim(),
-            sequence_number: messages.length + 2,
-            created_at: new Date().toISOString(),
-            sent_by_user_id: user.id, // User who triggered this response
-            sent_by_user_name: user.name,
-            sent_by_user_email: user.email,
-            attachments: [],
-          };
-
-          setMessages(prev => [...prev, assistantMessage]);
+        const trimmedContent = accumulatedContent.trim();
+        if (trimmedContent) {
+          setMessages(prev => {
+            if (prev.some(msg => msg.content === trimmedContent && msg.role === "assistant")) {
+              return prev;
+            }
+            const assistantMessage: ChatMessage = {
+              role: "assistant",
+              content: trimmedContent,
+              sequence_number: prev.length + 1,
+              created_at: new Date().toISOString(),
+              sent_by_user_id: user.id,
+              sent_by_user_name: user.name,
+              sent_by_user_email: user.email,
+              attachments: [],
+            };
+            return [...prev, assistantMessage];
+          });
         }
 
         // Trigger idea update if needed
